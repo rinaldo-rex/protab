@@ -12,6 +12,8 @@ export interface OwnershipEntry {
 export interface ReconciliationResult {
   tabs: LiveTabView[]
   ownership: OwnershipEntry[]
+  matched: number
+  ambiguous: number
 }
 
 function recordFor(state: PersistedStateV1, entry: OwnershipEntry) {
@@ -30,6 +32,8 @@ export function candidatesForUrl(state: PersistedStateV1, url: string | undefine
 export function reconcileOwnership(state: PersistedStateV1, tabs: LiveTabView[], entries: OwnershipEntry[]): ReconciliationResult {
   const byTabId = new Map(entries.map((entry) => [entry.tabId, entry]))
   const ownership: OwnershipEntry[] = []
+  let matched = 0
+  let ambiguous = 0
   const reconciled = tabs.map((tab) => {
     const explicit = byTabId.get(tab.tabId)
     const reference = explicit && recordFor(state, explicit)
@@ -38,9 +42,18 @@ export function reconcileOwnership(state: PersistedStateV1, tabs: LiveTabView[],
       ownership.push(retained)
       return { ...tab, candidates: [], ownership: { projectId: retained.projectId, savedUrlId: retained.savedUrlId, establishedUrl: retained.establishedUrl, drifted: !tab.supported || tab.url !== retained.establishedUrl } }
     }
-    return { ...tab, candidates: tab.supported ? candidatesForUrl(state, tab.url) : [] }
+    const candidates = tab.supported ? candidatesForUrl(state, tab.url) : []
+    if (candidates.length === 1 && tab.url) {
+      const candidate = candidates[0]
+      const entry = { tabId: tab.tabId, windowId: tab.windowId, projectId: candidate.projectId, savedUrlId: candidate.savedUrlId, establishedUrl: tab.url }
+      ownership.push(entry)
+      matched += 1
+      return { ...tab, candidates: [], ownership: { ...candidate, establishedUrl: tab.url, drifted: false } }
+    }
+    if (candidates.length > 1) ambiguous += 1
+    return { ...tab, candidates }
   })
-  return { tabs: reconciled, ownership }
+  return { tabs: reconciled, ownership, matched, ambiguous }
 }
 
 export function groupLiveTabs(state: PersistedStateV1, tabs: LiveTabView[]): LiveTabGroup[] {

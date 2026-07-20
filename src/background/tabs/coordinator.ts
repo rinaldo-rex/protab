@@ -16,6 +16,7 @@ export class LiveTabsCoordinator {
   private readonly clients = new Map<number, ClientSubscription>()
   private readonly refreshQueued = new Set<number>()
   private readonly operationTails = new Map<number, Promise<void>>()
+  private readonly reconciledWindows = new Set<number>()
 
   constructor(
     private readonly api: ChromeTabsApi,
@@ -56,16 +57,20 @@ export class LiveTabsCoordinator {
     try {
       const rawTabs = await queryOrdinaryTabs(this.api, windowId)
       let tabs = rawTabs
+      let reconciliation: LiveTabInventory['reconciliation']
       if (this.ownership) {
         const [state, entries] = await Promise.all([this.readState(), this.ownership.read()])
         const reconciled = reconcileOwnership(state, rawTabs, entries)
         tabs = reconciled.tabs
-        const validIds = new Set(reconciled.ownership.map((entry) => entry.tabId))
-        if (entries.some((entry) => !validIds.has(entry.tabId)) || reconciled.ownership.some((entry) => entries.find((current) => current.tabId === entry.tabId)?.windowId !== entry.windowId)) {
-          await this.ownership.replace(reconciled.ownership)
+        const nextById = new Map(reconciled.ownership.map((entry) => [entry.tabId, entry]))
+        const ownershipChanged = entries.length !== reconciled.ownership.length || entries.some((entry) => JSON.stringify(entry) !== JSON.stringify(nextById.get(entry.tabId)))
+        if (ownershipChanged) await this.ownership.replace(reconciled.ownership)
+        if (!this.reconciledWindows.has(windowId)) {
+          this.reconciledWindows.add(windowId)
+          if (reconciled.matched || reconciled.ambiguous) reconciliation = { matched: reconciled.matched, ambiguous: reconciled.ambiguous }
         }
       }
-      const inventory: LiveTabInventory = { windowId, tabs, stale: false }
+      const inventory: LiveTabInventory = { windowId, tabs, stale: false, reconciliation }
       subscribers.forEach((client) => {
         client.lastInventory = inventory
         this.post(client, { kind: 'LIVE_TAB_INVENTORY', inventory })

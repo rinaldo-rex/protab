@@ -37,6 +37,7 @@ export interface LiveTabInventory {
   tabs: LiveTabView[]
   stale: boolean
   error?: string
+  reconciliation?: { matched: number; ambiguous: number }
 }
 
 export function isSupportedTabUrl(value: string | undefined): boolean {

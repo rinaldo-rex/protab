@@ -146,6 +146,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .pane-heading span { color: #756d66; font-size: 9px; font-weight: 600; letter-spacing: .1em; }
 .tabs-warning { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; color: #700006; background: var(--error-container); border-bottom: 1px solid #e6a9a3; font-size: 11px; }
 .tabs-warning button { border: 0; background: transparent; color: inherit; font-size: 10px; font-weight: 600; text-decoration: underline; }
+.reconciliation-summary { display: flex; justify-content: space-between; gap: 8px; padding: 9px 12px; color: var(--on-surface-variant); background: #e6ded5; border-bottom: 1px solid var(--outline-variant); font-size: 10px; line-height: 1.4; }
+.reconciliation-summary button { align-self: start; padding: 0; border: 0; background: transparent; color: inherit; font-size: 9px; font-weight: 600; text-decoration: underline; }
 .tabs-error { padding: 20px 16px; color: var(--on-surface-variant); border-bottom: 1px solid var(--outline-variant); text-align: center; }
 .tabs-error h3 { margin: 8px 0 5px; color: var(--on-surface); font-size: 14px; }
 .tabs-error p { margin: 0 0 12px; font-size: 11px; line-height: 1.5; }
