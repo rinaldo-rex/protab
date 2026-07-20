@@ -2,7 +2,7 @@
 
 Protab is a local-first Chrome extension for turning temporary browser tabs into durable, project-based URL collections.
 
-> **Status:** Phase 1 is implemented. The extension provides persistent projects and saved URL records; live-tab integration begins in Phase 2.
+> **Status:** Phase 2 is implemented. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, and saved-URL opening. Manual Chrome acceptance remains to be recorded.
 
 ## Core workflow
 
@@ -46,13 +46,13 @@ npm run build
 4. Choose **Load unpacked** and select this repository's `dist/` directory.
 5. Pin Protab if desired, then click its toolbar action to open the full-page workspace.
 
-The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. Phase 1 requests only the `storage` and `tabs` permissions and does not inspect or manipulate ordinary browser tabs.
+The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. Phase 2 requests only the `storage` and `tabs` permissions. It inventories and focuses ordinary tabs, opens saved URLs, and tracks runtime ownership; no Phase 2 path closes an ordinary tab.
 
-## Phase 1 manual checks
+## Phase 2 manual checks
 
-See [`docs/phase-1-testing.md`](docs/phase-1-testing.md) for the two-window, persistence, keyboard, network, and visual acceptance checks.
+See [`docs/phase-2-testing.md`](docs/phase-2-testing.md) for the two-window, ownership, restart reconciliation, keyboard, console, Network, and visual acceptance checks.
 
-## Phase 1 completion
+## Phase 1 records
 
 Phase 1 implementation and reported manual acceptance results are recorded in [`docs/phase-1-completion.md`](docs/phase-1-completion.md). The production extension is built into `dist/`.
 
