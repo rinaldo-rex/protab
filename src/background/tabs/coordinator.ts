@@ -15,6 +15,7 @@ interface ClientSubscription {
 export class LiveTabsCoordinator {
   private readonly clients = new Map<number, ClientSubscription>()
   private readonly refreshQueued = new Set<number>()
+  private readonly operationTails = new Map<number, Promise<void>>()
 
   constructor(
     private readonly api: ChromeTabsApi,
@@ -93,6 +94,10 @@ export class LiveTabsCoordinator {
       await this.assign(client, message.tabId, message.projectId, message.savedUrlId)
       return
     }
+    if (message.kind === 'OPEN_SAVED_URL' && typeof message.projectId === 'string' && typeof message.savedUrlId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.open(client, message.projectId!, message.savedUrlId!))
+      return
+    }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
@@ -108,6 +113,57 @@ export class LiveTabsCoordinator {
       })
       this.scheduleWindow(client.windowId)
     }
+  }
+
+  private async open(client: ClientSubscription, projectId: string, savedUrlId: string): Promise<void> {
+    if (!this.ownership) return
+    try {
+      const state = await this.readState()
+      const project = state.projects.find((candidate) => candidate.id === projectId)
+      const record = project?.savedUrls.find((candidate) => candidate.id === savedUrlId)
+      if (!project || !record) throw new Error('That saved URL no longer exists.')
+      const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
+      const entries = await this.ownership.read()
+      const inventory = reconcileOwnership(state, rawTabs, entries).tabs
+      const rawById = new Map((await this.api.query(client.windowId)).map((tab) => [tab.id, tab]))
+      const owned = inventory.filter((tab) => tab.ownership?.projectId === projectId && tab.ownership.savedUrlId === savedUrlId && !tab.ownership.drifted && tab.url === record.url)
+      const selected = owned.sort((left, right) => {
+        const leftAccessed = rawById.get(left.tabId)?.lastAccessed ?? -1
+        const rightAccessed = rawById.get(right.tabId)?.lastAccessed ?? -1
+        return rightAccessed - leftAccessed || right.tabId - left.tabId
+      })[0]
+      if (selected) {
+        await this.api.focusWindow(client.windowId)
+        await this.api.activate(selected.tabId)
+        this.scheduleWindow(client.windowId)
+        return
+      }
+      const reusable = inventory.find((tab) => !tab.ownership && tab.url === record.url && tab.candidates.length === 1 && tab.candidates[0].projectId === projectId && tab.candidates[0].savedUrlId === savedUrlId)
+      if (reusable) {
+        await this.ownership.update((current) => [...current.filter((entry) => entry.tabId !== reusable.tabId), { tabId: reusable.tabId, windowId: client.windowId, projectId, savedUrlId, establishedUrl: record.url }])
+        await this.api.focusWindow(client.windowId)
+        await this.api.activate(reusable.tabId)
+        await this.refreshWindow(client.windowId)
+        return
+      }
+      const created = await this.api.create(client.windowId, record.url)
+      if (created.id === undefined) throw new Error('Chrome opened the page without returning a tab identity.')
+      try {
+        await this.ownership.update((current) => [...current.filter((entry) => entry.tabId !== created.id), { tabId: created.id!, windowId: client.windowId, projectId, savedUrlId, establishedUrl: record.url }])
+      } catch {
+        throw new Error(`“${record.title}” opened, but Protab could not mark it as owned.`)
+      }
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Protab could not open that saved URL.' })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private enqueueWindow(windowId: number, operation: () => Promise<void>): void {
+    const previous = this.operationTails.get(windowId) ?? Promise.resolve()
+    const next = previous.then(operation, operation)
+    this.operationTails.set(windowId, next.then(() => undefined, () => undefined))
   }
 
   private async assign(client: ClientSubscription, tabId: number, projectId: string, savedUrlId: string): Promise<void> {

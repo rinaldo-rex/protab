@@ -8,6 +8,7 @@ function api(tabs: chrome.tabs.Tab[]): ChromeTabsApi {
     get: vi.fn(),
     activate: vi.fn(),
     focusWindow: vi.fn(),
+    create: vi.fn(async (windowId, url) => ({ id: 99, windowId, url } as chrome.tabs.Tab)),
   }
 }
 

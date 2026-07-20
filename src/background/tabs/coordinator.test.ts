@@ -29,8 +29,23 @@ function api(): ChromeTabsApi {
     get: vi.fn(async (tabId) => ({ id: tabId, windowId: 1 } as chrome.tabs.Tab)),
     activate: vi.fn(async () => undefined),
     focusWindow: vi.fn(async () => undefined),
+    create: vi.fn(async (windowId, url) => ({ id: 99, windowId, url } as chrome.tabs.Tab)),
   }
 }
+
+function createOwnershipStore() {
+  const entries: import('../../domain/ownership').OwnershipEntry[] = []
+  return {
+    entries,
+    store: {
+      read: vi.fn(async () => structuredClone(entries)),
+      replace: vi.fn(async (next: typeof entries) => { entries.splice(0, entries.length, ...next) }),
+      update: vi.fn(async (mutate: (current: typeof entries) => typeof entries) => { entries.splice(0, entries.length, ...mutate(structuredClone(entries))); return entries }),
+    },
+  }
+}
+
+const projectState = { schemaVersion: 1 as const, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://1.test/', title: 'One', titleSource: 'automatic' as const, tags: [], notes: '' }] }] }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -65,13 +80,8 @@ describe('live tabs coordinator', () => {
 
   it('assigns only after revalidating the current URL candidate', async () => {
     const chrome = api()
-    const state = { schemaVersion: 1 as const, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://1.test/', title: 'One', titleSource: 'automatic' as const, tags: [], notes: '' }] }] }
-    const entries: import('../../domain/ownership').OwnershipEntry[] = []
-    const ownership = {
-      read: vi.fn(async () => entries),
-      replace: vi.fn(async () => undefined),
-      update: vi.fn(async (mutate: (current: typeof entries) => typeof entries) => { entries.splice(0, entries.length, ...mutate(entries)); return entries }),
-    }
+    const state = projectState
+    const { entries, store: ownership } = createOwnershipStore()
     const coordinator = new LiveTabsCoordinator(chrome, ownership as never, async () => state)
     const client = port({ id: 2, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
     coordinator.connect(client)
@@ -80,6 +90,55 @@ describe('live tabs coordinator', () => {
     await tick()
     expect(entries).toEqual([{ tabId: 10, windowId: 1, projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://1.test/' }])
     expect(chrome.activate).not.toHaveBeenCalled()
+  })
+
+  it('opens with owned, unassigned, then create precedence', async () => {
+    const chrome = api()
+    const { entries, store } = createOwnershipStore()
+    const coordinator = new LiveTabsCoordinator(chrome, store as never, async () => projectState)
+    const client = port({ id: 2, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+    coordinator.connect(client)
+    await tick()
+
+    entries.push({ tabId: 10, windowId: 1, projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://1.test/' })
+    client.onMessage.emit({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
+    await tick()
+    expect(chrome.activate).toHaveBeenCalledWith(10)
+    expect(chrome.create).not.toHaveBeenCalled()
+
+    entries.splice(0)
+    vi.mocked(chrome.activate).mockClear()
+    client.onMessage.emit({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
+    await tick()
+    expect(chrome.activate).toHaveBeenCalledWith(10)
+    expect(entries[0]).toMatchObject({ tabId: 10, projectId: 'p1', savedUrlId: 'u1' })
+
+    entries.splice(0)
+    vi.mocked(chrome.query).mockResolvedValue([])
+    client.onMessage.emit({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(chrome.create).toHaveBeenCalledWith(1, 'https://1.test/')
+    expect(store.update).toHaveBeenCalled()
+  })
+
+  it('chooses the most recently accessed eligible owned instance', async () => {
+    const chrome = api()
+    vi.mocked(chrome.query).mockResolvedValue([
+      { id: 10, windowId: 1, index: 0, active: false, url: 'https://1.test/', lastAccessed: 100 },
+      { id: 11, windowId: 1, index: 1, active: false, url: 'https://1.test/', lastAccessed: 200 },
+    ] as chrome.tabs.Tab[])
+    const { entries, store } = createOwnershipStore()
+    entries.push(
+      { tabId: 10, windowId: 1, projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://1.test/' },
+      { tabId: 11, windowId: 1, projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://1.test/' },
+    )
+    const coordinator = new LiveTabsCoordinator(chrome, store as never, async () => projectState)
+    const client = port({ id: 2, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+    coordinator.connect(client)
+    await tick()
+    client.onMessage.emit({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
+    await tick()
+    expect(chrome.activate).toHaveBeenLastCalledWith(11)
   })
 
   it('retains the last snapshot when a query fails and retries', async () => {

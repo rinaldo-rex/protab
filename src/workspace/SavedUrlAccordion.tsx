@@ -6,6 +6,7 @@ import { TagEditor } from './TagEditor'
 import { ActionMenu } from './ActionMenu'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { WorkspaceModel } from './useWorkspace'
+import type { LiveTabsModel } from './useLiveTabs'
 
 interface SavedUrlAccordionProps {
   projectId: string
@@ -14,6 +15,8 @@ interface SavedUrlAccordionProps {
   count: number
   expanded: boolean
   model: WorkspaceModel
+  liveTabs: LiveTabsModel
+  instanceCount: number
   projects: Project[]
   tagSuggestions: string[]
   onToggle: (id: string, open: boolean) => void
@@ -23,7 +26,7 @@ interface SavedUrlAccordionProps {
 
 type FieldName = 'url' | 'title' | 'notes'
 
-export function SavedUrlAccordion({ projectId, record, index, count, expanded, model, projects, tagSuggestions, onToggle, onNavigate, onDeleted }: SavedUrlAccordionProps) {
+export function SavedUrlAccordion({ projectId, record, index, count, expanded, model, liveTabs, instanceCount, projects, tagSuggestions, onToggle, onNavigate, onDeleted }: SavedUrlAccordionProps) {
   const [url, setUrl] = useState(record.url)
   const [title, setTitle] = useState(record.title)
   const [notes, setNotes] = useState(record.notes)
@@ -81,6 +84,8 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
           <ChevronDown size={18} className={expanded ? 'chevron expanded' : 'chevron'} />
         </button>
         <div className="record-actions">
+          {instanceCount > 0 && <span className="instance-count" aria-label={`${instanceCount} open ${instanceCount === 1 ? 'instance' : 'instances'}`}>{instanceCount} open</span>}
+          <button className="open-url-button" onClick={() => liveTabs.open(projectId, record.id)}>Open</button>
           <button ref={triggerRef} className="icon-button" aria-label={`Saved URL actions for ${record.title}`} aria-haspopup="menu" aria-expanded={menuOpen} title="Saved URL actions" onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={18} /></button>
           <ActionMenu label={`Actions for ${record.title}`} open={menuOpen} onClose={() => { setMenuOpen(false); queueMicrotask(() => triggerRef.current?.focus()) }}>
             <button role="menuitem" disabled={index === 0} onClick={() => void move(index - 1)}>Move up</button>

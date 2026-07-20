@@ -6,6 +6,7 @@ export interface ChromeTabsApi {
   get(tabId: number): Promise<chrome.tabs.Tab>
   activate(tabId: number): Promise<void>
   focusWindow(windowId: number): Promise<void>
+  create(windowId: number, url: string): Promise<chrome.tabs.Tab>
 }
 
 export class ChromeTabsAdapter implements ChromeTabsApi {
@@ -14,6 +15,7 @@ export class ChromeTabsAdapter implements ChromeTabsApi {
   get(tabId: number) { return chrome.tabs.get(tabId) }
   async activate(tabId: number) { await chrome.tabs.update(tabId, { active: true }) }
   async focusWindow(windowId: number) { await chrome.windows.update(windowId, { focused: true }) }
+  create(windowId: number, url: string) { return chrome.tabs.create({ windowId, url }) }
 }
 
 export async function queryOrdinaryTabs(api: ChromeTabsApi, windowId: number): Promise<LiveTabView[]> {
