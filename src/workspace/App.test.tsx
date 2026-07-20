@@ -214,6 +214,9 @@ describe('project workspace shell', () => {
     expect(screen.getByLabelText('1 open instance')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open' }))
     expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
+    await user.click(screen.getByRole('button', { name: 'Saved URL actions for One URL' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open another copy' }))
+    expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL_COPY', projectId: 'p1', savedUrlId: 'u1' })
   })
 
   it('assigns an ambiguous matching tab without changing saved metadata', async () => {

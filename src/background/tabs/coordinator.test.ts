@@ -121,6 +121,21 @@ describe('live tabs coordinator', () => {
     expect(store.update).toHaveBeenCalled()
   })
 
+  it('always creates another owned copy', async () => {
+    const chrome = api()
+    const { entries, store } = createOwnershipStore()
+    entries.push({ tabId: 10, windowId: 1, projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://1.test/' })
+    const coordinator = new LiveTabsCoordinator(chrome, store as never, async () => projectState)
+    const client = port({ id: 2, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+    coordinator.connect(client)
+    await tick()
+    client.onMessage.emit({ kind: 'OPEN_SAVED_URL_COPY', projectId: 'p1', savedUrlId: 'u1' })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(chrome.create).toHaveBeenCalledWith(1, 'https://1.test/')
+    expect(chrome.activate).not.toHaveBeenCalled()
+    expect(store.update).toHaveBeenCalled()
+  })
+
   it('chooses the most recently accessed eligible owned instance', async () => {
     const chrome = api()
     vi.mocked(chrome.query).mockResolvedValue([

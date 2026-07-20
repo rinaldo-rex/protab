@@ -85,9 +85,10 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
         </button>
         <div className="record-actions">
           {instanceCount > 0 && <span className="instance-count" aria-label={`${instanceCount} open ${instanceCount === 1 ? 'instance' : 'instances'}`}>{instanceCount} open</span>}
-          <button className="open-url-button" onClick={() => liveTabs.open(projectId, record.id)}>Open</button>
+          <button className="open-url-button" onClick={(event) => event.shiftKey ? liveTabs.openCopy(projectId, record.id) : liveTabs.open(projectId, record.id)}>Open</button>
           <button ref={triggerRef} className="icon-button" aria-label={`Saved URL actions for ${record.title}`} aria-haspopup="menu" aria-expanded={menuOpen} title="Saved URL actions" onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={18} /></button>
           <ActionMenu label={`Actions for ${record.title}`} open={menuOpen} onClose={() => { setMenuOpen(false); queueMicrotask(() => triggerRef.current?.focus()) }}>
+            <button role="menuitem" onClick={() => { setMenuOpen(false); liveTabs.openCopy(projectId, record.id); queueMicrotask(() => triggerRef.current?.focus()) }}>Open another copy</button>
             <button role="menuitem" disabled={index === 0} onClick={() => void move(index - 1)}>Move up</button>
             <button role="menuitem" disabled={index === count - 1} onClick={() => void move(index + 1)}>Move down</button>
             <button role="menuitem" onClick={() => { setMenuOpen(false); setCopying(true) }}>Copy to project…</button>

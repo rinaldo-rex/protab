@@ -98,6 +98,10 @@ export class LiveTabsCoordinator {
       this.enqueueWindow(client.windowId, () => this.open(client, message.projectId!, message.savedUrlId!))
       return
     }
+    if (message.kind === 'OPEN_SAVED_URL_COPY' && typeof message.projectId === 'string' && typeof message.savedUrlId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.openCopy(client, message.projectId!, message.savedUrlId!))
+      return
+    }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
@@ -111,6 +115,27 @@ export class LiveTabsCoordinator {
         tabId: message.tabId,
         message: reason instanceof Error ? reason.message : 'Chrome could not focus that tab.',
       })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async openCopy(client: ClientSubscription, projectId: string, savedUrlId: string): Promise<void> {
+    if (!this.ownership) return
+    try {
+      const state = await this.readState()
+      const project = state.projects.find((candidate) => candidate.id === projectId)
+      const record = project?.savedUrls.find((candidate) => candidate.id === savedUrlId)
+      if (!project || !record) throw new Error('That saved URL no longer exists.')
+      const created = await this.api.create(client.windowId, record.url)
+      if (created.id === undefined) throw new Error('Chrome opened the page without returning a tab identity.')
+      try {
+        await this.ownership.update((current) => [...current.filter((entry) => entry.tabId !== created.id), { tabId: created.id!, windowId: client.windowId, projectId, savedUrlId, establishedUrl: record.url }])
+      } catch {
+        throw new Error(`Another copy of “${record.title}” opened, but Protab could not mark it as owned.`)
+      }
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Protab could not open another copy.' })
       this.scheduleWindow(client.windowId)
     }
   }
