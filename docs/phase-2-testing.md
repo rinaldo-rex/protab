@@ -25,27 +25,27 @@ After source changes, run `npm run build`, then use **Reload** on the extension 
 
 Record the Chrome version, OS, date, and tester. Capture two-window inventory screenshots and one 1280 × 1024 workspace screenshot.
 
-- [ ] In two Chrome windows, open different ordinary tabs and a Protab workspace. Each pane shows only its own window, and no Protab workspace tab appears.
-- [ ] Create, update, activate, reorder, move, and remove ordinary tabs. Inventory and tab-strip order update without reloading Protab.
-- [ ] Confirm HTTP(S) tabs are supported. `chrome://`, extension, and other internal pages stay visible as **Unsupported page — view only** and offer no assignment.
-- [ ] Select a live row using keyboard only. Chrome focuses its window and activates the tab.
-- [ ] Open a saved URL. A uniquely matching unassigned tab is claimed and focused; otherwise a new owned tab opens.
-- [ ] Invoke **Open** again. The most recently used exact owned instance is focused and no duplicate is created.
-- [ ] Invoke **Open another copy**. A distinct owned instance always opens and both instances are listed/countable.
-- [ ] Open identical URLs from two projects. Ownership remains independent and Open never steals another project's instance.
-- [ ] Navigate an owned tab away from its saved URL. It remains under its project and says **Navigated from saved URL**. Open creates or reuses an exact current match instead.
+- [x] In two Chrome windows, open different ordinary tabs and a Protab workspace. Each pane shows only its own window, and no Protab workspace tab appears.
+- [x] Create, update, activate, reorder, move, and remove ordinary tabs. Inventory and tab-strip order update without reloading Protab.
+- [x] Confirm HTTP(S) tabs are supported. `chrome://`, extension, and other internal pages stay visible as **Unsupported page — view only** and offer no assignment.
+- [x] Select a live row using keyboard only. Chrome focuses its window and activates the tab.
+- [x] Open a saved URL. A uniquely matching unassigned tab is claimed and focused; otherwise a new owned tab opens.
+- [x] Invoke **Open** again. The most recently used exact owned instance is focused and no duplicate is created.
+- [x] Invoke **Open another copy**. A distinct owned instance always opens and both instances are listed/countable.
+- [x] Open identical URLs from two projects. Ownership remains independent and Open never steals another project's instance.
+- [x] Navigate an owned tab away from its saved URL. It remains under its project and says **Navigated from saved URL**. Open creates or reuses an exact current match instead.
 - [ ] Create the same saved URL in two projects, clear runtime ownership by restarting Chrome, and confirm the matching tab remains Unassigned with both candidates.
 - [ ] Assign the ambiguous tab. It stays open, moves to the selected project group, and saved title/tags/notes remain unchanged.
 - [ ] Suspend the extension service worker from `chrome://extensions`, then interact again. Explicit ownership remains after wake.
 - [ ] Fully restart Chrome. Reconciliation is non-destructive: it creates, closes, moves, or edits nothing; unique matches are restored and ambiguous matches need review.
-- [ ] Delete a project with owned live tabs. The confirmation reports saved URL and live-tab counts; tabs stay open and become Unassigned.
-- [ ] Exercise group collapse, row activation, assignment, Open, Open another copy, and project deletion using keyboard only. Focus returns to canceled triggers.
+- [x] Delete a project with owned live tabs. The confirmation reports saved URL and live-tab counts; tabs stay open and become Unassigned.
+- [x] Exercise group collapse, row activation, assignment, Open, Open another copy, and project deletion using keyboard only. Focus returns to canceled triggers.
 - [ ] Force or observe a query/focus/create failure. The error is scoped and retryable; project data remains usable.
 
 ## Console and Network review
 
-- [ ] Workspace and service-worker consoles contain no unexpected errors during the checklist.
-- [ ] Network shows no requests initiated by Protab application code. Browser-managed favicon loads may appear and should be identified separately.
+- [x] Workspace and service-worker consoles contain no unexpected errors during the checklist.
+- [x] Network shows no requests initiated by Protab application code. Browser-managed favicon loads may appear and should be identified separately.
 - [ ] Confirm the loaded manifest requests only `storage` and `tabs` permissions.
 - [ ] Confirm no tested Phase 2 operation closes an ordinary browser tab.
 
