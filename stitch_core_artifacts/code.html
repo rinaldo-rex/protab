@@ -1,0 +1,387 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Workspace Explorer - TabManager Pro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#f2f0ed",
+                        "on-tertiary-fixed": "#1c1b19",
+                        "on-surface-variant": "#4d4540",
+                        "surface-container": "#efeeeb",
+                        "on-secondary-fixed": "#1e1b16",
+                        "surface-dim": "#dbdad7",
+                        "surface-tint": "#635d5a",
+                        "tertiary": "#161613",
+                        "surface-container-low": "#f5f3f0",
+                        "secondary": "#635e56",
+                        "on-background": "#1b1c1a",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#e4e2df",
+                        "primary-container": "#2d2926",
+                        "on-secondary-fixed-variant": "#4b463f",
+                        "primary": "#181512",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#cdc5c0",
+                        "outline": "#7e756f",
+                        "background": "#fbf9f6",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed-dim": "#cac6c1",
+                        "on-tertiary-fixed-variant": "#484743",
+                        "surface-container-high": "#eae8e5",
+                        "primary-fixed": "#e9e1dc",
+                        "inverse-surface": "#30312f",
+                        "on-secondary-container": "#67625a",
+                        "secondary-container": "#e6ded5",
+                        "surface-bright": "#fbf9f6",
+                        "surface": "#fbf9f6",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#cdc5c0",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-container": "#94918c",
+                        "surface-variant": "#e4e2df",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#1e1b18",
+                        "on-surface": "#1b1c1a",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#e6e2dd",
+                        "secondary-fixed": "#e9e1d8",
+                        "on-primary-container": "#96908b",
+                        "secondary-fixed-dim": "#cdc5bc",
+                        "outline-variant": "#cfc4bd",
+                        "tertiary-container": "#2b2a27",
+                        "on-primary-fixed-variant": "#4b4642"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "40px",
+                        "lg": "24px",
+                        "gutter": "12px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "xs": "4px",
+                        "sidebar-width": "240px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "display": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #F2F0ED;
+            color: #1B1C1A;
+            font-family: 'Inter', sans-serif;
+        }
+        .soft-grid-pane {
+            background-color: #FBF9F6;
+            border: 1px solid #E4E2DF;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #DCD9D6;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="overflow-hidden h-screen flex">
+<!-- SideNavBar Component (Immutable Content + Mandatory Styling) -->
+<aside class="flex flex-col h-full w-sidebar-width py-md bg-tertiary dark:bg-tertiary-container fixed left-0 top-0 border-r border-outline-variant/10 z-50">
+<div class="px-md mb-xl">
+<h1 class="font-headline-md text-headline-md font-bold text-on-tertiary">TabManager Pro</h1>
+<p class="text-[10px] uppercase tracking-widest text-on-tertiary/40 mt-1">V2.4.0</p>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<div class="flex flex-col">
+<div class="flex items-center justify-between px-md py-sm cursor-pointer active:opacity-80 transition-colors duration-150 text-on-tertiary border-l-2 border-on-tertiary bg-on-tertiary/5 font-body-md text-body-md">
+<div class="flex items-center">
+<span class="material-symbols-outlined mr-3">folder_open</span>
+      Projects
+    </div>
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</div>
+<div class="flex flex-col gap-1 pl-8 mt-1">
+<div class="flex items-center py-1 cursor-pointer hover:text-on-tertiary transition-colors font-label-md text-label-md bg-on-tertiary/10 border-l-2 border-on-tertiary font-bold text-on-tertiary">
+<span class="material-symbols-outlined mr-2 text-[16px]">folder</span>
+      Q3 Design Sprint
+    </div>
+<div class="flex items-center py-1 cursor-pointer text-on-tertiary/60 hover:text-on-tertiary transition-colors font-label-md text-label-md">
+<span class="material-symbols-outlined mr-2 text-[16px]">folder</span>
+      API Refactor
+    </div>
+</div>
+</div>
+<div class="flex items-center px-md py-sm cursor-pointer active:opacity-80 transition-colors duration-150 text-on-tertiary/60 hover:text-on-tertiary hover:bg-on-tertiary/10 font-body-md text-body-md">
+<span class="material-symbols-outlined mr-3">history</span>
+                Recent
+            </div>
+<div class="flex items-center px-md py-sm cursor-pointer active:opacity-80 transition-colors duration-150 text-on-tertiary/60 hover:text-on-tertiary hover:bg-on-tertiary/10 font-body-md text-body-md">
+<span class="material-symbols-outlined mr-3">inventory_2</span>
+                Archive
+            </div><div class="flex flex-col">
+  <div class="flex items-center justify-between px-md py-sm cursor-pointer active:opacity-80 transition-colors duration-150 text-on-tertiary/60 hover:text-on-tertiary hover:bg-on-tertiary/10 font-body-md text-body-md">
+    <div class="flex items-center">
+      <span class="material-symbols-outlined mr-3">calendar_today</span>
+      Timeline
+    </div>
+    <span class="material-symbols-outlined text-[18px]">expand_more</span>
+  </div>
+  <div class="flex flex-col gap-1 pl-8 mt-1">
+    <div class="flex items-center py-1 cursor-pointer text-on-tertiary/60 hover:text-on-tertiary transition-colors font-label-md text-label-md">
+      <span class="material-symbols-outlined mr-2 text-[16px]">event</span>
+      July
+    </div>
+    <div class="flex items-center py-1 cursor-pointer text-on-tertiary/60 hover:text-on-tertiary transition-colors font-label-md text-label-md">
+      <span class="material-symbols-outlined mr-2 text-[16px]">event</span>
+      June
+    </div>
+  </div>
+</div>
+<div class="flex items-center px-md py-sm cursor-pointer active:opacity-80 transition-colors duration-150 text-on-tertiary/60 hover:text-on-tertiary hover:bg-on-tertiary/10 font-body-md text-body-md">
+<span class="material-symbols-outlined mr-3">settings</span>
+                Settings
+            </div>
+<div class="flex items-center px-md py-sm cursor-pointer active:opacity-80 transition-colors duration-150 text-on-tertiary/60 hover:text-on-tertiary hover:bg-on-tertiary/10 font-body-md text-body-md">
+<span class="material-symbols-outlined mr-3">help</span>
+                Support
+            </div>
+</nav>
+<div class="px-md mt-auto">
+<button class="w-full bg-on-tertiary text-tertiary py-sm font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Project
+            </button>
+
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-sidebar-width flex-1 flex flex-col h-full bg-background overflow-hidden">
+<!-- TopNavBar Component -->
+<header class="flex justify-between items-center h-12 px-lg bg-surface dark:bg-surface-dim border-b border-outline-variant">
+<div class="flex items-center gap-xl">
+<span class="font-headline-md text-headline-md font-semibold text-primary">Project Workspace</span>
+<nav class="hidden md:flex items-center gap-md">
+
+<a class="font-label-md text-label-md text-primary font-bold border-b border-primary py-1" href="#">Tabs</a>
+
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border-none focus:ring-0 text-label-md py-1 pl-8 rounded-lg placeholder-on-surface-variant/50" placeholder="Search" type="text">
+</div>
+<div class="flex items-center gap-sm">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"></button>
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"></button>
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"></button>
+</div>
+</div>
+</header>
+<!-- The Soft Grid Body -->
+<div class="flex-1 p-xl flex gap-xl overflow-hidden h-[calc(100vh-48px)]">
+<!-- Middle Pane: Workspace Canvas -->
+<div class="flex-[2] flex flex-col gap-lg overflow-y-auto custom-scrollbar pr-4"><div class="flex items-center mb-md justify-start"><h2 class="font-headline-md text-headline-md text-primary">Q3 Design Sprint</h2><div class="flex items-center gap-sm ml-md pl-md border-l border-outline-variant/30"><button class="font-label-md text-label-md text-on-surface-variant font-medium hover:text-primary hover:bg-surface-container-highest px-2 py-1 rounded transition-all flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">open_in_new</span>Open all</button><button class="font-label-md text-label-md text-on-surface-variant font-medium hover:text-primary hover:bg-surface-container-highest px-2 py-1 rounded transition-all flex items-center gap-1">x Close all</button><button class="font-label-md text-label-md text-on-surface-variant font-medium hover:text-primary hover:bg-surface-container-highest px-2 py-1 rounded transition-all flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">download</span>Export project</button></div></div><div class="flex flex-col gap-lg">
+  <!-- Pinned Section -->
+  <div class="flex flex-col gap-sm">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="material-symbols-outlined text-primary text-[16px]" style="font-variation-settings: &quot;FILL&quot; 1;">push_pin</span>
+      <h3 class="text-label-sm font-semibold text-on-surface-variant uppercase tracking-wider">Pinned</h3>
+    </div>
+    <!-- Accordion Item 1 (Pinned) -->
+    <div class="soft-grid-pane rounded-xl overflow-hidden border border-outline-variant/30 bg-surface shadow-sm">
+      <div class="flex items-center justify-between p-md cursor-pointer hover:bg-surface-container-low transition-colors border-b border-outline-variant/10">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[20px]">description</span>
+          <span class="font-label-md text-label-md text-primary font-semibold">Google docs: Meeting notes</span>
+        </div>
+        <div class="flex items-center gap-md">
+          <div class="flex items-center gap-1 text-on-surface-variant/60">
+            <span class="material-symbols-outlined text-[18px]">check_box</span>
+            <span class="text-label-sm">Done</span>
+          </div>
+          <span class="material-symbols-outlined text-primary text-[18px]" style="font-variation-settings: &quot;FILL&quot; 1;">push_pin</span>
+          <span class="material-symbols-outlined text-on-surface-variant">expand_less</span>
+        </div>
+      </div>
+      <div class="p-md bg-surface-container-lowest flex flex-col gap-md">
+        <div class="flex flex-col gap-1">
+          <label class="text-label-sm font-semibold text-on-surface-variant uppercase tracking-wider">Notes</label>
+          <p class="text-body-md text-on-surface-variant bg-surface-container-low p-sm rounded border border-outline-variant/10">Final review pending stakeholder approval. Ensure all typography tokens are updated to the new scale.</p>
+        </div>
+        <div class="flex flex-col gap-2">
+          
+          <div class="flex gap-2">
+            <span class="px-2 py-0.5 bg-primary/5 text-primary text-label-sm rounded-full border border-primary/10">Design</span>
+            <span class="px-2 py-0.5 bg-primary/5 text-primary text-label-sm rounded-full border border-primary/10">Priority</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 pt-2 border-t border-outline-variant/10">
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regular Section -->
+  <div class="flex flex-col gap-sm">
+    <div class="flex items-center gap-2 mb-1 border-t border-outline-variant/10 pt-md">
+      <h3 class="text-label-sm font-semibold text-on-surface-variant/60 uppercase tracking-wider">Regular</h3>
+    </div>
+    <!-- Accordion Item 2 -->
+    <div class="soft-grid-pane rounded-xl overflow-hidden border border-outline-variant/30 bg-surface shadow-sm">
+      <div class="flex items-center justify-between p-md cursor-pointer hover:bg-surface-container-low transition-colors">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-secondary text-[20px]">table_chart</span>
+          <span class="font-label-md text-label-md text-on-surface-variant">Youtube: Why SLMs matter in the era of LLMs</span>
+        </div>
+        <div class="flex items-center gap-md">
+          <div class="flex items-center gap-1 text-on-surface-variant/40">
+            <span class="material-symbols-outlined text-[18px]">check_box_outline_blank</span>
+            <span class="text-label-sm">Pending</span>
+          </div>
+          <span class="material-symbols-outlined text-on-surface-variant/40 text-[18px]">push_pin</span>
+          <span class="material-symbols-outlined text-on-surface-variant">expand_more</span>
+        </div>
+      </div>
+    </div>
+    <!-- Accordion Item 3 -->
+    <div class="soft-grid-pane rounded-xl overflow-hidden border border-outline-variant/30 bg-surface shadow-sm">
+      <div class="flex items-center justify-between p-md cursor-pointer hover:bg-surface-container-low transition-colors">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-secondary text-[20px]">code</span>
+          <span class="font-label-md text-label-md text-on-surface-variant">Github: rinaldo-rex/tasty-pi</span>
+        </div>
+        <div class="flex items-center gap-md">
+          <div class="flex items-center gap-1 text-on-surface-variant/40">
+            <span class="material-symbols-outlined text-[18px]">check_box_outline_blank</span>
+            <span class="text-label-sm">In Progress</span>
+          </div>
+          <span class="material-symbols-outlined text-on-surface-variant/40 text-[18px]">push_pin</span>
+          <span class="material-symbols-outlined text-on-surface-variant">expand_more</span>
+        </div>
+      </div>
+    </div>
+  </div><div class="mt-xl pt-xl border-t border-outline-variant/10">
+  <button class="w-full flex items-center justify-center gap-2 py-md px-lg bg-primary text-on-primary rounded-xl shadow-sm hover:opacity-90 transition-all active:scale-[0.98] group">
+    <span class="material-symbols-outlined text-[20px]">move_to_inbox</span>
+    <span class="font-label-md text-label-md font-semibold uppercase tracking-wider">Bring all open tabs into project</span>
+  </button>
+  <p class="text-center text-[10px] text-on-surface-variant/40 mt-sm uppercase tracking-widest">Consolidate 14 active sessions into this workspace</p>
+</div>
+</div></div>
+<!-- Right Pane: Open Tabs (Temporary Drawer Aesthetic) -->
+<aside class="flex-1 flex flex-col soft-grid-pane rounded-xl overflow-hidden bg-surface-container-low max-w-sm">
+<div class="p-md bg-surface-container-highest border-b border-outline-variant flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-on-secondary-container">Open Tabs (14)</span>
+<button class="p-1 hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined text-[18px]">archive</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar p-sm flex flex-col gap-base">
+<!-- Tab Items -->
+<div class="bg-surface hover:bg-surface-bright p-sm rounded-lg border border-outline-variant/40 flex items-center gap-3 cursor-pointer group transition-all">
+<div class="w-10 h-10 rounded-lg bg-cover bg-center shrink-0" data-alt="A macro close-up of high-quality cream-colored paper texture with a subtle grain, photographed under soft studio lighting, showcasing a minimalist and warm professional aesthetic." style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuA3VZsZwqtHXAWIKo7T9zzFM7LGPKrspSsFggBmjRMj5VHG7Z97QN0MLyXL-uIHB-H8k40YoEjS1DMqC2RTbpqYCoNvFJJlHTVihd7hZ3Uhr6dyd3nD11088rURGe99-J1OFbic6FpfVoYEy47eGmmZcGY-xTSIHE7vox-2laIU3UARRNLfqsaaveGeTOuD_-5M4-lw70IJVrs-P_uS81kvxABoyJWXkxdoJbXNKit8r8G_Qze1uEk0Cg&quot;);"></div>
+<div class="flex-1 min-w-0">
+<p class="font-label-md text-label-md text-primary truncate">Project Overview</p>
+<p class="text-[10px] text-on-surface-variant truncate">Modified 2m ago</p>
+</div>
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant/20 group-hover:text-error transition-colors">close</span>
+</div>
+<div class="bg-surface/50 hover:bg-surface-bright p-sm rounded-lg border border-transparent flex items-center gap-3 cursor-pointer group transition-all">
+<div class="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-secondary">image</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-label-md text-label-md text-on-surface-variant truncate">Brand_Moodboard_v4.jpg</p>
+<p class="text-[10px] text-on-surface-variant/60 truncate">Shared by Leo</p>
+</div>
+<span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 transition-opacity">close</span>
+</div>
+<div class="bg-primary/5 p-sm rounded-lg border-l-2 border-primary flex items-center gap-3 cursor-pointer group transition-all">
+<div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary-fixed">edit_note</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-label-md text-label-md text-primary font-semibold truncate">Meeting Notes - Today</p>
+<p class="text-[10px] text-primary/60 truncate">Active session</p>
+</div>
+<span class="material-symbols-outlined text-[14px] text-primary/30 group-hover:text-primary">close</span>
+</div>
+<!-- Repeat more tabs for scrolling effect -->
+<div class="mt-xl flex items-center justify-center gap-1 opacity-40">
+<div class="w-1 h-1 rounded-full bg-secondary"></div>
+<div class="w-1 h-1 rounded-full bg-secondary"></div>
+<div class="w-1 h-1 rounded-full bg-secondary"></div>
+</div>
+</div>
+<div class="p-md mt-auto bg-surface-container-low border-t border-outline-variant">
+<button class="w-full flex items-center justify-between p-sm rounded hover:bg-surface-container-highest transition-colors">
+<span class="font-label-md text-label-md text-on-surface-variant">Clear all tabs</span>
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+</button>
+</div>
+</aside>
+</div>
+</main>
+<!-- Contextual FAB (Only on Home/Dashboard) -->
+<button class="fixed bottom-xl right-xl w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform z-[100]">
+<span class="material-symbols-outlined text-[24px]">grid_view</span>
+</button>
+<script>
+        // Micro-interaction for hover states
+        document.querySelectorAll('.soft-grid-pane').forEach(pane => {
+            pane.addEventListener('mouseenter', () => {
+                pane.classList.add('border-primary/10');
+            });
+            pane.addEventListener('mouseleave', () => {
+                pane.classList.remove('border-primary/10');
+            });
+        });
+
+        // Simple tab closure logic simulation
+        document.querySelectorAll('.group .material-symbols-outlined.text-error, .group .material-symbols-outlined.close').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tab = btn.closest('.group');
+                tab.style.opacity = '0';
+                tab.style.transform = 'translateX(20px)';
+                setTimeout(() => tab.remove(), 200);
+            });
+        });
+    </script>
+
+
+
+
+</body></html>
