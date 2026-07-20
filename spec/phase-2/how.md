@@ -244,7 +244,7 @@ Reconciliation is a pure classification step over the latest durable projects, c
 
 For each ordinary tab:
 
-1. If a valid explicit/session ownership entry exists, keep it even when the current URL has changed. Mark `drifted` when the current serialized URL differs from `establishedUrl` or is unsupported/unavailable.
+1. If a valid explicit/session ownership entry exists, retain its provenance even when the current URL has changed. Mark `drifted` when the current serialized URL differs from `establishedUrl` or is unsupported/unavailable, and display that drifted row under **Unassigned** until a fresh filing decision.
 2. Otherwise, for a supported current URL, find every saved record whose exact serialized URL matches.
 3. If exactly one record matches globally, create session ownership for that project and record.
 4. If multiple records match, leave the tab unassigned and expose all candidates in persistent project order and saved-record order.
@@ -266,8 +266,8 @@ To avoid showing this message on every ordinary refresh, the coordinator records
 
 Build groups from normalized inventory:
 
-1. One group for each project that currently owns at least one live tab, ordered by the durable project array.
-2. **Unassigned** last when it contains tabs.
+1. One group for each project that currently owns at least one non-drifted exact live tab, ordered by the durable project array.
+2. **Unassigned** last when it contains ownerless or drifted tabs.
 
 Within every group, sort by Chrome tab `index`. Do not sort by title, URL, ownership time, or active state.
 
@@ -277,7 +277,7 @@ A row must communicate with text/iconography, not color alone:
 
 - active Chrome tab: `Current tab` indicator and `aria-current`
 - owned tab: project label and owned-instance context
-- drifted tab: `Navigated from saved URL`
+- drifted tab: `Navigated from saved URL · Unassigned`; retain provenance for counts, Open exclusion, and later close review
 - ambiguous unassigned tab: `Matches N projects — assignment needed`
 - unsupported tab: `Unsupported page — view only`
 
@@ -437,7 +437,7 @@ Cover:
 - excluding every exact Protab workspace URL
 - candidate derivation using complete serialized URL identity
 - valid explicit ownership taking precedence over URL matching
-- navigation retaining ownership and setting drift
+- navigation retaining ownership provenance, setting drift, and grouping the drifted row under Unassigned
 - invalid ownership references becoming unassigned
 - unique-match reconciliation and ambiguous/no-match behavior
 - identical tab instances retaining independent owners
@@ -486,7 +486,7 @@ Cover:
 
 - inventory loading, empty, grouped, unsupported, ambiguous, stale/error, and retry states
 - live updates without remounting the workspace
-- project and Unassigned group order/count/collapse semantics
+- project and Unassigned group order/count/collapse semantics, including drifted rows under Unassigned
 - active, owned, drifted, ambiguous, and unsupported labels not relying on color
 - keyboard row activation and assignment
 - focus restoration and announcements

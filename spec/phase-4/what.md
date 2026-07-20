@@ -6,7 +6,7 @@ Add deliberate, per-window project focus. Users can activate a project, open all
 
 ## Prerequisite
 
-Phase 3 is complete and its close policy is the single shared behavior for every extension-initiated close in this phase.
+Phase 3 is complete and its shared programmatic-close workflow is the single V0 behavior for every extension-initiated close in this phase.
 
 ## Selected versus active project
 
@@ -22,11 +22,11 @@ Phase 3 is complete and its close policy is the single shared behavior for every
 Activating the selected project:
 
 1. Identifies live tabs owned by other projects in the same Chrome window.
-2. Applies navigation-drift review and the approved close policy to those tabs.
+2. Applies navigation-drift review and the shared programmatic-close workflow to those tabs.
 3. Leaves tabs owned by the selected project open.
 4. Leaves every unassigned tab open.
 5. Never opens the selected project's saved URLs.
-6. If the user cancels before the operation begins, leaves active state unchanged. Once the user confirms, marks the selected project active after close requests or handoffs are issued, even when some targets are kept, pending, skipped, or failed; those exceptions remain visible as needs-attention items.
+6. If the user cancels before the operation begins, leaves active state unchanged. Once the user confirms, marks the selected project active after close requests are issued, even when some targets are kept, pending, skipped, or failed; those exceptions remain visible as needs-attention items.
 
 If unassigned tabs remain, pulse their group once and show a dismissible notice with the count. The pulse must respect reduced-motion preferences and must not repeat continuously.
 
@@ -36,11 +36,12 @@ Activation in one window never targets tabs or active state in another window.
 
 A project-owned tab has drifted when its current URL differs from the URL that established ownership.
 
+- For activation and Close all, drifted provenance still identifies the former owning project for review/targeting even though the row is displayed under Unassigned.
 - Before activation or Close all acts on drifted tabs, show a review listing each saved/original URL and current URL.
 - The user can keep individual drifted tabs open while continuing with the others.
 - Kept tabs remain owned unless explicitly reassigned; they receive a clear needs-review marker for this operation.
 - Never update a saved URL automatically from navigation drift.
-- Re-read every target's reported URL immediately before requesting close or handoff, including targets not previously classified as drifted. Skip and report any detected change. Chrome has no atomic compare-and-close operation, so do not claim protection against a race after the final check.
+- Re-read every target's reported URL immediately before requesting close, including targets not previously classified as drifted. Skip and report any detected change. Chrome has no atomic compare-and-close operation, so do not claim protection against a race after the final check.
 
 ## Open all
 
@@ -54,11 +55,11 @@ A project-owned tab has drifted when its current URL differs from the URL that e
 ## Close all
 
 - Target every live tab owned by the selected project in the current window.
-- Apply drift review and the approved close policy.
+- Apply drift review and the shared programmatic-close workflow.
 - Never delete or edit saved records.
 - Never close unassigned tabs or tabs owned by another project.
 - Do not affect another Chrome window.
-- Report closed or handed-off, kept, skipped, and failed tabs.
+- Report closed/requested, kept, pending/surviving, skipped, and failed tabs.
 
 ## Active-state recovery
 

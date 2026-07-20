@@ -27,7 +27,7 @@ Phase 1 is implemented and passes its acceptance checklist. Phase 2 must extend 
 - Ownership is established when Protab opens a saved URL or when the user explicitly assigns an ambiguous matching tab.
 - Runtime ownership survives extension service-worker suspension.
 - A browser restart uses best-effort reconciliation and never closes, opens, moves, or rewrites a tab.
-- A tab remains owned when it navigates. Preserve the URL and saved-record identity that established ownership so later phases can detect navigation drift.
+- A tab retains ownership provenance when it navigates. Preserve the URL and saved-record identity that established ownership so later phases can detect navigation drift, but display the drifted row under **Unassigned** as **Navigated from saved URL** until a fresh filing decision.
 
 After runtime ownership is unavailable:
 
@@ -59,7 +59,7 @@ Each saved URL accordion gains **Open** and an overflow action **Open another co
 
 Never steal a matching tab owned by another project. Open a separate instance instead.
 
-A drifted owned instance remains in its project group but is not an Open match. Open creates or reuses a current exact match instead of focusing the drifted tab.
+A drifted instance retains ownership provenance for counts, Open exclusion, and later close review, but appears under **Unassigned** rather than its former project group. Open creates or reuses a current exact match instead of focusing the drifted tab.
 
 **Open another copy** always creates a new owned tab, even when matching instances exist. Shift-clicking Open may provide the same shortcut. The saved accordion shows the number of instances it currently owns.
 
@@ -94,7 +94,7 @@ When a page loads successfully, an automatic title may refresh from the browser 
 - **P2-A1:** The Current Tabs pane accurately follows only its workspace window and excludes Protab tabs.
 - **P2-A2:** Project and Unassigned groups update after tab lifecycle events without a workspace reload.
 - **P2-A3:** Each live tab has at most one owner; identical instances can retain different owners.
-- **P2-A4:** Explicit ownership survives navigation and service-worker suspension.
+- **P2-A4:** Explicit ownership provenance survives navigation and service-worker suspension; drifted rows appear under Unassigned.
 - **P2-A5:** Restart reconciliation assigns only unique matches and leaves ambiguous matches unassigned with candidates.
 - **P2-A6:** Assign to keeps a matching tab open and changes no saved record.
 - **P2-A7:** Open focuses an eligible existing instance or creates one according to the stated precedence.
@@ -108,7 +108,7 @@ When a page loads successfully, an automatic title may refresh from the browser 
 
 1. Open two Chrome windows with different tabs and verify each workspace shows only its own window.
 2. Create and close ordinary tabs and verify the pane updates without reload.
-3. Open a saved URL, navigate it elsewhere, and verify it remains in the same project group without changing the saved URL.
+3. Open a saved URL, navigate it elsewhere, and verify it moves to Unassigned with **Navigated from saved URL** without changing the saved URL or losing provenance.
 4. Use Open twice and confirm the second action focuses the existing owned instance.
 5. Use Open another copy and confirm two separately listed instances.
 6. Open identical URLs from different projects and verify their owners remain independent.

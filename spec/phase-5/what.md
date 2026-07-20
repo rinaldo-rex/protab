@@ -51,7 +51,7 @@ Update the root README with:
 - First-use walkthrough
 - Project, filing, ownership, activation, and bulk-action behavior
 - Local-only data and permission explanation
-- Chrome unsaved-change limitation and the selected close policy
+- Chrome unsaved-change limitation, explicitly confirmed programmatic close, and surviving-tab attention behavior
 - Backup/uninstall limitation
 - Troubleshooting and data-error behavior
 
@@ -113,4 +113,4 @@ Record Chrome version, operating system, extension build identifier, results, an
 
 ## Explicitly out of scope
 
-Settings UI, pinning, task statuses, archive/history/timeline, advanced search/filtering, nested projects, import/export, cloud sync, telemetry, mobile UI, publishing to the Chrome Web Store, and post-V0 feature design.
+Settings UI remains post-V0. A future automatic-close preference may default to enabled and offer a user-close handoff, but its scope across close workflows requires a later product decision. Pinning, task statuses, archive/history/timeline, advanced search/filtering, nested projects, import/export, cloud sync, telemetry, mobile UI, publishing to the Chrome Web Store, and other post-V0 feature design are also out of scope.

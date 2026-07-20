@@ -34,7 +34,7 @@ This document records the product behavior that implementation and tests must pr
 - Opening from a saved record establishes explicit ownership. After recovery, a unique saved-URL match may restore ownership.
 - If the same URL is saved in multiple projects and explicit ownership cannot be recovered, only the live tab becomes unassigned; all saved records remain unchanged.
 - An ambiguous tab may be assigned to a project without closing it or changing saved records.
-- A tab remains project-owned during navigation. A drifted instance whose current URL differs from its saved record is not eligible for Open reuse, and Protab reviews detected drift before close operations.
+- A tab opened from a saved record retains ownership provenance during navigation so Protab can detect drift. While its current URL differs from the saved record, the row appears under **Unassigned** as **Navigated from saved URL**, is not eligible for Open reuse, and requires a fresh filing decision. Later close operations review that provenance rather than silently treating the current page as the saved URL.
 - Deleting a project never closes its live tabs; those tabs remain open and become unassigned.
 
 ## Opening and closing
@@ -52,7 +52,9 @@ Chrome does not expose whether a page has unsaved changes. An extension-initiate
 
 For every extension-initiated close, Protab always persists required project data first. It independently observes tab removal and reports closed, pending/surviving, and failed outcomes without awaiting a cancellation result. It can also review detected navigation drift. It must not claim that it can detect unknown unsaved page state or guarantee that a native warning will appear.
 
-The final V0 policy—automatic programmatic close with explicit Protab confirmation, or a user-close handoff through Chrome's normal UI—must be chosen before Phase 3. Any attention banner will represent actual operation state such as pending/surviving tabs or API failures, not inferred unsaved changes.
+For V0, Protab uses **programmatic close with explicit confirmation**. It persists required project data first, rechecks the reported URL, establishes ownership for a still-live stable tab, and then requests closure. It independently observes tab removal and reports closed, pending/surviving, skipped, and failed outcomes without awaiting a cancellation result indefinitely. It does not claim that it can detect unknown unsaved page state or guarantee that a native warning will appear.
+
+Programmatic close is intentionally fixed for V0 because it implements the core declutter loop. A post-V0 Settings feature may make automatic closing configurable, defaulting to enabled and offering a user-close handoff when disabled. Whether that future preference applies to every Protab close workflow or filing only remains an explicit product decision for that post-V0 specification.
 
 ## Persistence
 
@@ -63,8 +65,8 @@ The final V0 policy—automatic programmatic close with explicit Protab confirma
 
 ## Deferred features
 
-Settings UI, pinning, recent/archive/timeline views, task statuses, advanced search/filtering, nested projects, import/export, cloud sync, and split-view management are not part of V0.
+Settings UI, pinning, recent/archive/timeline views, task statuses, advanced search/filtering, nested projects, import/export, cloud sync, and split-view management are not part of V0. A post-V0 close preference is a recorded candidate: automatic programmatic close would remain the default, with an optional user-close handoff. Its scope across filing, activation, and Close all is deliberately undecided.
 
-## Decisions required before implementation reaches them
+## Decisions required after V0
 
-- Extension close policy given that native warnings are conditional and cancellation has no direct extension result
+- Whether a future automatic-close setting governs every Protab close workflow or filing only
