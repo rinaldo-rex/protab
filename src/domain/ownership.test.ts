@@ -27,6 +27,18 @@ describe('runtime ownership', () => {
     expect(state).toEqual(before)
   })
 
+  it('reconciles unique matches but leaves ambiguous matches unassigned', () => {
+    const uniqueState: PersistedStateV1 = { schemaVersion: 1, projects: [{ id: 'p1', name: 'First', savedUrls: [{ id: 'u1', url: 'https://unique.test/', title: 'Unique', titleSource: 'automatic', tags: [], notes: '' }] }] }
+    const unique = reconcileOwnership(uniqueState, [tab(5, 0, 'https://unique.test/')], [])
+    expect(unique.tabs[0].ownership).toMatchObject({ projectId: 'p1', savedUrlId: 'u1' })
+    expect(unique).toMatchObject({ matched: 1, ambiguous: 0 })
+
+    const ambiguous = reconcileOwnership(state, [tab(6, 0)], [])
+    expect(ambiguous.tabs[0].ownership).toBeUndefined()
+    expect(ambiguous.tabs[0].candidates).toHaveLength(2)
+    expect(ambiguous).toMatchObject({ matched: 0, ambiguous: 1 })
+  })
+
   it('groups in project order and tabs in strip order with Unassigned last', () => {
     const tabs = [
       { ...tab(1, 4), ownership: { projectId: 'p2', savedUrlId: 'u2', establishedUrl: 'https://same.test/', drifted: false } },

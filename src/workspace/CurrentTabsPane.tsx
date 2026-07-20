@@ -9,6 +9,7 @@ export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state:
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [assigningTabId, setAssigningTabId] = useState<number>()
+  const [reconciliationDismissed, setReconciliationDismissed] = useState(false)
   const assignmentTrigger = useRef<HTMLButtonElement>(null)
   return (
     <aside className="current-tabs" aria-labelledby="current-tabs-title">
@@ -17,6 +18,7 @@ export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state:
         <span>{inventory ? inventory.tabs.length : 'LIVE'}</span>
       </div>
       {model.actionError && <div className="tabs-warning" role="alert"><span>{model.actionError}</span><button onClick={model.dismissActionError}>Dismiss</button></div>}
+      {inventory?.reconciliation && !reconciliationDismissed && <div className="reconciliation-summary" role="status"><span>Tab ownership was restored after restart: {inventory.reconciliation.matched} matched, {inventory.reconciliation.ambiguous} need review.</span><button onClick={() => setReconciliationDismissed(true)}>Dismiss</button></div>}
       {model.status === 'loading' ? (
         <div className="tabs-empty" aria-live="polite"><div className="loader" /><h3>Reading this window’s tabs</h3><p>Protab only displays tabs beside this workspace.</p></div>
       ) : inventory?.stale ? (
