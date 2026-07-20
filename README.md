@@ -30,3 +30,4 @@ Pinning, settings UI, archive/history, statuses, search, import/export, and clou
 - [Design philosophy](design_philosophy.md) — why Protab exists and the principles behind it
 - [Design decisions](design_decisions.md) — agreed behavior and constraints for implementation
 - [Delivery phases](development_phases.md) — testable increments for building V0
+- [Implementation specifications](spec/README.md) — phase readiness and handoff documents

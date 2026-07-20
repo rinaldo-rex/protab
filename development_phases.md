@@ -17,7 +17,7 @@ Every later phase runs all three commands plus its manual Chrome checks.
 ### Atomic commits
 
 1. Add the installable Chrome extension, repeatable build, test baseline, and documented local loading steps.
-2. Add versioned local persistence for projects and saved URL records, including automatic/custom title provenance and migration tests.
+2. Add versioned local persistence for projects and saved URL records, including automatic/custom title provenance, validation, and version-dispatch tests.
 3. Add the three-pane workspace shell with keyboard-accessible project creation and selection.
 4. Add project rename, ordering, confirmation, and deletion when no live-tab ownership exists yet.
 5. Add basic saved URL creation, editing, and deletion with titles, multiple tags, and notes.
@@ -34,7 +34,7 @@ Every later phase runs all three commands plus its manual Chrome checks.
 ### Tests
 
 - Run `npm test`, `npm run lint`, and `npm run build`.
-- Cover project and record CRUD, ordering, URL deduplication, title provenance, tag autocomplete, and storage migration with automated tests.
+- Cover project and record CRUD, ordering, URL deduplication, title provenance, tag autocomplete, storage validation, and version dispatch with automated tests.
 - Load the built unpacked extension in Chrome. In each of two windows, click the toolbar twice and verify it focuses that window's single workspace.
 - Create two projects, copy the same URL between them, edit their tags and notes independently, reload, and verify later edits do not synchronize.
 - Restart Chrome and verify projects, records, ordering, and edits persist.
@@ -142,7 +142,7 @@ Choose and document both the extension close policy and the small initial domain
 
 ### Atomic commits
 
-1. Harden startup reconciliation and schema migration while guaranteeing startup never closes tabs.
+1. Harden startup reconciliation and, only if a real preceding schema exists, its migration while guaranteeing startup never closes tabs.
 2. Audit focus management and accessible announcements across project, filing, pulse, confirmation, and failure flows.
 3. Complete the V0 end-to-end regression suite.
 4. Update installation, usage, privacy, and troubleshooting documentation for release.
@@ -159,7 +159,7 @@ Choose and document both the extension close policy and the small initial domain
 
 - Run the complete automated check suite and production build from a clean checkout.
 - Load the production build into a fresh Chrome profile and complete the full workflow: create, file, activate, reopen, duplicate, close, and restart.
-- Upgrade from a fixture containing the previous storage schema and verify migration without data loss.
+- If a real previous schema exists, upgrade its fixture without data loss; otherwise verify that a future schema is rejected non-destructively.
 - Exercise the workflow using keyboard-only navigation and a screen reader's basic announcements.
 - Repeat the restart and activation matrix with two windows, duplicate URLs across projects, changed URLs, unassigned tabs, and forced Chrome API failures.
 

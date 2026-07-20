@@ -15,6 +15,7 @@ This document records the product behavior that implementation and tests must pr
 - A project contains saved URL records, not browser tabs.
 - Each record has a URL, automatic or custom title, multiple free-form tags, optional notes, and stable ordering.
 - A URL is unique within one project but may be saved in multiple projects with independent titles, tags, and notes.
+- V0 saves only HTTP(S) URLs without embedded credentials. Duplicate comparison uses the complete browser-serialized URL, preserving path casing, meaningful trailing slashes, query strings, and fragments.
 - Duplicating a record into another project copies its metadata once; later edits do not synchronize.
 - Filing a live tab saves the record before attempting to close the tab.
 - Pinning is deferred.
@@ -33,24 +34,25 @@ This document records the product behavior that implementation and tests must pr
 - Opening from a saved record establishes explicit ownership. After recovery, a unique saved-URL match may restore ownership.
 - If the same URL is saved in multiple projects and explicit ownership cannot be recovered, only the live tab becomes unassigned; all saved records remain unchanged.
 - An ambiguous tab may be assigned to a project without closing it or changing saved records.
-- A tab remains project-owned during navigation. If its current URL differs from the URL it opened from, Protab warns before an automatic focus or bulk-close action.
+- A tab remains project-owned during navigation. A drifted instance whose current URL differs from its saved record is not eligible for Open reuse, and Protab reviews detected drift before close operations.
+- Deleting a project never closes its live tabs; those tabs remain open and become unassigned.
 
 ## Opening and closing
 
-- **Open** focuses the most recently used matching live instance when one exists; otherwise it opens a project-owned tab.
+- **Open** operates in the workspace's Chrome window and focuses the most recently used owned instance whose current URL exactly matches the saved record; otherwise it opens a project-owned tab.
 - **Open another copy** always creates another project-owned instance. Shift-click may provide the same shortcut.
-- **Open all** opens saved URLs that are not already open; it is separate from activation.
-- **Close all** closes all live instances owned by that project without deleting saved records.
-- **File all unassigned tabs** saves and closes only unassigned tabs in the current window. It skips the workspace and unsupported browser pages.
+- **Open all** opens saved URLs that are not already open in the workspace's Chrome window; it is separate from activation.
+- **Close all** closes live instances owned by that project in the workspace's Chrome window without deleting saved records.
+- **File all unassigned tabs** saves and closes only unassigned tabs in the workspace's Chrome window. It skips the workspace and unsupported browser pages.
 - Dragging an unassigned tab into a project saves it and attempts to close it. If that URL already exists in the project, no duplicate record is created.
 
 ### Close safety
 
-Chrome does not expose whether a page has unsaved changes. More importantly, extension-initiated `chrome.tabs.remove()` does not provide the cancellable native `beforeunload` flow used by Chrome's tab close button: a page cannot reliably keep the tab open, and a successful call resolves only after the tab is destroyed.
+Chrome does not expose whether a page has unsaved changes. An extension-initiated `chrome.tabs.remove()` can encounter Chrome's native `beforeunload` flow when a page is eligible: choosing **Stay** can leave the tab open, but Chrome gives the extension no cancellation result and the removal promise may remain pending until that tab is eventually destroyed. Native warnings are not guaranteed because normal browser eligibility and suppression rules still apply.
 
-For every extension-initiated close, Protab always persists required project data first. It can also warn when a project-owned tab has navigated away from its saved URL and report API or partial-operation failures. It must not claim that it can detect unknown unsaved page state or that a native warning can cancel a programmatic close.
+For every extension-initiated close, Protab always persists required project data first. It independently observes tab removal and reports closed, pending/surviving, and failed outcomes without awaiting a cancellation result. It can also review detected navigation drift. It must not claim that it can detect unknown unsaved page state or guarantee that a native warning will appear.
 
-The final V0 policy—automatic programmatic close with explicit Protab confirmation, or a user-close handoff that preserves native protection—must be chosen before Phase 3. Any attention banner will represent actual Protab/API failures, not inferred unsaved changes.
+The final V0 policy—automatic programmatic close with explicit Protab confirmation, or a user-close handoff through Chrome's normal UI—must be chosen before Phase 3. Any attention banner will represent actual operation state such as pending/surviving tabs or API failures, not inferred unsaved changes.
 
 ## Persistence
 
@@ -65,8 +67,4 @@ Settings UI, pinning, recent/archive/timeline views, task statuses, advanced sea
 
 ## Decisions required before implementation reaches them
 
-- Exact URL equivalence rules for duplicate detection, including fragments, query parameters, and trailing slashes
-- Supported URL schemes and handling of restricted Chrome pages
-- Project deletion behavior when that project owns live tabs
-- Initial domain-to-tag suggestion rules
-- Extension close policy given that programmatic closes cannot preserve native unsaved-change cancellation
+- Extension close policy given that native warnings are conditional and cancellation has no direct extension result
