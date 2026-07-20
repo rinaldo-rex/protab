@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Protab",
+  "description": "Turn temporary browser tabs into durable, project-based URL collections.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "Open Protab"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "tabs"]
+}
