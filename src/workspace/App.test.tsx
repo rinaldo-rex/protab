@@ -191,8 +191,8 @@ describe('project workspace shell', () => {
     renderApp(new TestClient(), liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 12, windowId: 3, index: 0, active: true, title: 'A very useful reference', url: 'https://example.com/reference', urlSummary: 'example.com', hostname: 'example.com', supported: true },
-      { tabId: 13, windowId: 3, index: 1, active: false, title: 'Chrome Settings', url: 'chrome://settings/', urlSummary: 'chrome:', supported: false },
+      { tabId: 12, windowId: 3, index: 0, active: true, title: 'A very useful reference', url: 'https://example.com/reference', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [] },
+      { tabId: 13, windowId: 3, index: 1, active: false, title: 'Chrome Settings', url: 'chrome://settings/', urlSummary: 'chrome:', supported: false, candidates: [] },
     ] } }))
     const row = screen.getByRole('button', { name: /A very useful reference.*Current tab/ })
     expect(row).toHaveAttribute('aria-current', 'page')
@@ -208,7 +208,7 @@ describe('project workspace shell', () => {
     renderApp(new TestClient(), liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: true, error: 'Tabs permission unavailable', tabs: [
-      { tabId: 12, windowId: 3, index: 0, active: false, title: 'Last known tab', url: 'https://example.com/', urlSummary: 'example.com', hostname: 'example.com', supported: true },
+      { tabId: 12, windowId: 3, index: 0, active: false, title: 'Last known tab', url: 'https://example.com/', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [] },
     ] } }))
     expect(screen.getByRole('alert')).toHaveTextContent('Tabs permission unavailable')
     expect(screen.getByText('Last known tab')).toBeInTheDocument()

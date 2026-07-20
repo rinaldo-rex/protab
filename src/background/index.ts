@@ -6,9 +6,12 @@ import { MESSAGE_CHANNEL, STATE_COMMITTED, type BackgroundResponse, type ClientM
 import { ChromeToolbarAdapter, serializedToolbarHandler } from './toolbar'
 import { ChromeTabsAdapter } from './tabs/chromeTabs'
 import { LiveTabsCoordinator } from './tabs/coordinator'
+import { ChromeSessionStorageAdapter, OwnershipStore } from './tabs/ownershipStore'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
-const liveTabs = new LiveTabsCoordinator(new ChromeTabsAdapter())
+const ownership = new OwnershipStore(new ChromeSessionStorageAdapter())
+void ownership.initialize().catch((error: unknown) => console.error('Protab could not restrict live ownership storage access.', error))
+const liveTabs = new LiveTabsCoordinator(new ChromeTabsAdapter(), ownership, () => queue.read())
 
 chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))

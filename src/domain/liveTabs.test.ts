@@ -21,6 +21,7 @@ describe('live tab normalization', () => {
       hostname: 'example.com',
       favIconUrl: 'https://example.com/favicon.ico',
       supported: true,
+      candidates: [],
     })
   })
 

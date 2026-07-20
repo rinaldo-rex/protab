@@ -139,7 +139,7 @@ export function App({ client, liveTabsClient }: AppProps) {
               </div>
             )}
           </section>
-          <CurrentTabsPane model={liveTabs} />
+          <CurrentTabsPane model={liveTabs} state={state} />
         </div>
       </main>
     </div>
