@@ -89,6 +89,10 @@ export class LiveTabsCoordinator {
       await this.refreshWindow(client.windowId)
       return
     }
+    if (message.kind === 'ASSIGN_LIVE_TAB' && typeof message.tabId === 'number' && typeof message.projectId === 'string' && typeof message.savedUrlId === 'string') {
+      await this.assign(client, message.tabId, message.projectId, message.savedUrlId)
+      return
+    }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
@@ -102,6 +106,24 @@ export class LiveTabsCoordinator {
         tabId: message.tabId,
         message: reason instanceof Error ? reason.message : 'Chrome could not focus that tab.',
       })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async assign(client: ClientSubscription, tabId: number, projectId: string, savedUrlId: string): Promise<void> {
+    if (!this.ownership) return
+    try {
+      const [tab, state] = await Promise.all([this.api.get(tabId), this.readState()])
+      if (tab.windowId !== client.windowId) throw new Error('That tab moved to another Chrome window.')
+      const normalized = (await queryOrdinaryTabs(this.api, client.windowId)).find((candidate) => candidate.tabId === tabId)
+      if (!normalized) throw new Error('That tab is no longer available.')
+      if (!normalized.supported || !normalized.url) throw new Error('This page cannot be assigned.')
+      const candidates = reconcileOwnership(state, [normalized], []).tabs[0].candidates
+      if (!candidates.some((candidate) => candidate.projectId === projectId && candidate.savedUrlId === savedUrlId)) throw new Error('That assignment option is no longer available.')
+      await this.ownership.update((entries) => [...entries.filter((entry) => entry.tabId !== tabId), { tabId, windowId: client.windowId, projectId, savedUrlId, establishedUrl: normalized.url! }])
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', tabId, message: reason instanceof Error ? reason.message : 'Protab could not assign that tab.' })
       this.scheduleWindow(client.windowId)
     }
   }

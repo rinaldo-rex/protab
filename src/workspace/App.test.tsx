@@ -202,6 +202,25 @@ describe('project workspace shell', () => {
     expect(liveTabs.sent).toContainEqual({ kind: 'FOCUS_LIVE_TAB', tabId: 12 })
   })
 
+  it('assigns an ambiguous matching tab without changing saved metadata', async () => {
+    const user = userEvent.setup()
+    const liveTabs = new TestLiveTabsClient()
+    const client = new TestClient({ schemaVersion: 1, projects: [
+      { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'One copy', titleSource: 'custom', tags: ['Keep'], notes: 'Untouched' }] },
+      { id: 'p2', name: 'Two', savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Two copy', titleSource: 'automatic', tags: [], notes: '' }] },
+    ] })
+    renderApp(client, liveTabs)
+    await screen.findByText('No ordinary tabs in this window')
+    act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Same live page', url: 'https://same.test/', urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [{ projectId: 'p1', savedUrlId: 'u1' }, { projectId: 'p2', savedUrlId: 'u2' }] },
+    ] } }))
+    expect(screen.getByText('Matches 2 projects — assignment needed')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Assign to…' }))
+    await user.click(screen.getByRole('button', { name: /Two.*Two copy/ }))
+    expect(liveTabs.sent).toContainEqual({ kind: 'ASSIGN_LIVE_TAB', tabId: 15, projectId: 'p2', savedUrlId: 'u2' })
+    expect(client.state.projects[0].savedUrls[0]).toMatchObject({ tags: ['Keep'], notes: 'Untouched' })
+  })
+
   it('keeps a stale snapshot visible and offers inventory retry', async () => {
     const user = userEvent.setup()
     const liveTabs = new TestLiveTabsClient()

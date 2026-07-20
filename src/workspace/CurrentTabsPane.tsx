@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import type { PersistedStateV1 } from '../domain/types'
@@ -8,6 +8,8 @@ export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state:
   const inventory = model.inventory
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [assigningTabId, setAssigningTabId] = useState<number>()
+  const assignmentTrigger = useRef<HTMLButtonElement>(null)
   return (
     <aside className="current-tabs" aria-labelledby="current-tabs-title">
       <div className="pane-heading">
@@ -35,8 +37,9 @@ export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state:
                   <li key={tab.tabId}>
                     <button className="live-tab-row" aria-current={tab.active ? 'page' : undefined} aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.ownership ? `Owned by ${group.label}. ${tab.ownership.drifted ? 'Navigated from saved URL.' : ''}` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`} onClick={() => model.focus(tab.tabId)}>
                       {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
-                      <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership ? tab.ownership.drifted ? 'Navigated from saved URL' : `Owned by ${group.label}` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
+                      <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership ? tab.ownership.drifted ? 'Navigated from saved URL' : `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
                     </button>
+                    {!tab.ownership && tab.candidates.length > 0 && <button ref={assigningTabId === tab.tabId ? assignmentTrigger : undefined} className="assign-button" aria-haspopup="dialog" onClick={() => setAssigningTabId(tab.tabId)}>Assign to…</button>}
                   </li>
                 ))}
               </ul>}
@@ -44,6 +47,21 @@ export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state:
           })}
         </div>
       )}
+      {assigningTabId !== undefined && (() => {
+        const tab = inventory?.tabs.find((candidate) => candidate.tabId === assigningTabId)
+        if (!tab) return null
+        return <div className="assignment-backdrop" role="presentation"><section className="assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="assignment-title">
+          <h3 id="assignment-title">Assign “{tab.title}” to…</h3>
+          <p>This keeps the browser tab open and does not change saved metadata.</p>
+          <div className="assignment-choices">{tab.candidates.map((candidate) => {
+            const project = state.projects.find((item) => item.id === candidate.projectId)
+            const record = project?.savedUrls.find((item) => item.id === candidate.savedUrlId)
+            if (!project || !record) return null
+            return <button key={`${candidate.projectId}:${candidate.savedUrlId}`} onClick={() => { model.assign(tab.tabId, candidate.projectId, candidate.savedUrlId); setAssigningTabId(undefined) }}><strong>{project.name}</strong><span>{record.title}</span></button>
+          })}</div>
+          <button className="button secondary" autoFocus onClick={() => { setAssigningTabId(undefined); queueMicrotask(() => assignmentTrigger.current?.focus()) }}>Cancel</button>
+        </section></div>
+      })()}
     </aside>
   )
 }
