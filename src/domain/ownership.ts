@@ -58,10 +58,10 @@ export function reconcileOwnership(state: PersistedStateV1, tabs: LiveTabView[],
 
 export function groupLiveTabs(state: PersistedStateV1, tabs: LiveTabView[]): LiveTabGroup[] {
   const groups: LiveTabGroup[] = state.projects.flatMap((project) => {
-    const owned = tabs.filter((tab) => tab.ownership?.projectId === project.id).sort((a, b) => a.index - b.index)
+    const owned = tabs.filter((tab) => tab.ownership?.projectId === project.id && !tab.ownership.drifted).sort((a, b) => a.index - b.index)
     return owned.length ? [{ id: `project:${project.id}`, projectId: project.id, label: project.name, tabs: owned }] : []
   })
-  const unassigned = tabs.filter((tab) => !tab.ownership).sort((a, b) => a.index - b.index)
+  const unassigned = tabs.filter((tab) => !tab.ownership || tab.ownership.drifted).sort((a, b) => a.index - b.index)
   if (unassigned.length) groups.push({ id: 'unassigned', label: 'Unassigned', tabs: unassigned })
   return groups
 }

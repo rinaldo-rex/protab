@@ -39,6 +39,15 @@ describe('runtime ownership', () => {
     expect(ambiguous).toMatchObject({ matched: 0, ambiguous: 1 })
   })
 
+  it('places drifted owned tabs under Unassigned while retaining drift context', () => {
+    const drifted = { ...tab(8, 0, 'https://elsewhere.test/'), ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://same.test/', drifted: true } }
+    const groups = groupLiveTabs(state, [drifted])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]).toMatchObject({ id: 'unassigned', label: 'Unassigned' })
+    expect(groups[0].tabs[0].ownership).toMatchObject({ projectId: 'p1', savedUrlId: 'u1', drifted: true })
+    expect(instanceCounts([drifted])).toEqual({ 'p1:u1': 1 })
+  })
+
   it('groups in project order and tabs in strip order with Unassigned last', () => {
     const tabs = [
       { ...tab(1, 4), ownership: { projectId: 'p2', savedUrlId: 'u2', establishedUrl: 'https://same.test/', drifted: false } },
