@@ -96,6 +96,37 @@ describe('project workspace shell', () => {
     expect(screen.queryByRole('button', { name: /Renamed/ })).not.toBeInTheDocument()
   })
 
+  it('creates, expands, autosaves, validates, and deletes saved URLs', async () => {
+    const user = userEvent.setup()
+    const client = new TestClient({ schemaVersion: 1, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] })
+    render(<App client={client} />)
+    await screen.findByRole('heading', { name: 'Research' })
+    await user.click(screen.getByRole('button', { name: 'Add URL' }))
+    await user.type(screen.getByLabelText('URL'), 'https://Example.com/path?x=1#part')
+    await user.type(screen.getByLabelText(/Title/), 'Reference')
+    await user.type(screen.getByLabelText(/Tags/), 'Design, Research')
+    await user.type(screen.getByLabelText(/Notes/), 'Initial note')
+    await user.click(screen.getAllByRole('button', { name: 'Add URL' })[1])
+    const toggle = (await screen.findAllByRole('button', { name: /Reference/ })).find((button) => button.hasAttribute('aria-controls'))!
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(client.state.projects[0].savedUrls[0]).toMatchObject({ url: 'https://example.com/path?x=1#part', tags: ['Design', 'Research'], notes: 'Initial note' })
+
+    const titleInput = screen.getByLabelText('Title')
+    await user.clear(titleInput)
+    await user.tab()
+    expect((await screen.findAllByText('Enter a title.')).length).toBeGreaterThan(0)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await user.type(titleInput, 'Updated')
+    await user.tab()
+    expect(client.state.projects[0].savedUrls[0].title).toBe('Updated')
+
+    await user.click(screen.getByRole('button', { name: 'Saved URL actions for Updated' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete URL' }))
+    await user.click(screen.getByRole('button', { name: 'Delete URL' }))
+    expect(await screen.findByText('No saved URLs yet')).toBeInTheDocument()
+    expect(client.state.projects[0].savedUrls).toHaveLength(0)
+  })
+
   it('enters a blocking storage-error state', async () => {
     const client = new TestClient()
     client.readError = new Error('Unsupported schema version')

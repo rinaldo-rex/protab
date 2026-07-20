@@ -1,4 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { AddUrlForm } from './AddUrlForm'
+import { SavedUrlAccordion } from './SavedUrlAccordion'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
@@ -16,6 +18,7 @@ export function App({ client }: AppProps) {
   const [projectName, setProjectName] = useState('')
   const [formError, setFormError] = useState<string>()
   const [focusProjectId, setFocusProjectId] = useState<string>()
+  const [expandedUrlIds, setExpandedUrlIds] = useState<Set<string>>(new Set())
 
   if (model.status === 'loading') {
     return <main className="centered-state" aria-live="polite"><div className="loader" /><h1>Loading Protab</h1><p>Preparing your local workspace…</p></main>
@@ -90,7 +93,7 @@ export function App({ client }: AppProps) {
           <section className="project-canvas" aria-labelledby="project-title">
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} onDeleted={(deletedIndex) => {
+                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions"><AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} onDeleted={(deletedIndex) => {
                   const remainingIds = projectIds.filter((id) => id !== selected.id)
                   const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
                   if (successorId) {
@@ -100,12 +103,25 @@ export function App({ client }: AppProps) {
                     setCreating(false)
                     queueMicrotask(() => document.querySelector<HTMLButtonElement>('.new-project-button')?.focus())
                   }
-                }} /></div>
-                <div className="empty-project">
-                  <FolderOpen size={30} />
-                  <h3>No saved URLs yet</h3>
-                  <p>Add URLs manually to build durable project context. Live-tab filing arrives in a later phase.</p>
-                </div>
+                }} /></div></div>
+                {selected.savedUrls.length === 0 ? (
+                  <div className="empty-project">
+                    <FolderOpen size={30} />
+                    <h3>No saved URLs yet</h3>
+                    <p>Add URLs manually to build durable project context. Live-tab filing arrives in a later phase.</p>
+                  </div>
+                ) : (
+                  <div className="url-list" aria-label={`Saved URLs in ${selected.name}`}>
+                    {selected.savedUrls.map((record, index) => (
+                      <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={selected.savedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onDeleted={(deletedIndex) => {
+                        const remaining = selected.savedUrls.filter((item) => item.id !== record.id)
+                        const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
+                        if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
+                        else queueMicrotask(() => document.querySelector<HTMLButtonElement>('.canvas-actions .button.primary')?.focus())
+                      }} />
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
               <div className="first-use">

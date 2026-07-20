@@ -62,7 +62,40 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .canvas-header { display: flex; justify-content: space-between; align-items: center; min-height: 50px; margin-bottom: 24px; }
 .eyebrow { margin: 0 0 5px; color: var(--on-surface-variant); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 .canvas-header h2 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; }
-.project-actions { position: relative; }
+.canvas-actions { display: flex; align-items: center; gap: 8px; }
+.add-url-control { position: relative; }
+.add-url-control .add-url-form { position: absolute; z-index: 30; top: 42px; right: 0; width: min(560px, calc(100vw - 300px)); }
+.add-url-form { margin-bottom: 20px; padding: 16px; border: 1px solid var(--outline-variant); border-radius: 8px; background: var(--surface-lowest); box-shadow: 0 12px 36px rgba(45,41,38,.15); }
+.add-url-form h3 { margin: 0 0 14px; font-size: 15px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid label, .accordion-body label { display: flex; flex-direction: column; gap: 6px; color: var(--on-surface-variant); font-size: 11px; font-weight: 600; }
+.form-grid label.full { grid-column: 1 / -1; }
+.form-grid label span small { margin-left: 4px; color: #8b837c; font-weight: 400; }
+.form-grid input, .form-grid textarea, .accordion-body input, .accordion-body textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--outline-variant); border-radius: 4px; background: #fff; color: var(--on-surface); font-size: 13px; font-weight: 400; resize: vertical; }
+.form-grid input { height: 38px; }
+.form-grid [aria-invalid="true"], .accordion-body [aria-invalid="true"] { border-color: var(--error); }
+.inline-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.form-error { margin: 8px 0 0; color: var(--error); font-size: 12px; }
+.url-list { display: flex; flex-direction: column; gap: 8px; }
+.url-accordion { overflow: visible; border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface-lowest); }
+.accordion-header { display: flex; min-height: 48px; align-items: stretch; }
+.accordion-toggle { display: flex; flex: 1; min-width: 0; align-items: center; gap: 12px; padding: 10px 12px; border: 0; background: transparent; color: var(--on-surface-variant); text-align: left; }
+.accordion-toggle:hover { background: var(--surface-low); }
+.record-summary { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.record-summary strong { overflow: hidden; color: var(--on-surface); font-size: 13px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.tag-summary { color: #756d66; font-size: 10px; }
+.chevron { transition: transform .15s ease; }
+.chevron.expanded { transform: rotate(180deg); }
+.record-actions { position: relative; display: flex; align-items: center; padding-right: 8px; }
+.accordion-body { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 16px; border-top: 1px solid var(--outline-variant); background: var(--surface-lowest); }
+.accordion-body label:first-child, .accordion-body label:nth-of-type(3), .accordion-body .autosave-note { grid-column: 1 / -1; }
+.accordion-body label small { color: var(--error); font-weight: 400; }
+.metadata-note { align-self: end; padding-bottom: 8px; color: #8b837c; font-size: 10px; text-align: right; }
+.tag-display { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; color: var(--on-surface-variant); font-size: 11px; font-weight: 600; }
+.tag-display > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-display em { color: #8b837c; font-weight: 400; }
+.tag { padding: 3px 7px; border: 1px solid var(--outline-variant); border-radius: 3px; background: var(--surface-low); color: var(--on-surface-variant); font-size: 10px; font-weight: 500; }
+.autosave-note { margin: -4px 0 0; color: #8b837c; font-size: 10px; }
 .icon-button { display: inline-grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--on-surface-variant); }
 .icon-button:hover { border-color: var(--outline-variant); background: var(--surface-high); color: var(--primary); }
 .action-menu { position: absolute; z-index: 20; top: 36px; right: 0; width: 170px; padding: 4px; border: 1px solid var(--outline-variant); border-radius: 4px; background: var(--surface-lowest); box-shadow: 0 8px 24px rgba(45,41,38,.12); }
