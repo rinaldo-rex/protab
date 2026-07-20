@@ -141,6 +141,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .pane-heading { display: flex; height: 48px; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--surface-highest); border-bottom: 1px solid var(--outline-variant); }
 .pane-heading h2 { margin: 0; color: var(--on-surface-variant); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .pane-heading span { color: #756d66; font-size: 9px; font-weight: 600; letter-spacing: .1em; }
+.tabs-warning { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; color: #700006; background: var(--error-container); border-bottom: 1px solid #e6a9a3; font-size: 11px; }
+.tabs-warning button { border: 0; background: transparent; color: inherit; font-size: 10px; font-weight: 600; text-decoration: underline; }
+.tabs-error { padding: 20px 16px; color: var(--on-surface-variant); border-bottom: 1px solid var(--outline-variant); text-align: center; }
+.tabs-error h3 { margin: 8px 0 5px; color: var(--on-surface); font-size: 14px; }
+.tabs-error p { margin: 0 0 12px; font-size: 11px; line-height: 1.5; }
+.tabs-error .stale-note { margin: 10px 0 0; }
+.live-tab-list { flex: 1; min-height: 0; margin: 0; padding: 8px; overflow-y: auto; list-style: none; }
+.live-tab-list.stale { opacity: .72; }
+.live-tab-list li + li { margin-top: 4px; }
+.live-tab-row { display: flex; width: 100%; min-height: 56px; align-items: center; gap: 10px; padding: 8px; overflow: hidden; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--on-surface); text-align: left; }
+.live-tab-row:hover { border-color: var(--outline-variant); background: var(--surface-lowest); }
+.live-tab-row[aria-current="page"] { border-left: 3px solid var(--primary); background: var(--surface-lowest); }
+.live-tab-row > img, .live-tab-row > svg { width: 18px; height: 18px; flex: 0 0 18px; object-fit: contain; }
+.live-tab-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.live-tab-copy strong, .live-tab-copy small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.live-tab-copy strong { font-size: 12px; font-weight: 600; }
+.live-tab-copy small { color: var(--on-surface-variant); font-size: 10px; }
+.live-tab-copy > span { color: #756d66; font-size: 9px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
 .tabs-empty { display: flex; flex: 1; align-items: center; justify-content: center; flex-direction: column; padding: 28px; text-align: center; }
 .tab-lines { display: flex; width: 72px; flex-direction: column; gap: 6px; margin-bottom: 20px; }
 .tab-lines i { height: 8px; border: 1px solid var(--outline-variant); border-radius: 2px; background: var(--surface-lowest); }

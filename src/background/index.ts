@@ -4,10 +4,24 @@ import { ChromeStorageAdapter } from '../storage/repository'
 import { CommandQueue } from '../storage/commandQueue'
 import { MESSAGE_CHANNEL, STATE_COMMITTED, type BackgroundResponse, type ClientMessage, type StateCommittedMessage } from './messages'
 import { ChromeToolbarAdapter, serializedToolbarHandler } from './toolbar'
+import { ChromeTabsAdapter } from './tabs/chromeTabs'
+import { LiveTabsCoordinator } from './tabs/coordinator'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
+const liveTabs = new LiveTabsCoordinator(new ChromeTabsAdapter())
 
 chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
+chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
+
+chrome.tabs.onCreated.addListener((tab) => liveTabs.scheduleWindow(tab.windowId))
+chrome.tabs.onUpdated.addListener((_tabId, _changeInfo, tab) => liveTabs.scheduleWindow(tab.windowId))
+chrome.tabs.onActivated.addListener(({ windowId }) => liveTabs.scheduleWindow(windowId))
+chrome.tabs.onMoved.addListener((_tabId, { windowId }) => liveTabs.scheduleWindow(windowId))
+chrome.tabs.onAttached.addListener((_tabId, { newWindowId }) => liveTabs.scheduleWindow(newWindowId))
+chrome.tabs.onDetached.addListener((_tabId, { oldWindowId }) => liveTabs.scheduleWindow(oldWindowId))
+chrome.tabs.onRemoved.addListener((_tabId, { windowId }) => liveTabs.scheduleWindow(windowId))
+chrome.tabs.onReplaced.addListener(() => liveTabs.scheduleAll())
+chrome.windows.onRemoved.addListener(() => liveTabs.scheduleAll())
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse: (response: BackgroundResponse) => void) => {
   const request = message as Partial<ClientMessage>
