@@ -225,6 +225,19 @@ describe('project workspace shell', () => {
     expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL_COPY', projectId: 'p1', savedUrlId: 'u1' })
   })
 
+  it('moves a navigated owned tab into Unassigned while retaining its drift label', async () => {
+    const liveTabs = new TestLiveTabsClient()
+    const client = new TestClient({ schemaVersion: 1, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://saved.test/', title: 'Saved page', titleSource: 'automatic', tags: [], notes: '' }] }] })
+    renderApp(client, liveTabs)
+    await screen.findByRole('heading', { name: 'One' })
+    act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Different page', url: 'https://different.test/', urlSummary: 'different.test', hostname: 'different.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://saved.test/', drifted: true } },
+    ] } }))
+    expect(screen.getByRole('button', { name: /Different page.*Navigated from saved URL.*Unassigned/ })).toBeInTheDocument()
+    expect(document.getElementById('live-group-unassigned')).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: /^One1/ })).not.toBeInTheDocument()
+  })
+
   it('assigns an ambiguous matching tab without changing saved metadata', async () => {
     const user = userEvent.setup()
     const liveTabs = new TestLiveTabsClient()
