@@ -29,16 +29,22 @@ class TestClient implements WorkspaceClient {
 class TestLiveTabsClient implements LiveTabsClient {
   listeners = new Set<(message: LiveTabMessage) => void>()
   sent: LiveTabRequest[] = []
+  constructor(private durableClient?: TestClient) {}
   subscribe(listener: (message: LiveTabMessage) => void) {
     this.listeners.add(listener)
     queueMicrotask(() => listener({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 1, tabs: [], stale: false } }))
     return () => this.listeners.delete(listener)
   }
-  send(message: LiveTabRequest) { this.sent.push(message) }
+  send(message: LiveTabRequest) {
+    this.sent.push(message)
+    if (message.kind === 'DELETE_PROJECT_WITH_LIVE_TABS' && this.durableClient) {
+      void this.durableClient.execute({ type: 'DELETE_PROJECT', projectId: message.projectId }).then(({ state }) => this.emit({ kind: 'PROJECT_DELETED', projectId: message.projectId, state }))
+    }
+  }
   emit(message: LiveTabMessage) { this.listeners.forEach((listener) => listener(message)) }
 }
 
-function renderApp(client: TestClient, liveTabsClient = new TestLiveTabsClient()) {
+function renderApp(client: TestClient, liveTabsClient = new TestLiveTabsClient(client)) {
   return render(<App client={client} liveTabsClient={liveTabsClient} />)
 }
 

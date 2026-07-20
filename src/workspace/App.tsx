@@ -21,6 +21,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const model = useWorkspace(resolvedClient)
   const liveTabs = useLiveTabs(liveTabsClient)
   const openInstanceCounts = useMemo(() => instanceCounts(liveTabs.inventory?.tabs ?? []), [liveTabs.inventory?.tabs])
+  const projectLiveCounts = useMemo(() => Object.entries(openInstanceCounts).reduce<Record<string, number>>((counts, [key, count]) => { const projectId = key.split(':')[0]; counts[projectId] = (counts[projectId] ?? 0) + count; return counts }, {}), [openInstanceCounts])
   const [creating, setCreating] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [formError, setFormError] = useState<string>()
@@ -101,7 +102,7 @@ export function App({ client, liveTabsClient }: AppProps) {
           <section className="project-canvas" aria-labelledby="project-title">
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions"><AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} onDeleted={(deletedIndex) => {
+                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions"><AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} liveTabs={liveTabs} ownedLiveCount={projectLiveCounts[selected.id] ?? 0} onDeleted={(deletedIndex) => {
                   const remainingIds = projectIds.filter((id) => id !== selected.id)
                   const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
                   if (successorId) {

@@ -1,5 +1,5 @@
 import { MoreHorizontal } from 'lucide-react'
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Project } from '../domain/types'
 import type { WorkspaceModel } from './useWorkspace'
 import { ActionMenu } from './ActionMenu'
@@ -10,10 +10,12 @@ interface ProjectActionsProps {
   projectIndex: number
   projectCount: number
   model: WorkspaceModel
+  liveTabs: import('./useLiveTabs').LiveTabsModel
+  ownedLiveCount: number
   onDeleted: (deletedIndex: number) => void
 }
 
-export function ProjectActions({ project, projectIndex, projectCount, model, onDeleted }: ProjectActionsProps) {
+export function ProjectActions({ project, projectIndex, projectCount, model, liveTabs, ownedLiveCount, onDeleted }: ProjectActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [mode, setMode] = useState<'rename' | 'delete'>()
   const [name, setName] = useState(project.name)
@@ -46,19 +48,21 @@ export function ProjectActions({ project, projectIndex, projectCount, model, onD
   }
 
   async function remove() {
-    try {
-      await model.execute({ type: 'DELETE_PROJECT', projectId: project.id })
-      setMode(undefined)
-      onDeleted(projectIndex)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not delete this project.')
-    }
+    setError(undefined)
+    liveTabs.deleteProject(project.id)
   }
 
   async function move(toIndex: number) {
     await model.execute({ type: 'REORDER_PROJECT', projectId: project.id, toIndex })
     closeMenu()
   }
+
+  useEffect(() => {
+    if (liveTabs.deletedProject?.projectId === project.id && mode === 'delete') {
+      setMode(undefined)
+      onDeleted(projectIndex)
+    }
+  }, [liveTabs.deletedProject, mode, onDeleted, project.id, projectIndex])
 
   return (
     <div className="project-actions">
@@ -80,7 +84,7 @@ export function ProjectActions({ project, projectIndex, projectCount, model, onD
       )}
       {mode === 'delete' && (
         <ConfirmDialog title={`Delete “${project.name}”?`} confirmLabel="Delete project" destructive pending={model.commandPending} onCancel={cancelDialog} onConfirm={() => void remove()}>
-          <p>This permanently deletes the project and {project.savedUrls.length === 1 ? 'its 1 saved URL' : `its ${project.savedUrls.length} saved URLs`}. This cannot be undone.</p>
+          <p>This permanently deletes the project and {project.savedUrls.length === 1 ? 'its 1 saved URL' : `its ${project.savedUrls.length} saved URLs`}. {ownedLiveCount === 1 ? 'Its 1 owned live tab will remain open and become Unassigned.' : `Its ${ownedLiveCount} owned live tabs will remain open and become Unassigned.`} Saved data deletion cannot be undone.</p>
           {error && <p role="alert" className="field-error dark-error">{error}</p>}
         </ConfirmDialog>
       )}

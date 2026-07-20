@@ -1,4 +1,5 @@
 import type { PersistedStateV1 } from '../../domain/types'
+import type { CommandQueue } from '../../storage/commandQueue'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../messages'
@@ -22,6 +23,7 @@ export class LiveTabsCoordinator {
     private readonly api: ChromeTabsApi,
     private readonly ownership?: OwnershipStore,
     private readonly readState: () => Promise<PersistedStateV1> = async () => ({ schemaVersion: 1, projects: [] }),
+    private readonly durableQueue?: CommandQueue,
   ) {}
 
   connect(port: chrome.runtime.Port): void {
@@ -107,6 +109,10 @@ export class LiveTabsCoordinator {
       this.enqueueWindow(client.windowId, () => this.openCopy(client, message.projectId!, message.savedUrlId!))
       return
     }
+    if (message.kind === 'DELETE_PROJECT_WITH_LIVE_TABS' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.deleteProject(client, message.projectId!))
+      return
+    }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
@@ -121,6 +127,23 @@ export class LiveTabsCoordinator {
         message: reason instanceof Error ? reason.message : 'Chrome could not focus that tab.',
       })
       this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async deleteProject(client: ClientSubscription, projectId: string): Promise<void> {
+    if (!this.durableQueue || !this.ownership) return
+    try {
+      const { state } = await this.durableQueue.execute({ type: 'DELETE_PROJECT', projectId })
+      this.post(client, { kind: 'PROJECT_DELETED', projectId, state })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state }).catch(() => undefined)
+      try {
+        await this.ownership.update((entries) => entries.filter((entry) => entry.projectId !== projectId))
+      } catch (error) {
+        console.error('Protab deleted a project but could not immediately clear its live ownership.', { projectId, error })
+      }
+      this.scheduleAll()
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Protab could not delete that project.' })
     }
   }
 

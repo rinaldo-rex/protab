@@ -36,6 +36,8 @@ export interface LiveTabsModel {
   assign: (tabId: number, projectId: string, savedUrlId: string) => void
   open: (projectId: string, savedUrlId: string) => void
   openCopy: (projectId: string, savedUrlId: string) => void
+  deleteProject: (projectId: string) => void
+  deletedProject?: { projectId: string; state: import('../domain/types').PersistedStateV1 }
   dismissActionError: () => void
 }
 
@@ -43,9 +45,11 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
   const client = useMemo(() => providedClient ?? new ChromeLiveTabsClient(), [providedClient])
   const [inventory, setInventory] = useState<LiveTabInventory>()
   const [actionError, setActionError] = useState<string>()
+  const [deletedProject, setDeletedProject] = useState<LiveTabsModel['deletedProject']>()
 
   useEffect(() => client.subscribe((message) => {
     if (message.kind === 'LIVE_TAB_INVENTORY') setInventory(message.inventory)
+    else if (message.kind === 'PROJECT_DELETED') setDeletedProject({ projectId: message.projectId, state: message.state })
     else setActionError(message.message)
   }), [client])
 
@@ -58,6 +62,8 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     assign: (tabId, projectId, savedUrlId) => client.send({ kind: 'ASSIGN_LIVE_TAB', tabId, projectId, savedUrlId }),
     open: (projectId, savedUrlId) => client.send({ kind: 'OPEN_SAVED_URL', projectId, savedUrlId }),
     openCopy: (projectId, savedUrlId) => client.send({ kind: 'OPEN_SAVED_URL_COPY', projectId, savedUrlId }),
+    deleteProject: (projectId) => client.send({ kind: 'DELETE_PROJECT_WITH_LIVE_TABS', projectId }),
+    deletedProject,
     dismissActionError: () => setActionError(undefined),
   }
 }
