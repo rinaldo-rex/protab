@@ -2,7 +2,7 @@
 
 Protab is a local-first Chrome extension for turning temporary browser tabs into durable, project-based URL collections.
 
-> **Status:** Product design only. There is not yet a runnable extension or development setup.
+> **Status:** Phase 1 is implemented. The extension provides persistent projects and saved URL records; live-tab integration begins in Phase 2.
 
 ## Core workflow
 
@@ -24,6 +24,33 @@ Projects, URLs, titles, tags, and notes persist locally across browser restarts.
 - Local persistence and non-destructive startup recovery
 
 Pinning, settings UI, archive/history, statuses, search, import/export, and cloud sync are deferred.
+
+## Develop and test
+
+Requirements: Node.js 22 or newer and npm.
+
+```sh
+npm install
+npm test
+npm run lint
+npm run build
+```
+
+`npm run dev` starts the Vite workspace development server. Chrome extension behavior must be verified from the production build.
+
+## Load the extension locally
+
+1. Run `npm run build`.
+2. Open `chrome://extensions`.
+3. Enable **Developer mode**.
+4. Choose **Load unpacked** and select this repository's `dist/` directory.
+5. Pin Protab if desired, then click its toolbar action to open the full-page workspace.
+
+The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. Phase 1 requests only the `storage` and `tabs` permissions and does not inspect or manipulate ordinary browser tabs.
+
+## Phase 1 manual checks
+
+See [`docs/phase-1-testing.md`](docs/phase-1-testing.md) for the two-window, persistence, keyboard, network, and visual acceptance checks.
 
 ## Documentation
 
