@@ -63,14 +63,14 @@ Resolve and record URL equivalence rules and project deletion behavior before im
 - Tabs opened from a saved record immediately appear under the correct project.
 - Multiple instances of one URL can coexist and have independent owners.
 - Ambiguous matches become unassigned and display their candidate projects.
-- Navigating an owned tab does not change its owner or overwrite its saved URL.
+- Navigating an owned tab preserves its ownership provenance and saved URL, but displays the drifted live row under **Unassigned** with **Navigated from saved URL**.
 
 ### Tests
 
 - Run all automated checks; cover tab grouping, assignment without closing, ownership precedence, navigation, ambiguous matching, automatic-title refresh, custom-title preservation, project deletion, focus-existing, and open-another behavior with Chrome API test doubles.
 - Open two Chrome windows with different tabs and verify each workspace view uses only its own window.
 - Open one saved URL twice through the two available actions and verify focus-versus-new-instance behavior.
-- Navigate an owned tab away from its saved URL and verify it remains in its project group while the saved record remains unchanged.
+- Navigate an owned tab away from its saved URL and verify it appears under Unassigned with **Navigated from saved URL** while the saved record and provenance remain unchanged.
 - Save one URL in two projects, remove recoverable ownership in the test setup, and verify the live tab becomes unassigned while both records remain.
 
 ### Entry decision
@@ -79,12 +79,12 @@ Choose and document the supported URL schemes and live-owned project deletion po
 
 ## Phase 3 — Deliberate tab filing
 
-**Outcome:** The core declutter loop works under an explicitly chosen close policy: users can file an unassigned tab, persist its context, and complete the close flow without false unsaved-change guarantees.
+**Outcome:** The core declutter loop works under the approved programmatic-close policy: users can file an unassigned tab, persist its context, and request closure without false unsaved-change guarantees.
 
 ### Atomic commits
 
-1. Add the chosen shared close workflow with persist-first ordering, explicit confirmation or user-close handoff, and honest API failure reporting.
-2. Add drag-to-project filing plus a keyboard equivalent, with title/hostname fallback, deduplication, ownership updates, and close-policy handling.
+1. Add the shared programmatic close workflow with persist-first ordering, explicit confirmation, independent close observation, and honest API failure reporting.
+2. Add drag-to-project filing plus a keyboard equivalent, with title/hostname fallback, deduplication, ownership updates, and programmatic-close handling.
 3. Add **File all unassigned tabs**, excluding owned tabs, Protab, and unsupported pages, with clear partial-success reporting.
 4. Add the initial automatic tag suggestions without overwriting or locking user tags.
 
@@ -98,15 +98,15 @@ Choose and document the supported URL schemes and live-owned project deletion po
 
 ### Tests
 
-- Run all automated checks; verify save-before-close ordering, deduplication, the selected close policy, API rejection, partial bulk success, hostname fallback, and editable/removable tag suggestions.
+- Run all automated checks; verify save-before-close ordering, programmatic close, API rejection, surviving-tab attention, deduplication, partial bulk success, hostname fallback, and editable/removable tag suggestions.
 - Drag an unassigned tab into a project and reopen it from its saved accordion.
 - Complete the same filing workflow without using drag and drop.
 - Bulk-file a mix of unassigned, project-owned, workspace, and restricted tabs; verify only eligible unassigned tabs are filed.
-- Verify the close flow's wording and behavior on a page with unsaved form state; it must match the chosen policy and never promise a cancellable native warning.
+- Verify the close flow's wording and behavior on a page with unsaved form state; it must describe programmatic close accurately and never promise a cancellable native warning.
 
-### Entry decision
+### Entry decisions
 
-Choose and document both the extension close policy and the small initial domain-to-tag mapping before starting this phase.
+The V0 programmatic-close policy and initial domain-to-tag mapping are recorded. A configurable close preference remains post-V0; its cross-workflow scope is intentionally undecided.
 
 ## Phase 4 — Deliberate project focus
 
@@ -115,9 +115,9 @@ Choose and document both the extension close policy and the small initial domain
 ### Atomic commits
 
 1. Add distinct selected and active project states with a clear **Activate** action and active-project indicator.
-2. Add activation behavior using the chosen close policy, leaving unassigned tabs open and pulsing their group.
+2. Add activation behavior using the shared programmatic-close workflow, leaving unassigned tabs open and pulsing their group.
 3. Add keyboard-accessible, idempotent **Open all** with clear partial-failure reporting.
-4. Add keyboard-accessible **Close all** using the chosen close policy without deleting saved records.
+4. Add keyboard-accessible **Close all** using the shared programmatic-close workflow without deleting saved records.
 5. Add changed-URL detection and confirmation before activation or bulk closing touches a navigated project-owned tab.
 6. Add per-window focus isolation and safe handling when active-project recovery is uncertain.
 
@@ -165,4 +165,4 @@ Choose and document both the extension close policy and the small initial domain
 
 ## Out of scope for these phases
 
-Settings UI, pinning, archive/history, statuses, advanced search/filtering, nested projects, import/export, cloud sync, and Chrome split-view management remain post-V0 work.
+Settings UI remains post-V0. A future automatic-close preference may default on and offer user-close handoff, but its scope across filing, activation, and Close all requires a later product decision. Pinning, archive/history, statuses, advanced search/filtering, nested projects, import/export, cloud sync, and Chrome split-view management also remain post-V0 work.

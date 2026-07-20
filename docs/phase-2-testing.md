@@ -23,7 +23,7 @@ After source changes, run `npm run build`, then use **Reload** on the extension 
 
 ## Manual acceptance record
 
-Record the Chrome version, OS, date, and tester. Capture two-window inventory screenshots and one 1280 × 1024 workspace screenshot.
+Record the Chrome version, OS, date, and tester. Capture two-window inventory screenshots and one 1280 × 1024 workspace screenshot. Checked items below were confirmed by the user during Phase 2 testing; unchecked items remain pending.
 
 - [x] In two Chrome windows, open different ordinary tabs and a Protab workspace. Each pane shows only its own window, and no Protab workspace tab appears.
 - [x] Create, update, activate, reorder, move, and remove ordinary tabs. Inventory and tab-strip order update without reloading Protab.
@@ -33,7 +33,7 @@ Record the Chrome version, OS, date, and tester. Capture two-window inventory sc
 - [x] Invoke **Open** again. The most recently used exact owned instance is focused and no duplicate is created.
 - [x] Invoke **Open another copy**. A distinct owned instance always opens and both instances are listed/countable.
 - [x] Open identical URLs from two projects. Ownership remains independent and Open never steals another project's instance.
-- [x] Navigate an owned tab away from its saved URL. It remains under its project and says **Navigated from saved URL**. Open creates or reuses an exact current match instead.
+- [x] Navigate an owned tab away from its saved URL. It moves under **Unassigned** and says **Navigated from saved URL** while retaining provenance; Open creates or reuses an exact current match instead.
 - [ ] Create the same saved URL in two projects, clear runtime ownership by restarting Chrome, and confirm the matching tab remains Unassigned with both candidates.
 - [ ] Assign the ambiguous tab. It stays open, moves to the selected project group, and saved title/tags/notes remain unchanged.
 - [ ] Suspend the extension service worker from `chrome://extensions`, then interact again. Explicit ownership remains after wake.

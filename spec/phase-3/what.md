@@ -4,14 +4,11 @@
 
 Deliver Protab's core declutter loop: persist an unassigned live tab into a project, then complete the approved close flow. Support one-tab filing and a controlled bulk action without touching owned, unsupported, or out-of-window tabs.
 
-## Readiness gate: choose the close policy
+## Approved V0 close policy
 
-This specification is not implementation-ready until one V0 policy is selected and recorded in `design_decisions.md`:
+V0 uses **programmatic close**. Protab shows explicit confirmation, persists first, immediately rechecks the tab's reported URL, establishes ownership for a stable still-live tab, and requests closure. Chrome may conditionally show native page UI, but Protab cannot detect unknown unsaved state, guarantee a warning, or receive a direct cancellation result. It reports independently observed closed, pending/surviving, skipped, and failed outcomes.
 
-1. **Programmatic close:** Protab shows an explicit warning/confirmation, then requests closure. An eligible page may show Chrome's native warning and **Stay** may preserve it, but Chrome provides no cancellation result and the close promise may remain pending.
-2. **User-close handoff:** Protab saves first, focuses or identifies the tab, and asks the user to close it through Chrome's normal UI. Native page protection remains conditional and is never guaranteed.
-
-The chosen policy applies consistently to drag filing, keyboard filing, bulk filing, activation, and Close all. The UI must describe its real guarantee and must not claim to detect unsaved page state.
+This policy applies consistently to drag filing, keyboard filing, bulk filing, activation, and Close all. Programmatic close is fixed for V0. A post-V0 Settings feature may make automatic closing configurable with an enabled default and a user-close handoff alternative; whether that future preference applies to every close workflow or filing only remains undecided.
 
 ## Prerequisite
 
@@ -26,9 +23,9 @@ Phase 2 is complete, including reliable current-window inventory and ownership. 
 - Apply initial automatic tag suggestions, then allow users to edit or remove them normally.
 - If the target project already contains the URL, preserve its existing title, tags, and notes rather than creating or overwriting it.
 - If persistence fails, do not begin the close flow; keep the tab open and retain the user's target selection for retry.
-- If closing or handoff fails, keep the durable record and report what remains to be done.
-- Immediately before close or handoff, re-read Chrome's reported URL. If a change is detected, retain the durable record but leave the live tab unassigned and require a fresh filing decision.
-- After successful persistence and a stable URL recheck, explicitly associate any still-live filed tab with the selected saved record. This preserves ownership during a native warning, pending close, or user handoff.
+- If closing fails or remains unresolved, keep the durable record and report the still-open tab and next action.
+- Immediately before close, re-read Chrome's reported URL. If a change is detected, retain the durable record but leave the live tab unassigned and require a fresh filing decision.
+- After successful persistence and a stable URL recheck, explicitly associate any still-live filed tab with the selected saved record. This preserves provenance during a native warning or pending/surviving close request.
 
 ## File all unassigned tabs
 
@@ -39,7 +36,7 @@ The selected project provides **File all unassigned tabs**:
 - Persist each eligible URL before its close flow.
 - Deduplicate against the target project and within the batch.
 - Continue independent items after a per-tab failure where safe.
-- Finish with a summary of saved, deduplicated, skipped, closed, pending/surviving or handed off, and failed items.
+- Finish with a summary of saved, deduplicated, skipped, closed, pending/surviving, and failed items.
 - Never reassign or close another project's tab.
 
 The action requires confirmation showing the eligible count and selected target project.
@@ -62,11 +59,11 @@ Suggestions use hostname matching only and never assign project ownership:
 
 ## Attention and errors
 
-- Attention markers represent actual Protab/API failures, independently observed pending/surviving tabs, or an incomplete user-close handoff—not inferred unsaved changes.
+- Attention markers represent actual Protab/API failures or independently observed pending/surviving tabs—not inferred unsaved changes.
 - A dismissible workspace banner summarizes affected tabs and focuses a listed tab when selected.
 - Dismissing the banner does not erase unresolved row-level state.
-- Resolve an attention marker when the tab closes, the handoff is canceled intentionally, or the failed action succeeds on retry.
-- Re-read each tab's reported URL immediately before close/handoff. Skip any detected change and require a fresh filing decision. Chrome has no atomic compare-and-close operation, so Protab must not claim protection against a navigation race after the final check.
+- Resolve an attention marker when the tab closes, the user intentionally keeps it open and dismisses that item, or the failed action succeeds on retry.
+- Re-read each tab's reported URL immediately before close. Skip any detected change and require a fresh filing decision. Chrome has no atomic compare-and-close operation, so Protab must not claim protection against a navigation race after the final check.
 
 ## Interface changes
 
@@ -78,15 +75,15 @@ Suggestions use hostname matching only and never assign project ownership:
 
 ## Acceptance criteria
 
-- **P3-A1:** Single-tab filing persists the correct record before any close or handoff action.
-- **P3-A2:** Drag and keyboard filing produce equivalent records and close-policy behavior.
+- **P3-A1:** Single-tab filing persists the correct record before any programmatic close request.
+- **P3-A2:** Drag and keyboard filing produce equivalent records and programmatic-close behavior.
 - **P3-A3:** Existing same-project records are reused without metadata overwrite.
 - **P3-A4:** Persistence failure always leaves the live tab open and starts no close operation.
 - **P3-A5:** Bulk filing touches only eligible unassigned tabs in the current window and reports partial results.
 - **P3-A6:** Automatic tags follow the exact hostname table and remain editable/removable.
 - **P3-A7:** Attention UI represents only real operation state and links to the affected tab.
 - **P3-A8:** A URL change detected by the immediate pre-close check skips closure, leaves the tab unassigned, and requires a fresh decision without claiming atomic race protection.
-- **P3-A9:** The implementation and copy accurately reflect the selected close policy's limitations.
+- **P3-A9:** The implementation and copy accurately describe programmatic close, conditional native warnings, and the inability to detect cancellation directly.
 - **P3-A10:** After stable persistence, a filed tab that remains live is explicitly owned by the selected saved record.
 
 ## Manual acceptance checklist
@@ -100,7 +97,7 @@ Suggestions use hostname matching only and never assign project ownership:
 7. Verify every domain-tag mapping, a deceptive suffix domain, and an unknown domain.
 8. Remove and edit suggested tags and verify they behave like manual tags.
 9. Change a tab's URL while filing and verify it is not silently closed.
-10. Exercise the chosen close policy on a page with unsaved form state and verify the wording makes no false native-warning promise.
+10. Exercise programmatic close on a page with unsaved form state, test native **Leave** and **Stay** paths where eligible, and verify the wording makes no false native-warning promise.
 
 ## Explicitly out of scope
 
