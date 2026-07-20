@@ -33,6 +33,7 @@ export interface LiveTabsModel {
   actionError?: string
   retry: () => void
   focus: (tabId: number) => void
+  assign: (tabId: number, projectId: string, savedUrlId: string) => void
   dismissActionError: () => void
 }
 
@@ -52,6 +53,7 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     actionError,
     retry: () => client.send({ kind: 'RETRY_TAB_INVENTORY' }),
     focus: (tabId) => client.send({ kind: 'FOCUS_LIVE_TAB', tabId }),
+    assign: (tabId, projectId, savedUrlId) => client.send({ kind: 'ASSIGN_LIVE_TAB', tabId, projectId, savedUrlId }),
     dismissActionError: () => setActionError(undefined),
   }
 }

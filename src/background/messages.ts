@@ -24,6 +24,7 @@ export interface StateCommittedMessage {
 export type LiveTabRequest =
   | { kind: 'RETRY_TAB_INVENTORY' }
   | { kind: 'FOCUS_LIVE_TAB'; tabId: number }
+  | { kind: 'ASSIGN_LIVE_TAB'; tabId: number; projectId: string; savedUrlId: string }
 
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }

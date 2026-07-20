@@ -63,6 +63,25 @@ describe('live tabs coordinator', () => {
     expect(chrome.activate).toHaveBeenCalledWith(10)
   })
 
+  it('assigns only after revalidating the current URL candidate', async () => {
+    const chrome = api()
+    const state = { schemaVersion: 1 as const, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://1.test/', title: 'One', titleSource: 'automatic' as const, tags: [], notes: '' }] }] }
+    const entries: import('../../domain/ownership').OwnershipEntry[] = []
+    const ownership = {
+      read: vi.fn(async () => entries),
+      replace: vi.fn(async () => undefined),
+      update: vi.fn(async (mutate: (current: typeof entries) => typeof entries) => { entries.splice(0, entries.length, ...mutate(entries)); return entries }),
+    }
+    const coordinator = new LiveTabsCoordinator(chrome, ownership as never, async () => state)
+    const client = port({ id: 2, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+    coordinator.connect(client)
+    await tick()
+    client.onMessage.emit({ kind: 'ASSIGN_LIVE_TAB', tabId: 10, projectId: 'p1', savedUrlId: 'u1' })
+    await tick()
+    expect(entries).toEqual([{ tabId: 10, windowId: 1, projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://1.test/' }])
+    expect(chrome.activate).not.toHaveBeenCalled()
+  })
+
   it('retains the last snapshot when a query fails and retries', async () => {
     const chrome = api()
     const coordinator = new LiveTabsCoordinator(chrome)
