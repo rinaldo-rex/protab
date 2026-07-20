@@ -26,6 +26,7 @@ export type LiveTabRequest =
   | { kind: 'FOCUS_LIVE_TAB'; tabId: number }
   | { kind: 'ASSIGN_LIVE_TAB'; tabId: number; projectId: string; savedUrlId: string }
   | { kind: 'OPEN_SAVED_URL'; projectId: string; savedUrlId: string }
+  | { kind: 'OPEN_SAVED_URL_COPY'; projectId: string; savedUrlId: string }
 
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
