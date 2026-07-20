@@ -52,6 +52,12 @@ The production build is entirely local: fonts, icons, scripts, and styles are bu
 
 See [`docs/phase-1-testing.md`](docs/phase-1-testing.md) for the two-window, persistence, keyboard, network, and visual acceptance checks.
 
+## Phase 1 completion
+
+Phase 1 implementation and reported manual acceptance results are recorded in [`docs/phase-1-completion.md`](docs/phase-1-completion.md). The production extension is built into `dist/`.
+
+The remaining V0 workflow—including live-tab ownership, filing, activation, and tab opening or closing—belongs to later phases.
+
 ## Documentation
 
 - [Design philosophy](design_philosophy.md) — why Protab exists and the principles behind it

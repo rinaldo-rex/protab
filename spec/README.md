@@ -18,8 +18,8 @@ The generated Stitch HTML is a reference, not production code. Features shown th
 
 | Phase | What | How | Implementation depends on |
 |---|---|---|---|
-| [Phase 1](phase-1/what.md) | Ready | [Ready](phase-1/how.md) | — |
-| [Phase 2](phase-2/what.md) | Ready | Write after Phase 1 | Phase 1 contracts and code |
+| [Phase 1](phase-1/what.md) | **Complete** ([evidence](../docs/phase-1-completion.md)) | [Implemented](phase-1/how.md) | — |
+| [Phase 2](phase-2/what.md) | Ready | Write after Phase 1 merge | Completed Phase 1 contracts and code |
 | [Phase 3](phase-3/what.md) | Draft: close-policy gate | Write after Phase 2 | Phase 2 and close-policy decision |
 | [Phase 4](phase-4/what.md) | Ready after close policy | Write after Phase 3 | Phase 3 |
 | [Phase 5](phase-5/what.md) | Ready | Write after Phase 4 | Phase 4 |

@@ -15,7 +15,7 @@ Load `dist/` as an unpacked extension. Do not load the repository root or use th
 
 ## Manual Chrome checklist
 
-Record the Chrome version and results when opening the pull request.
+Record the Chrome version and results when opening the pull request. The results reported for the Phase 1 implementation are summarized in [`phase-1-completion.md`](phase-1-completion.md).
 
 1. In a clean Chrome profile, load `dist/` and confirm the extension and service worker report no errors.
 2. Open two Chrome windows. Click Protab twice in each window. Confirm each window has one workspace, repeated clicks focus that window's workspace, and neither window reuses the other's workspace.
