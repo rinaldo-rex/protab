@@ -11,7 +11,7 @@ import { ChromeSessionStorageAdapter, OwnershipStore } from './tabs/ownershipSto
 const queue = new CommandQueue(new ChromeStorageAdapter())
 const ownership = new OwnershipStore(new ChromeSessionStorageAdapter())
 void ownership.initialize().catch((error: unknown) => console.error('Protab could not restrict live ownership storage access.', error))
-const liveTabs = new LiveTabsCoordinator(new ChromeTabsAdapter(), ownership, () => queue.read())
+const liveTabs = new LiveTabsCoordinator(new ChromeTabsAdapter(), ownership, () => queue.read(), queue)
 
 chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))

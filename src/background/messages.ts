@@ -27,7 +27,9 @@ export type LiveTabRequest =
   | { kind: 'ASSIGN_LIVE_TAB'; tabId: number; projectId: string; savedUrlId: string }
   | { kind: 'OPEN_SAVED_URL'; projectId: string; savedUrlId: string }
   | { kind: 'OPEN_SAVED_URL_COPY'; projectId: string; savedUrlId: string }
+  | { kind: 'DELETE_PROJECT_WITH_LIVE_TABS'; projectId: string }
 
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
   | { kind: 'LIVE_TAB_ACTION_ERROR'; message: string; tabId?: number }
+  | { kind: 'PROJECT_DELETED'; projectId: string; state: PersistedStateV1 }
