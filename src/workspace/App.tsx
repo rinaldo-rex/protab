@@ -8,6 +8,7 @@ import { ChromeWorkspaceClient } from './client'
 import { CurrentTabsPane } from './CurrentTabsPane'
 import type { LiveTabsClient } from './useLiveTabs'
 import { useLiveTabs } from './useLiveTabs'
+import { instanceCounts } from '../domain/ownership'
 import { useWorkspace } from './useWorkspace'
 
 interface AppProps {
@@ -19,6 +20,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const resolvedClient = useMemo(() => client ?? new ChromeWorkspaceClient(), [client])
   const model = useWorkspace(resolvedClient)
   const liveTabs = useLiveTabs(liveTabsClient)
+  const openInstanceCounts = useMemo(() => instanceCounts(liveTabs.inventory?.tabs ?? []), [liveTabs.inventory?.tabs])
   const [creating, setCreating] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [formError, setFormError] = useState<string>()
@@ -119,7 +121,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                 ) : (
                   <div className="url-list" aria-label={`Saved URLs in ${selected.name}`}>
                     {selected.savedUrls.map((record, index) => (
-                      <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={selected.savedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} projects={state.projects} tagSuggestions={tagSuggestions} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
+                      <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={selected.savedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
                         const remaining = selected.savedUrls.filter((item) => item.id !== record.id)
                         const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
                         if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())

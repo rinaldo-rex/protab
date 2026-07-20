@@ -202,6 +202,20 @@ describe('project workspace shell', () => {
     expect(liveTabs.sent).toContainEqual({ kind: 'FOCUS_LIVE_TAB', tabId: 12 })
   })
 
+  it('opens saved URL records and displays owned instance counts', async () => {
+    const user = userEvent.setup()
+    const liveTabs = new TestLiveTabsClient()
+    const client = new TestClient({ schemaVersion: 1, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'automatic', tags: [], notes: '' }] }] })
+    renderApp(client, liveTabs)
+    await screen.findByRole('heading', { name: 'One' })
+    act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'One URL', url: 'https://one.test/', urlSummary: 'one.test', hostname: 'one.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://one.test/', drifted: false } },
+    ] } }))
+    expect(screen.getByLabelText('1 open instance')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open' }))
+    expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
+  })
+
   it('assigns an ambiguous matching tab without changing saved metadata', async () => {
     const user = userEvent.setup()
     const liveTabs = new TestLiveTabsClient()
