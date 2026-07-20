@@ -5,6 +5,8 @@ import { applyCommand } from '../domain/applyCommand'
 import { emptyState, type PersistedStateV1 } from '../domain/types'
 import type { Command } from '../domain/commands'
 import type { WorkspaceClient } from './client'
+import type { LiveTabsClient } from './useLiveTabs'
+import type { LiveTabMessage, LiveTabRequest } from '../background/messages'
 import { App } from './App'
 
 class TestClient implements WorkspaceClient {
@@ -24,12 +26,28 @@ class TestClient implements WorkspaceClient {
   subscribe(listener: (state: PersistedStateV1) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener) }
 }
 
+class TestLiveTabsClient implements LiveTabsClient {
+  listeners = new Set<(message: LiveTabMessage) => void>()
+  sent: LiveTabRequest[] = []
+  subscribe(listener: (message: LiveTabMessage) => void) {
+    this.listeners.add(listener)
+    queueMicrotask(() => listener({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 1, tabs: [], stale: false } }))
+    return () => this.listeners.delete(listener)
+  }
+  send(message: LiveTabRequest) { this.sent.push(message) }
+  emit(message: LiveTabMessage) { this.listeners.forEach((listener) => listener(message)) }
+}
+
+function renderApp(client: TestClient, liveTabsClient = new TestLiveTabsClient()) {
+  return render(<App client={client} liveTabsClient={liveTabsClient} />)
+}
+
 describe('project workspace shell', () => {
   it('loads before showing the first-use state', async () => {
     let release!: (state: PersistedStateV1) => void
     const client = new TestClient()
     client.read = () => new Promise((resolve) => { release = resolve })
-    render(<App client={client} />)
+    renderApp(client)
     expect(screen.getByRole('heading', { name: 'Loading Protab' })).toBeInTheDocument()
     expect(screen.queryByText('Turn temporary tabs into durable project context.')).not.toBeInTheDocument()
     await act(async () => release(emptyState()))
@@ -39,7 +57,7 @@ describe('project workspace shell', () => {
   it('creates and selects projects with keyboard-accessible controls', async () => {
     const user = userEvent.setup()
     const client = new TestClient()
-    render(<App client={client} />)
+    renderApp(client)
     await user.click(await screen.findByRole('button', { name: 'Create first project' }))
     const input = screen.getByLabelText('Project name')
     await user.type(input, 'Design research')
@@ -48,12 +66,12 @@ describe('project workspace shell', () => {
     const projectButton = screen.getAllByRole('button', { name: /Design research/ }).find((button) => button.getAttribute('aria-current') === 'page')
     expect(projectButton).toBeDefined()
     expect(screen.getByRole('heading', { name: 'Current Tabs' })).toBeInTheDocument()
-    expect(screen.getByText(/Live tabs aren’t connected yet/)).toBeInTheDocument()
+    expect(await screen.findByText(/No ordinary tabs in this window/)).toBeInTheDocument()
   })
 
   it('shows inline project validation without closing the form', async () => {
     const user = userEvent.setup()
-    render(<App client={new TestClient()} />)
+    renderApp(new TestClient())
     await user.click(await screen.findByRole('button', { name: 'New project' }))
     await user.click(screen.getByRole('button', { name: 'Create' }))
     expect((await screen.findAllByText('Enter a project name.')).length).toBeGreaterThan(0)
@@ -69,7 +87,7 @@ describe('project workspace shell', () => {
         { id: 'p2', name: 'Two', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '' }] },
       ],
     })
-    render(<App client={client} />)
+    renderApp(client)
     await user.click(await screen.findByRole('button', { name: /Two/ }))
     await user.click(screen.getByRole('button', { name: 'Project actions for Two' }))
     await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
@@ -99,7 +117,7 @@ describe('project workspace shell', () => {
   it('creates, expands, autosaves, validates, and deletes saved URLs', async () => {
     const user = userEvent.setup()
     const client = new TestClient({ schemaVersion: 1, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] })
-    render(<App client={client} />)
+    renderApp(client)
     await screen.findByRole('heading', { name: 'Research' })
     await user.click(screen.getByRole('button', { name: 'Add URL' }))
     await user.type(screen.getByLabelText('URL'), 'https://Example.com/path?x=1#part')
@@ -139,7 +157,7 @@ describe('project workspace shell', () => {
         { id: 'p2', name: 'Two', savedUrls: [] },
       ],
     })
-    render(<App client={client} />)
+    renderApp(client)
     await screen.findByRole('heading', { name: 'One' })
     await user.click(screen.getAllByRole('button', { name: /One URL/ }).find((button) => button.hasAttribute('aria-controls'))!)
     const tagInput = screen.getByLabelText('Add tag')
@@ -167,10 +185,41 @@ describe('project workspace shell', () => {
     expect(client.state.projects[1].savedUrls[0].notes).toBe('Independent')
   })
 
+  it('shows live current-window rows and sends keyboard row activation to the background', async () => {
+    const user = userEvent.setup()
+    const liveTabs = new TestLiveTabsClient()
+    renderApp(new TestClient(), liveTabs)
+    await screen.findByText('No ordinary tabs in this window')
+    act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
+      { tabId: 12, windowId: 3, index: 0, active: true, title: 'A very useful reference', url: 'https://example.com/reference', urlSummary: 'example.com', hostname: 'example.com', supported: true },
+      { tabId: 13, windowId: 3, index: 1, active: false, title: 'Chrome Settings', url: 'chrome://settings/', urlSummary: 'chrome:', supported: false },
+    ] } }))
+    const row = screen.getByRole('button', { name: /A very useful reference.*Current tab/ })
+    expect(row).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Unsupported page — view only')).toBeInTheDocument()
+    row.focus()
+    await user.keyboard('{Enter}')
+    expect(liveTabs.sent).toContainEqual({ kind: 'FOCUS_LIVE_TAB', tabId: 12 })
+  })
+
+  it('keeps a stale snapshot visible and offers inventory retry', async () => {
+    const user = userEvent.setup()
+    const liveTabs = new TestLiveTabsClient()
+    renderApp(new TestClient(), liveTabs)
+    await screen.findByText('No ordinary tabs in this window')
+    act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: true, error: 'Tabs permission unavailable', tabs: [
+      { tabId: 12, windowId: 3, index: 0, active: false, title: 'Last known tab', url: 'https://example.com/', urlSummary: 'example.com', hostname: 'example.com', supported: true },
+    ] } }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Tabs permission unavailable')
+    expect(screen.getByText('Last known tab')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Retry/ }))
+    expect(liveTabs.sent).toContainEqual({ kind: 'RETRY_TAB_INVENTORY' })
+  })
+
   it('enters a blocking storage-error state', async () => {
     const client = new TestClient()
     client.readError = new Error('Unsupported schema version')
-    render(<App client={client} />)
+    renderApp(client)
     expect(await screen.findByRole('alert')).toHaveTextContent('left untouched')
     expect(screen.queryByRole('button', { name: 'New project' })).not.toBeInTheDocument()
   })

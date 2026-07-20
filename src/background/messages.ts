@@ -1,7 +1,9 @@
 import type { Command, CommandResultMeta } from '../domain/commands'
 import type { PersistedStateV1 } from '../domain/types'
+import type { LiveTabInventory } from '../domain/liveTabs'
 
 export const MESSAGE_CHANNEL = 'protab'
+export const LIVE_TAB_PORT = 'protab-live-tabs'
 
 export type ClientMessage =
   | { channel: typeof MESSAGE_CHANNEL; kind: 'READ_STATE' }
@@ -18,3 +20,11 @@ export interface StateCommittedMessage {
   kind: typeof STATE_COMMITTED
   state: PersistedStateV1
 }
+
+export type LiveTabRequest =
+  | { kind: 'RETRY_TAB_INVENTORY' }
+  | { kind: 'FOCUS_LIVE_TAB'; tabId: number }
+
+export type LiveTabMessage =
+  | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
+  | { kind: 'LIVE_TAB_ACTION_ERROR'; message: string; tabId?: number }

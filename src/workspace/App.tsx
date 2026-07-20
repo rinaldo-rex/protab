@@ -5,15 +5,20 @@ import { Folder, FolderOpen, Plus } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
+import { CurrentTabsPane } from './CurrentTabsPane'
+import type { LiveTabsClient } from './useLiveTabs'
+import { useLiveTabs } from './useLiveTabs'
 import { useWorkspace } from './useWorkspace'
 
 interface AppProps {
   client?: WorkspaceClient
+  liveTabsClient?: LiveTabsClient
 }
 
-export function App({ client }: AppProps) {
+export function App({ client, liveTabsClient }: AppProps) {
   const resolvedClient = useMemo(() => client ?? new ChromeWorkspaceClient(), [client])
   const model = useWorkspace(resolvedClient)
+  const liveTabs = useLiveTabs(liveTabsClient)
   const [creating, setCreating] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [formError, setFormError] = useState<string>()
@@ -134,10 +139,7 @@ export function App({ client }: AppProps) {
               </div>
             )}
           </section>
-          <aside className="current-tabs" aria-labelledby="current-tabs-title">
-            <div className="pane-heading"><h2 id="current-tabs-title">Current Tabs</h2><span>PHASE 2</span></div>
-            <div className="tabs-empty"><div className="tab-lines"><i /><i /><i /></div><h3>Live tabs aren’t connected yet</h3><p>Phase 1 organizes saved URLs only. A later phase will show tabs from this Chrome window and their project ownership here.</p></div>
-          </aside>
+          <CurrentTabsPane model={liveTabs} />
         </div>
       </main>
     </div>
