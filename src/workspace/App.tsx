@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
+import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
 import { useWorkspace } from './useWorkspace'
@@ -14,6 +15,7 @@ export function App({ client }: AppProps) {
   const [creating, setCreating] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [formError, setFormError] = useState<string>()
+  const [focusProjectId, setFocusProjectId] = useState<string>()
 
   if (model.status === 'loading') {
     return <main className="centered-state" aria-live="polite"><div className="loader" /><h1>Loading Protab</h1><p>Preparing your local workspace…</p></main>
@@ -30,6 +32,7 @@ export function App({ client }: AppProps) {
   }
 
   const state = model.state!
+  const projectIds = state.projects.map((project) => project.id)
   const selected = state.projects.find((project) => project.id === model.selectedProjectId)
 
   async function createProject(event: FormEvent) {
@@ -51,15 +54,18 @@ export function App({ client }: AppProps) {
         <div className="sidebar-heading"><span>Projects</span><span>{state.projects.length}</span></div>
         <nav className="project-list" aria-label="Projects">
           {state.projects.map((project) => (
-            <button
-              key={project.id}
-              className={project.id === selected?.id ? 'project-item selected' : 'project-item'}
-              aria-current={project.id === selected?.id ? 'page' : undefined}
-              onClick={() => model.selectProject(project.id)}
-            >
-              {project.id === selected?.id ? <FolderOpen size={16} /> : <Folder size={16} />}
-              <span>{project.name}</span>
-            </button>
+            <div key={project.id} className={project.id === selected?.id ? 'project-row selected' : 'project-row'}>
+              <button
+                className="project-item"
+                aria-current={project.id === selected?.id ? 'page' : undefined}
+                autoFocus={project.id === focusProjectId}
+                onFocus={() => setFocusProjectId(undefined)}
+                onClick={() => model.selectProject(project.id)}
+              >
+                {project.id === selected?.id ? <FolderOpen size={16} /> : <Folder size={16} />}
+                <span>{project.name}</span>
+              </button>
+            </div>
           ))}
         </nav>
         {creating ? (
@@ -84,7 +90,17 @@ export function App({ client }: AppProps) {
           <section className="project-canvas" aria-labelledby="project-title">
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div></div>
+                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} onDeleted={(deletedIndex) => {
+                  const remainingIds = projectIds.filter((id) => id !== selected.id)
+                  const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
+                  if (successorId) {
+                    model.selectProject(successorId)
+                    setFocusProjectId(successorId)
+                  } else {
+                    setCreating(false)
+                    queueMicrotask(() => document.querySelector<HTMLButtonElement>('.new-project-button')?.focus())
+                  }
+                }} /></div>
                 <div className="empty-project">
                   <FolderOpen size={30} />
                   <h3>No saved URLs yet</h3>

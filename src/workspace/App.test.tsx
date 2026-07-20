@@ -45,7 +45,8 @@ describe('project workspace shell', () => {
     await user.type(input, 'Design research')
     await user.keyboard('{Enter}')
     expect(await screen.findByRole('heading', { name: 'Design research' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Design research/ })).toHaveAttribute('aria-current', 'page')
+    const projectButton = screen.getAllByRole('button', { name: /Design research/ }).find((button) => button.getAttribute('aria-current') === 'page')
+    expect(projectButton).toBeDefined()
     expect(screen.getByRole('heading', { name: 'Current Tabs' })).toBeInTheDocument()
     expect(screen.getByText(/Live tabs aren’t connected yet/)).toBeInTheDocument()
   })
@@ -57,6 +58,42 @@ describe('project workspace shell', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }))
     expect((await screen.findAllByText('Enter a project name.')).length).toBeGreaterThan(0)
     expect(screen.getByLabelText('Project name')).toBeInTheDocument()
+  })
+
+  it('renames, reorders, and confirms project deletion', async () => {
+    const user = userEvent.setup()
+    const client = new TestClient({
+      schemaVersion: 1,
+      projects: [
+        { id: 'p1', name: 'One', savedUrls: [] },
+        { id: 'p2', name: 'Two', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '' }] },
+      ],
+    })
+    render(<App client={client} />)
+    await user.click(await screen.findByRole('button', { name: /Two/ }))
+    await user.click(screen.getByRole('button', { name: 'Project actions for Two' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
+    expect(client.state.projects.map((project) => project.id)).toEqual(['p2', 'p1'])
+
+    await user.click(screen.getByRole('button', { name: 'Project actions for Two' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    const input = screen.getByLabelText('Project name')
+    await user.clear(input)
+    await user.type(input, 'Renamed')
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    expect(await screen.findByRole('heading', { name: 'Renamed' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Project actions for Renamed' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+    expect(screen.getByText(/its 1 saved URL/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Project actions for Renamed' })).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: 'Project actions for Renamed' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+    await user.click(screen.getByRole('button', { name: 'Delete project' }))
+    expect(await screen.findByRole('heading', { name: 'One' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Renamed/ })).not.toBeInTheDocument()
   })
 
   it('enters a blocking storage-error state', async () => {

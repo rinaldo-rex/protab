@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { Command, CommandResultMeta } from '../domain/commands'
 import type { PersistedStateV1 } from '../domain/types'
 import type { WorkspaceClient } from './client'
@@ -57,12 +58,14 @@ export function useWorkspace(client: WorkspaceClient): WorkspaceModel {
       setCommandPending(true)
       try {
         const result = await client.execute(command)
-        setState(result.state)
-        setSelectedProjectId((id) => {
-          if (command.type === 'CREATE_PROJECT') return result.meta.affectedProjectId
-          return chooseSelection(id, result.state)
+        flushSync(() => {
+          setState(result.state)
+          setSelectedProjectId((id) => {
+            if (command.type === 'CREATE_PROJECT') return result.meta.affectedProjectId
+            return chooseSelection(id, result.state)
+          })
+          setError(undefined)
         })
-        setError(undefined)
         return result.meta
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Protab could not save your change.')
