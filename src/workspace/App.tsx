@@ -37,6 +37,7 @@ export function App({ client }: AppProps) {
   const state = model.state!
   const projectIds = state.projects.map((project) => project.id)
   const selected = state.projects.find((project) => project.id === model.selectedProjectId)
+  const tagSuggestions = Array.from(new Map(state.projects.flatMap((project) => project.savedUrls.flatMap((record) => record.tags)).map((tag) => [tag.toLocaleLowerCase(), tag])).values()).sort((a, b) => a.localeCompare(b))
 
   async function createProject(event: FormEvent) {
     event.preventDefault()
@@ -113,7 +114,7 @@ export function App({ client }: AppProps) {
                 ) : (
                   <div className="url-list" aria-label={`Saved URLs in ${selected.name}`}>
                     {selected.savedUrls.map((record, index) => (
-                      <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={selected.savedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onDeleted={(deletedIndex) => {
+                      <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={selected.savedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} projects={state.projects} tagSuggestions={tagSuggestions} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
                         const remaining = selected.savedUrls.filter((item) => item.id !== record.id)
                         const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
                         if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())

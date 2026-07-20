@@ -127,6 +127,46 @@ describe('project workspace shell', () => {
     expect(client.state.projects[0].savedUrls).toHaveLength(0)
   })
 
+  it('reorders URLs, suggests global tags, and copies metadata snapshots', async () => {
+    const user = userEvent.setup()
+    const client = new TestClient({
+      schemaVersion: 1,
+      projects: [
+        { id: 'p1', name: 'One', savedUrls: [
+          { id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'custom', tags: [], notes: 'Source' },
+          { id: 'u2', url: 'https://two.test/', title: 'Two URL', titleSource: 'automatic', tags: ['GlobalTag'], notes: '' },
+        ] },
+        { id: 'p2', name: 'Two', savedUrls: [] },
+      ],
+    })
+    render(<App client={client} />)
+    await screen.findByRole('heading', { name: 'One' })
+    await user.click(screen.getAllByRole('button', { name: /One URL/ }).find((button) => button.hasAttribute('aria-controls'))!)
+    const tagInput = screen.getByLabelText('Add tag')
+    await user.type(tagInput, 'glob')
+    expect(screen.getByRole('button', { name: 'GlobalTag' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'GlobalTag' }))
+    expect(client.state.projects[0].savedUrls[0].tags).toEqual(['GlobalTag'])
+
+    await user.click(screen.getByRole('button', { name: 'Saved URL actions for Two URL' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
+    expect(client.state.projects[0].savedUrls.map((record) => record.id)).toEqual(['u2', 'u1'])
+
+    await user.click(screen.getByRole('button', { name: 'Saved URL actions for One URL' }))
+    await user.click(screen.getByRole('menuitem', { name: /Copy to project/ }))
+    await user.click(screen.getByRole('button', { name: 'Copy URL' }))
+    expect(await screen.findByRole('heading', { name: 'Two' })).toBeInTheDocument()
+    expect(client.state.projects[1].savedUrls[0]).toMatchObject({ url: 'https://one.test/', title: 'One URL', tags: ['GlobalTag'], notes: 'Source' })
+    const copyId = client.state.projects[1].savedUrls[0].id
+    expect(copyId).not.toBe('u1')
+
+    await user.clear(screen.getByLabelText('Notes'))
+    await user.type(screen.getByLabelText('Notes'), 'Independent')
+    await user.tab()
+    expect(client.state.projects[0].savedUrls.find((record) => record.id === 'u1')?.notes).toBe('Source')
+    expect(client.state.projects[1].savedUrls[0].notes).toBe('Independent')
+  })
+
   it('enters a blocking storage-error state', async () => {
     const client = new TestClient()
     client.readError = new Error('Unsupported schema version')
