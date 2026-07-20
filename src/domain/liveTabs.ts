@@ -1,3 +1,15 @@
+export interface LiveOwnership {
+  projectId: string
+  savedUrlId: string
+  establishedUrl: string
+  drifted: boolean
+}
+
+export interface OwnershipCandidate {
+  projectId: string
+  savedUrlId: string
+}
+
 export interface LiveTabView {
   tabId: number
   windowId: number
@@ -9,6 +21,15 @@ export interface LiveTabView {
   hostname?: string
   favIconUrl?: string
   supported: boolean
+  ownership?: LiveOwnership
+  candidates: OwnershipCandidate[]
+}
+
+export interface LiveTabGroup {
+  id: string
+  projectId?: string
+  label: string
+  tabs: LiveTabView[]
 }
 
 export interface LiveTabInventory {
@@ -57,6 +78,7 @@ export function normalizeChromeTab(tab: chrome.tabs.Tab): LiveTabView | undefine
     hostname,
     favIconUrl: tab.favIconUrl,
     supported: isSupportedTabUrl(tab.url),
+    candidates: [],
   }
 }
 

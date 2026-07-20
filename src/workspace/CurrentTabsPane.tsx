@@ -1,8 +1,13 @@
-import { AlertTriangle, Globe2, RefreshCw } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
+import { groupLiveTabs } from '../domain/ownership'
+import type { PersistedStateV1 } from '../domain/types'
 import type { LiveTabsModel } from './useLiveTabs'
 
-export function CurrentTabsPane({ model }: { model: LiveTabsModel }) {
+export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state: PersistedStateV1 }) {
   const inventory = model.inventory
+  const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   return (
     <aside className="current-tabs" aria-labelledby="current-tabs-title">
       <div className="pane-heading">
@@ -18,16 +23,26 @@ export function CurrentTabsPane({ model }: { model: LiveTabsModel }) {
         <div className="tabs-empty"><div className="tab-lines"><i /><i /><i /></div><h3>No ordinary tabs in this window</h3><p>Open a page beside Protab and it will appear here automatically.</p></div>
       ) : null}
       {inventory && inventory.tabs.length > 0 && (
-        <ul className={inventory.stale ? 'live-tab-list stale' : 'live-tab-list'} aria-label="Tabs in this Chrome window">
-          {inventory.tabs.map((tab) => (
-            <li key={tab.tabId}>
-              <button className="live-tab-row" aria-current={tab.active ? 'page' : undefined} aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.supported ? '' : 'Unsupported page — view only.'}`} onClick={() => model.focus(tab.tabId)}>
-                {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
-                <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab' : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
+        <div className={inventory.stale ? 'live-tab-groups stale' : 'live-tab-groups'}>
+          {groups.map((group) => {
+            const isCollapsed = collapsed.has(group.id)
+            return <section className="live-tab-group" key={group.id} aria-labelledby={`live-group-${group.id}`}>
+              <button id={`live-group-${group.id}`} className="live-group-heading" aria-expanded={!isCollapsed} aria-controls={`live-group-list-${group.id}`} onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(group.id)) next.delete(group.id); else next.add(group.id); return next })}>
+                <span>{group.label}</span><span>{group.tabs.length}</span><ChevronDown size={14} className={isCollapsed ? 'group-chevron collapsed' : 'group-chevron'} />
               </button>
-            </li>
-          ))}
-        </ul>
+              {!isCollapsed && <ul id={`live-group-list-${group.id}`} className="live-tab-list" aria-label={`${group.label} tabs`}>
+                {group.tabs.map((tab) => (
+                  <li key={tab.tabId}>
+                    <button className="live-tab-row" aria-current={tab.active ? 'page' : undefined} aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.ownership ? `Owned by ${group.label}. ${tab.ownership.drifted ? 'Navigated from saved URL.' : ''}` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`} onClick={() => model.focus(tab.tabId)}>
+                      {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
+                      <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership ? tab.ownership.drifted ? 'Navigated from saved URL' : `Owned by ${group.label}` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
+                    </button>
+                  </li>
+                ))}
+              </ul>}
+            </section>
+          })}
+        </div>
       )}
     </aside>
   )

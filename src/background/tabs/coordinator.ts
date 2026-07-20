@@ -1,6 +1,9 @@
+import type { PersistedStateV1 } from '../../domain/types'
+import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../messages'
 import { queryOrdinaryTabs, type ChromeTabsApi } from './chromeTabs'
+import type { OwnershipStore } from './ownershipStore'
 
 interface ClientSubscription {
   workspaceTabId: number
@@ -13,7 +16,11 @@ export class LiveTabsCoordinator {
   private readonly clients = new Map<number, ClientSubscription>()
   private readonly refreshQueued = new Set<number>()
 
-  constructor(private readonly api: ChromeTabsApi) {}
+  constructor(
+    private readonly api: ChromeTabsApi,
+    private readonly ownership?: OwnershipStore,
+    private readonly readState: () => Promise<PersistedStateV1> = async () => ({ schemaVersion: 1, projects: [] }),
+  ) {}
 
   connect(port: chrome.runtime.Port): void {
     if (port.name !== LIVE_TAB_PORT) return
@@ -46,7 +53,18 @@ export class LiveTabsCoordinator {
     const subscribers = this.forWindow(windowId)
     if (subscribers.length === 0) return
     try {
-      const inventory: LiveTabInventory = { windowId, tabs: await queryOrdinaryTabs(this.api, windowId), stale: false }
+      const rawTabs = await queryOrdinaryTabs(this.api, windowId)
+      let tabs = rawTabs
+      if (this.ownership) {
+        const [state, entries] = await Promise.all([this.readState(), this.ownership.read()])
+        const reconciled = reconcileOwnership(state, rawTabs, entries)
+        tabs = reconciled.tabs
+        const validIds = new Set(reconciled.ownership.map((entry) => entry.tabId))
+        if (entries.some((entry) => !validIds.has(entry.tabId)) || reconciled.ownership.some((entry) => entries.find((current) => current.tabId === entry.tabId)?.windowId !== entry.windowId)) {
+          await this.ownership.replace(reconciled.ownership)
+        }
+      }
+      const inventory: LiveTabInventory = { windowId, tabs, stale: false }
       subscribers.forEach((client) => {
         client.lastInventory = inventory
         this.post(client, { kind: 'LIVE_TAB_INVENTORY', inventory })
