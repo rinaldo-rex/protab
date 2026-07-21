@@ -39,6 +39,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .project-row:hover { background: rgba(255,255,255,.05); }
 .project-row.selected { background: rgba(255,255,255,.08); }
 .project-row.selected::before { background: #f2f0ed; }
+.project-row.active { background: rgba(255,255,255,.04); }
+.project-row.active.selected { background: rgba(255,255,255,.10); }
+.project-item .active-indicator { margin-left: auto; color: #7cb342; font-size: 14px; line-height: 1; }
+.project-item .project-name { flex: 1; min-width: 0; }
 .project-item { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; min-height: 40px; padding: 8px 16px; border: 0; color: rgba(255,255,255,.62); background: transparent; text-align: left; font-size: 13px; }
 .project-item:hover, .project-row.selected .project-item { color: #fff; }
 .project-row.selected .project-item { font-weight: 600; }

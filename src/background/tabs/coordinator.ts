@@ -7,12 +7,15 @@ import { queryOrdinaryTabs, type ChromeTabsApi } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
 import type { CloseTrackerStore } from './closeTracker'
 import type { FilingOrchestrator } from './filing'
+import type { ActiveProjectStore } from './activeProjectStore'
 
 interface ClientSubscription {
   workspaceTabId: number
   windowId: number
   port: chrome.runtime.Port
   lastInventory?: LiveTabInventory
+  selectedProjectId?: string
+  activeProjectId?: string
 }
 
 export class LiveTabsCoordinator {
@@ -28,16 +31,18 @@ export class LiveTabsCoordinator {
     private readonly durableQueue?: CommandQueue,
     private readonly closeTracker?: CloseTrackerStore,
     private readonly filingOrchestrator?: FilingOrchestrator,
+    private readonly activeProjectStore?: ActiveProjectStore,
   ) {}
 
-  connect(port: chrome.runtime.Port): void {
+  async connect(port: chrome.runtime.Port): Promise<void> {
     if (port.name !== LIVE_TAB_PORT) return
     const senderTab = port.sender?.tab
     if (senderTab?.id === undefined || senderTab.windowId === undefined || senderTab.url !== this.api.workspaceUrl()) {
       port.disconnect()
       return
     }
-    const client: ClientSubscription = { workspaceTabId: senderTab.id, windowId: senderTab.windowId, port }
+    const activeProjectId = this.activeProjectStore ? await this.activeProjectStore.getActiveProject(senderTab.windowId) : undefined
+    const client: ClientSubscription = { workspaceTabId: senderTab.id, windowId: senderTab.windowId, port, activeProjectId }
     this.clients.set(senderTab.id, client)
     port.onMessage.addListener((message: unknown) => void this.onMessage(client, message))
     port.onDisconnect.addListener(() => this.clients.delete(client.workspaceTabId))
@@ -321,6 +326,41 @@ export class LiveTabsCoordinator {
     if (this.filingOrchestrator) {
       this.filingOrchestrator.resolveTabRemoval(tabId)
     }
+  }
+
+  async restoreActiveState(): Promise<void> {
+    if (!this.activeProjectStore) return
+    const restored = await this.activeProjectStore.restoreActiveState(
+      async (windowId) => {
+        try {
+          await this.api.focusWindow(windowId)
+          return true
+        } catch {
+          return false
+        }
+      },
+      (projectId) => {
+        const state = this.cachedState
+        return state ? state.projects.some((p) => p.id === projectId) : false
+      },
+    )
+    for (const client of this.clients.values()) {
+      const activeProjectId = restored.get(client.windowId)
+      if (activeProjectId) {
+        client.activeProjectId = activeProjectId
+      }
+    }
+  }
+
+  private cachedState?: PersistedStateV1
+
+  async initialize(state: PersistedStateV1): Promise<void> {
+    this.cachedState = state
+    await this.restoreActiveState()
+  }
+
+  updateCachedState(state: PersistedStateV1): void {
+    this.cachedState = state
   }
 
   private enqueueWindow(windowId: number, operation: () => Promise<void>): void {

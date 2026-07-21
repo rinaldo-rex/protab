@@ -34,6 +34,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverProjectId, setDragOverProjectId] = useState<string>()
   const [dragOverCanvas, setDragOverCanvas] = useState(false)
   const [bulkConfirmProjectId, setBulkConfirmProjectId] = useState<string>()
+  const activeProjectId = liveTabs.activeProjectId
 
   // Count eligible unassigned tabs for bulk filing
   const eligibleBulkCount = useMemo(() => {
@@ -154,26 +155,32 @@ export function App({ client, liveTabsClient }: AppProps) {
         <div className="brand"><span>Protab</span><small>LOCAL WORKSPACE</small></div>
         <div className="sidebar-heading"><span>Projects</span><span>{state.projects.length}</span></div>
         <nav className="project-list" aria-label="Projects">
-          {state.projects.map((project) => (
-            <div
-              key={project.id}
-              className={`${project.id === selected?.id ? 'project-row selected' : 'project-row'} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''}`}
-              onDragOver={(e) => handleDragOver(e, project.id)}
-              onDragLeave={() => handleDragLeave(project.id)}
-              onDrop={(e) => handleDrop(e, project.id)}
-            >
-              <button
-                className="project-item"
-                aria-current={project.id === selected?.id ? 'page' : undefined}
-                autoFocus={project.id === focusProjectId}
-                onFocus={() => setFocusProjectId(undefined)}
-                onClick={() => model.selectProject(project.id)}
+          {state.projects.map((project) => {
+            const isActive = project.id === activeProjectId
+            const isSelected = project.id === selected?.id
+            return (
+              <div
+                key={project.id}
+                className={`${isSelected ? 'project-row selected' : 'project-row'} ${isActive ? 'active' : ''} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''}`}
+                onDragOver={(e) => handleDragOver(e, project.id)}
+                onDragLeave={() => handleDragLeave(project.id)}
+                onDrop={(e) => handleDrop(e, project.id)}
               >
-                {project.id === selected?.id ? <FolderOpen size={16} /> : <Folder size={16} />}
-                <span>{project.name}</span>
-              </button>
-            </div>
-          ))}
+                <button
+                  className="project-item"
+                  aria-current={isSelected ? 'page' : undefined}
+                  aria-label={`${project.name}${isActive ? ' (active)' : ''}`}
+                  autoFocus={project.id === focusProjectId}
+                  onFocus={() => setFocusProjectId(undefined)}
+                  onClick={() => model.selectProject(project.id)}
+                >
+                  {isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
+                  <span className="project-name">{project.name}</span>
+                  {isActive && <span className="active-indicator" aria-label="Active project">●</span>}
+                </button>
+              </div>
+            )
+          })}
         </nav>
         {creating ? (
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
@@ -212,7 +219,7 @@ export function App({ client, liveTabsClient }: AppProps) {
           >
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions">
+                <div className="canvas-header"><div><p className="eyebrow">Selected project{selected.id === activeProjectId ? ' · Active' : ''}</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions">
                   {eligibleBulkCount > 0 && (
                     <button
                       className="button secondary bulk-file-button"
