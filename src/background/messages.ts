@@ -23,6 +23,10 @@ export interface ActivationSummary {
   skipped: Array<{ tabId: number; reason: string }>
   failed: Array<{ tabId: number; message: string }>
   unassignedCount: number
+  openedTotal: number
+  openedFocused: number
+  openedCreated: number
+  openedFailed: Array<{ savedUrlId: string; message: string }>
 }
 
 export interface CloseAllSummary {

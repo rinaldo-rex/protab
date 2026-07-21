@@ -564,14 +564,95 @@ export class LiveTabsCoordinator {
       }
     }
 
+    // Now open all saved URLs for the activated project
+    const state = await this.readState()
+    const project = state.projects.find((p) => p.id === projectId)
+    const openResults = {
+      total: 0,
+      focused: 0,
+      created: 0,
+      failed: [] as Array<{ savedUrlId: string; message: string }>,
+    }
+
+    if (project) {
+      openResults.total = project.savedUrls.length
+
+      for (const record of project.savedUrls) {
+        try {
+          // Check if already open and owned
+          const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
+          const entries = this.ownership ? await this.ownership.read() : []
+          const reconciled = reconcileOwnership(state, rawTabs, entries)
+          const rawById = new Map((await this.api.query(client.windowId)).map((tab) => [tab.id, tab]))
+
+          const owned = reconciled.tabs.filter(
+            (tab) =>
+              tab.ownership?.projectId === projectId &&
+              tab.ownership.savedUrlId === record.id &&
+              !tab.ownership.drifted &&
+              tab.url === record.url
+          )
+
+          if (owned.length > 0) {
+            // Focus most recently accessed
+            const selected = owned.sort((left, right) => {
+              const leftAccessed = rawById.get(left.tabId)?.lastAccessed ?? -1
+              const rightAccessed = rawById.get(right.tabId)?.lastAccessed ?? -1
+              return rightAccessed - leftAccessed || right.tabId - left.tabId
+            })[0]
+            await this.api.focusWindow(client.windowId)
+            await this.api.activate(selected.tabId)
+            openResults.focused++
+            continue
+          }
+
+          // Create new tab
+          const created = await this.api.create(client.windowId, record.url)
+          if (created.id === undefined) {
+            throw new Error('Chrome opened the page without returning a tab identity.')
+          }
+
+          // Establish ownership
+          if (this.ownership) {
+            await this.ownership.update((current) => [
+              ...current.filter((entry) => entry.tabId !== created.id),
+              {
+                tabId: created.id!,
+                windowId: client.windowId,
+                projectId,
+                savedUrlId: record.id,
+                establishedUrl: record.url,
+              },
+            ])
+          }
+
+          openResults.created++
+        } catch (error) {
+          openResults.failed.push({
+            savedUrlId: record.id,
+            message: error instanceof Error ? error.message : 'Could not open this URL.',
+          })
+        }
+      }
+    }
+
     // Set active project
     if (this.activeProjectStore) {
       await this.activeProjectStore.setActiveProject(client.windowId, projectId)
     }
     client.activeProjectId = projectId
 
-    // Post summary
-    this.post(client, { kind: 'ACTIVATION_SUMMARY', summary })
+    // Post summary with open results
+    this.post(client, {
+      kind: 'ACTIVATION_SUMMARY',
+      summary: {
+        ...summary,
+        openedTotal: openResults.total,
+        openedFocused: openResults.focused,
+        openedCreated: openResults.created,
+        openedFailed: openResults.failed,
+      },
+    })
 
     // Refresh inventory
     await this.refreshWindow(client.windowId)

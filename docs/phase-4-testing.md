@@ -34,13 +34,13 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 ## Activate project
 
 - [x] Create two projects: "Work" (active) and "Research".
-- [ ] Open tabs for both projects (some owned by Work, some by Research).
-- [ ] Also open some unassigned tabs.
+- [x] Open tabs for both projects (some owned by Work, some by Research).
+- [x] Also open some unassigned tabs.
 - [ ] Select "Research" and click **Activate** from the project actions menu.
 - [ ] Verify the drift review dialog appears if any tabs have navigated away.
 - [ ] Verify the dialog shows the saved URL and current URL for each drifted tab.
 - [ ] Toggle some tabs to "Keep" and verify they remain open.
-- [ ] Click "Close N tabs and activate".
+- [x] Click "Close N tabs and activate".
 - [ ] Verify:
     - Only Research's other-project tabs were closed (Work's tabs).
     - Unassigned tabs remain open.
