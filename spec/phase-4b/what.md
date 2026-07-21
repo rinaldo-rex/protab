@@ -14,21 +14,22 @@ Phase 4 is complete. The extension has per-window active project state, activate
 
 ### Access methods
 
-There are three ways to open the quick-capture popup:
+There are multiple ways to open the quick-capture popup:
 
-1. **Keyboard shortcut**: `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac) opens the popup from any Chrome tab.
-2. **Context menu**: Right-click the extension icon and select "Quick capture (Ctrl+Shift+X)".
-3. **Settings link**: The settings panel shows the shortcut and a link to customize it at `chrome://extensions/shortcuts`.
+1. **Icon click**: Clicking the extension icon opens a popup anchored to the icon (tooltip style).
+2. **Keyboard shortcut**: `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac) opens the same popup from any Chrome tab.
+3. **Context menu**: Right-click the extension icon and select "Open workspace in new tab" to access the full workspace.
+4. **Settings link**: The settings panel shows the shortcut and a link to customize it at `chrome://extensions/shortcuts`.
 
-The extension icon click opens the full-page workspace (not the popup).
+The popup includes an "Open workspace" link at the bottom for quick access to the full-page workspace.
 
 ### Popup UI
 
-- A compact popup window that opens as a focused window (not anchored to the icon).
+- A compact popup anchored to the extension icon (tooltip style).
 - Uses the same dark theme as the workspace sidebar for visual consistency.
 - A single smart text input that starts as one line and expands if the user types long text or presses `Shift+Enter`.
 - A submit button (or `Enter` to submit).
-- A cancel button (or `Escape` to cancel and close the popup).
+- An "Open workspace" link at the bottom to open the full workspace in a new tab.
 - On success, shows a green checkmark with "Saved to ProjectName" and auto-closes after 1.5 seconds.
 
 ### Input format

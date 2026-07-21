@@ -57,9 +57,10 @@ The production build is entirely local: fonts, icons, scripts, and styles are bu
 
 ### Extension icon behavior
 
-- **Click**: Opens the full-page workspace
-- **Right-click**: Shows context menu with "Open workspace" and "Quick capture" options
-- **Ctrl+Shift+X**: Opens quick-capture popup window
+- **Click**: Opens a quick-capture popup anchored to the icon (tooltip style)
+- **Right-click**: Shows context menu with "Open workspace in new tab" option
+- **Ctrl+Shift+X**: Opens the same quick-capture popup from any tab
+- **Popup footer**: Contains an "Open workspace" link to access the full workspace
 
 ## Testing
 

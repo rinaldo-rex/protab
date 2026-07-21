@@ -17,21 +17,28 @@ This checklist validates Phase 4B behavior (quick-capture, hover shortcuts, drag
 
 ### Access methods
 
+- [ ] Click the extension icon in the toolbar.
+- [ ] Verify a popup opens anchored to the icon (tooltip style).
+- [ ] Verify the popup has a "Open workspace" link at the bottom.
+- [ ] Close the popup with Escape.
 - [ ] Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac) on any Chrome tab.
-- [ ] Verify a popup window opens (not anchored to the icon).
+- [ ] Verify the same popup opens.
 - [ ] Close the popup with Escape.
 - [ ] Right-click the extension icon in the toolbar.
-- [ ] Verify a context menu appears with "Open workspace" and "Quick capture (Ctrl+Shift+X)".
-- [ ] Click "Quick capture".
-- [ ] Verify the popup window opens.
-- [ ] Click "Open workspace" from the context menu.
-- [ ] Verify the workspace page opens.
-- [ ] Click the extension icon (without right-click).
-- [ ] Verify the workspace page opens (not the popup).
+- [ ] Verify a context menu appears with "Open workspace in new tab".
+- [ ] Click "Open workspace in new tab".
+- [ ] Verify the workspace opens in a new tab.
+
+### Open workspace from popup
+
+- [ ] Open the popup by clicking the icon.
+- [ ] Click the "Open workspace" link at the bottom.
+- [ ] Verify the workspace opens in a new tab.
+- [ ] Verify the popup closes.
 
 ### Basic capture
 
-- [ ] Open the quick-capture popup via shortcut or context menu.
+- [ ] Open the quick-capture popup via icon click or shortcut.
 - [ ] Verify the popup uses the dark theme matching the workspace sidebar.
 - [ ] Type `Need to read this #blog @Work` and press Enter.
 - [ ] Verify a green checkmark appears with "Saved to Work."
@@ -258,8 +265,8 @@ This checklist validates Phase 4B behavior (quick-capture, hover shortcuts, drag
 ## Manifest permissions
 
 - [ ] Verify `manifest.json` contains `["storage", "tabs", "activeTab", "contextMenus"]`.
+- [ ] Verify `default_popup` is set to `popup.html`.
 - [ ] Verify no host permissions or content scripts are declared.
-- [ ] Verify `default_popup` is NOT in the manifest (icon click opens workspace).
 - [ ] Verify the `commands` section defines `quick-capture` with `Ctrl+Shift+X`.
 
 ## Production build
