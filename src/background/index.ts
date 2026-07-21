@@ -48,6 +48,28 @@ chrome.commands.onCommand.addListener((command) => {
   }
 })
 
+// Context menu for extension icon
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: 'open-workspace',
+    title: 'Open workspace',
+    contexts: ['action'],
+  })
+  chrome.contextMenus.create({
+    id: 'quick-capture',
+    title: 'Quick capture (Ctrl+Shift+X)',
+    contexts: ['action'],
+  })
+})
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'open-workspace') {
+    serializedToolbarHandler(new ChromeToolbarAdapter())(tab!)
+  } else if (info.menuItemId === 'quick-capture') {
+    void chrome.action.openPopup()
+  }
+})
+
 chrome.tabs.onCreated.addListener((tab) => liveTabs.scheduleWindow(tab.windowId))
 chrome.tabs.onUpdated.addListener((_tabId, _changeInfo, tab) => liveTabs.scheduleWindow(tab.windowId))
 chrome.tabs.onActivated.addListener(({ windowId }) => liveTabs.scheduleWindow(windowId))
