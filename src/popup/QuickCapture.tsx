@@ -125,8 +125,10 @@ export function QuickCapture() {
     setStatus('loading')
     setErrorMessage(undefined)
 
-    // Get current tab
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    // Get the active tab from the last focused normal window (not the popup window)
+    const windows = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] })
+    const lastFocusedWindow = windows.sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0))[0]
+    const tab = lastFocusedWindow?.tabs?.find((t) => t.active)
     if (!tab || !tab.url) {
       setErrorMessage('Could not access current tab.')
       setStatus('error')
