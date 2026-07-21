@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, StopCircle } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
@@ -18,6 +18,7 @@ import { DriftReviewDialog } from './DriftReviewDialog'
 import { ActivationSummary } from './ActivationSummary'
 import { OpenAllSummary } from './OpenAllSummary'
 import { CloseAllSummary } from './CloseAllSummary'
+import { ContextMenu } from './ContextMenu'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -38,6 +39,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverProjectId, setDragOverProjectId] = useState<string>()
   const [dragOverCanvas, setDragOverCanvas] = useState(false)
   const [bulkConfirmProjectId, setBulkConfirmProjectId] = useState<string>()
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; projectId: string } | null>(null)
   const activeProjectId = liveTabs.activeProjectId
 
   // Count eligible unassigned tabs for bulk filing
@@ -221,6 +223,10 @@ export function App({ client, liveTabsClient }: AppProps) {
                 onDragOver={(e) => handleDragOver(e, project.id)}
                 onDragLeave={() => handleDragLeave(project.id)}
                 onDrop={(e) => handleDrop(e, project.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setContextMenu({ x: e.clientX, y: e.clientY, projectId: project.id })
+                }}
               >
                 <button
                   className="project-item"
@@ -342,6 +348,26 @@ export function App({ client, liveTabsClient }: AppProps) {
           />
         </div>
       </main>
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={[
+            {
+              label: state.projects.find((p) => p.id === contextMenu.projectId)?.id === activeProjectId ? 'Reactivate' : 'Activate',
+              icon: <Play size={14} />,
+              onClick: () => liveTabs.prepareActivateProject(contextMenu.projectId),
+            },
+            {
+              label: 'Deactivate (close tabs)',
+              icon: <StopCircle size={14} />,
+              onClick: () => liveTabs.prepareCloseAllProjectTabs(contextMenu.projectId),
+              disabled: state.projects.find((p) => p.id === contextMenu.projectId)?.id !== activeProjectId,
+            },
+          ]}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   )
 }

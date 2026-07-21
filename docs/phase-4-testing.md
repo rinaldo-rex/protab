@@ -56,32 +56,32 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 
 ## Open all
 
-- [ ] Select a project with 3+ saved URLs.
-- [ ] Click **Open all** from the project actions menu.
-- [ ] Verify:
+- [x] Select a project with 3+ saved URLs.
+- [x] Click **Open all** from the project actions menu.
+- [x] Verify:
     - New tabs are created for each saved URL.
     - Each tab is owned by the project.
     - An open-all summary appears with focused/created counts.
-- [ ] Run **Open all** again without closing any tabs.
-- [ ] Verify:
+- [x] Run **Open all** again without closing any tabs.
+- [x] Verify:
     - No new tabs are created.
     - Existing tabs are focused instead.
     - Summary shows "focused" count, not "created".
 
 ## Open all idempotency
 
-- [ ] Open all URLs for a project.
-- [ ] Close one of the opened tabs.
-- [ ] Run **Open all** again.
-- [ ] Verify:
+- [x] Open all URLs for a project.
+- [x] Close one of the opened tabs.
+- [x] Run **Open all** again.
+- [x] Verify:
     - Only the missing URL gets a new tab.
     - Other existing tabs are focused, not duplicated.
 
 ## Close all
 
-- [ ] Select a project with owned live tabs.
-- [ ] Click **Close all** from the project actions menu.
-- [ ] Verify:
+- [x] Select a project with owned live tabs.
+- [x] Click **Close all** from the project actions menu.
+- [x] Verify:
     - A confirmation dialog appears showing tabs to close.
     - Drifted tabs are shown with Keep/Close toggles.
     - After confirming, only the project's owned tabs are closed.
@@ -91,9 +91,9 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 
 ## Close all scope
 
-- [ ] Open tabs for two projects plus unassigned tabs.
-- [ ] Run **Close all** on one project.
-- [ ] Verify:
+- [x] Open tabs for two projects plus unassigned tabs.
+- [x] Run **Close all** on one project.
+- [x] Verify:
     - Only that project's tabs are closed.
     - Other project's tabs remain open.
     - Unassigned tabs remain open.
@@ -101,11 +101,11 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 
 ## Navigation drift review
 
-- [ ] File a tab to a project (establishes ownership).
-- [ ] Navigate that tab to a different URL.
-- [ ] Verify it appears under "Unassigned" with "Navigated from saved URL" label.
-- [ ] Activate or Close all the owning project.
-- [ ] Verify the drift review dialog shows:
+- [x] File a tab to a project (establishes ownership).
+- [x] Navigate that tab to a different URL.
+- [x] Verify it appears under "Unassigned" with "Navigated from saved URL" label.
+- [x] Activate or Close all the owning project.
+- [x] Verify the drift review dialog shows:
     - Original saved URL
     - Current URL
     - Keep/Close toggle
@@ -114,12 +114,12 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 
 ## Two-window isolation
 
-- [ ] Open Protab in two Chrome windows.
-- [ ] Activate "Work" in window 1.
-- [ ] Verify window 2's active state is independent.
-- [ ] Activate "Research" in window 2.
-- [ ] Verify both windows show their respective active projects.
-- [ ] Run operations in one window and verify the other is unaffected.
+- [x] Open Protab in two Chrome windows.
+- [x] Activate "Work" in window 1.
+- [x] Verify window 2's active state is independent.
+- [x] Activate "Research" in window 2.
+- [x] Verify both windows show their respective active projects.
+- [x] Run operations in one window and verify the other is unaffected.
 
 ## Active-state recovery (service worker suspension)
 
@@ -187,3 +187,30 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 - [ ] Run `npm run lint` and verify no lint errors.
 - [ ] Load the production build from `dist/` directory.
 - [ ] Verify all Phase 4 features work in the production build.
+
+---
+
+## Right-click context menu on projects
+
+- [ ] Right-click on a project in the sidebar.
+- [ ] Verify a context menu appears with "Activate" and "Deactivate (close tabs)" options.
+- [ ] Verify "Activate" shows "Reactivate" if the project is already active.
+- [ ] Click "Activate" and verify the activation flow starts.
+- [ ] Right-click on a non-active project.
+- [ ] Verify "Deactivate (close tabs)" is disabled (greyed out).
+- [ ] Right-click on the active project.
+- [ ] Verify "Deactivate (close tabs)" is enabled.
+- [ ] Click "Deactivate" and verify the close-all flow starts.
+- [ ] Verify clicking outside the context menu closes it.
+- [ ] Verify pressing Escape closes the context menu.
+
+## Unsupported tabs group
+
+- [ ] Open a new tab page (chrome://newtab) or an extension page.
+- [ ] Verify it appears under a separate "Unsupported" group in the Current Tabs pane.
+- [ ] Verify the "Unsupported" group is pre-collapsed by default.
+- [ ] Expand the "Unsupported" group and verify the tab is listed.
+- [ ] Verify unsupported tabs show "Unsupported page — view only" status.
+- [ ] Verify unsupported tabs cannot be dragged or filed.
+- [ ] Open a regular HTTP page and verify it appears under "Unassigned" (not "Unsupported").
+- [ ] Verify the "Unsupported" group has distinct styling (slightly muted heading).

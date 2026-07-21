@@ -16,7 +16,14 @@ export interface DragPayload {
 export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { model: LiveTabsModel; state: PersistedStateV1; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void }) {
   const inventory = model.inventory
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    // Pre-collapse groups marked as preCollapsed
+    const initial = new Set<string>()
+    for (const group of groups) {
+      if (group.preCollapsed) initial.add(group.id)
+    }
+    return initial
+  })
   const [assigningTabId, setAssigningTabId] = useState<number>()
   const [reconciliationDismissed, setReconciliationDismissed] = useState(false)
   const [draggingTabId, setDraggingTabId] = useState<number>()
@@ -54,7 +61,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { mode
         <div className={inventory.stale ? 'live-tab-groups stale' : 'live-tab-groups'}>
           {groups.map((group) => {
             const isCollapsed = collapsed.has(group.id)
-            return <section className="live-tab-group" key={group.id} aria-labelledby={`live-group-${group.id}`}>
+            return <section className={`live-tab-group${group.id === 'unsupported' ? ' unsupported' : ''}`} key={group.id} aria-labelledby={`live-group-${group.id}`}>
               <button id={`live-group-${group.id}`} className="live-group-heading" aria-expanded={!isCollapsed} aria-controls={`live-group-list-${group.id}`} onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(group.id)) next.delete(group.id); else next.add(group.id); return next })}>
                 <span>{group.label}</span><span>{group.tabs.length}</span><ChevronDown size={14} className={isCollapsed ? 'group-chevron collapsed' : 'group-chevron'} />
               </button>
