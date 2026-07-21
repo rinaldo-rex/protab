@@ -41,6 +41,13 @@ void queue.read().then((state) => liveTabs.initialize(state)).catch((error: unkn
 chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
 
+// Handle quick-capture command
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'quick-capture') {
+    void chrome.action.openPopup()
+  }
+})
+
 chrome.tabs.onCreated.addListener((tab) => liveTabs.scheduleWindow(tab.windowId))
 chrome.tabs.onUpdated.addListener((_tabId, _changeInfo, tab) => liveTabs.scheduleWindow(tab.windowId))
 chrome.tabs.onActivated.addListener(({ windowId }) => liveTabs.scheduleWindow(windowId))
