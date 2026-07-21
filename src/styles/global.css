@@ -324,3 +324,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* Unsupported group styling */
 .live-tab-group.unsupported .live-group-heading { color: var(--on-surface-variant); opacity: 0.8; }
+
+/* Archived section */
+.archived-section { margin-top: 24px; }
+.archived-heading { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface-low); color: var(--on-surface-variant); font-size: 13px; font-weight: 600; cursor: pointer; }
+.archived-heading:hover { background: var(--surface-container); }
+.archived-heading svg:first-child { color: var(--outline); }
+.archived-heading span { flex: 1; text-align: left; }
+.archived-heading .chevron { color: var(--outline); }
+.url-list.archived { margin-top: 8px; }
+.url-list.archived .url-accordion { opacity: 0.85; }
+.url-accordion.archived-badge::after { content: 'Archived'; position: absolute; top: 4px; right: 4px; padding: 2px 6px; border-radius: 3px; background: var(--surface-container); color: var(--on-surface-variant); font-size: 9px; font-weight: 600; }

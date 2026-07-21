@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, StopCircle } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
@@ -40,6 +40,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverCanvas, setDragOverCanvas] = useState(false)
   const [bulkConfirmProjectId, setBulkConfirmProjectId] = useState<string>()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; projectId: string } | null>(null)
+  const [archivedExpanded, setArchivedExpanded] = useState(false)
   const activeProjectId = liveTabs.activeProjectId
 
   // Count eligible unassigned tabs for bulk filing
@@ -318,16 +319,44 @@ export function App({ client, liveTabsClient }: AppProps) {
                     <p>Add URLs manually to build durable project context. Live-tab filing arrives in a later phase.</p>
                   </div>
                 ) : (
-                  <div className="url-list" aria-label={`Saved URLs in ${selected.name}`}>
-                    {selected.savedUrls.map((record, index) => (
-                      <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={selected.savedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
-                        const remaining = selected.savedUrls.filter((item) => item.id !== record.id)
-                        const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
-                        if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
-                        else queueMicrotask(() => document.querySelector<HTMLButtonElement>('.canvas-actions .button.primary')?.focus())
-                      }} />
-                    ))}
-                  </div>
+                  <>
+                    {/* Active URLs */}
+                    {(() => { const activeUrls = selected.savedUrls.filter((u) => !u.archivedAt); return activeUrls.length === 0 ? null : (
+                      <div className="url-list" aria-label={`Active URLs in ${selected.name}`}>
+                        {activeUrls.map((record, index) => (
+                          <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={activeUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
+                            const remaining = activeUrls.filter((item) => item.id !== record.id)
+                            const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
+                            if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
+                            else queueMicrotask(() => document.querySelector<HTMLButtonElement>('.canvas-actions .button.primary')?.focus())
+                          }} />
+                        ))}
+                      </div>
+                    ); })()}
+
+                    {/* Archived URLs */}
+                    {(() => { const archivedUrls = selected.savedUrls.filter((u) => u.archivedAt); return archivedUrls.length === 0 ? null : (
+                      <div className="archived-section">
+                        <button className="archived-heading" aria-expanded={archivedExpanded} onClick={() => setArchivedExpanded(!archivedExpanded)}>
+                          <Archive size={14} />
+                          <span>Archived ({archivedUrls.length})</span>
+                          <ChevronDown size={16} className={archivedExpanded ? 'chevron expanded' : 'chevron'} />
+                        </button>
+                        {archivedExpanded && (
+                          <div className="url-list archived" aria-label={`Archived URLs in ${selected.name}`}>
+                            {archivedUrls.map((record, index) => (
+                              <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={archivedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} archived onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
+                                const remaining = archivedUrls.filter((item) => item.id !== record.id)
+                                const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
+                                if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
+                                else queueMicrotask(() => document.querySelector<HTMLButtonElement>('.canvas-actions .button.primary')?.focus())
+                              }} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ); })()}
+                  </>
                 )}
               </>
             ) : (

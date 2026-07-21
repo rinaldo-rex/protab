@@ -78,7 +78,7 @@ export function ProjectActions({ project, projectIndex, projectCount, model, liv
           <Play size={14} /> {isActive ? 'Reactivate' : 'Activate'}
         </button>
         <button role="menuitem" onClick={() => { closeMenu(); liveTabs.openAllProjectUrls(project.id) }}>
-          <FolderOpen size={14} /> Open all
+          <FolderOpen size={14} /> Open all active
         </button>
         <button role="menuitem" onClick={() => { closeMenu(); liveTabs.prepareCloseAllProjectTabs(project.id) }}>
           <FolderInput size={14} /> Close all

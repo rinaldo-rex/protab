@@ -19,6 +19,7 @@ interface SavedUrlAccordionProps {
   instanceCount: number
   projects: Project[]
   tagSuggestions: string[]
+  archived?: boolean
   onToggle: (id: string, open: boolean) => void
   onNavigate: (projectId: string, recordId: string) => void
   onDeleted: (index: number) => void
@@ -26,7 +27,7 @@ interface SavedUrlAccordionProps {
 
 type FieldName = 'url' | 'title' | 'notes'
 
-export function SavedUrlAccordion({ projectId, record, index, count, expanded, model, liveTabs, instanceCount, projects, tagSuggestions, onToggle, onNavigate, onDeleted }: SavedUrlAccordionProps) {
+export function SavedUrlAccordion({ projectId, record, index, count, expanded, model, liveTabs, instanceCount, projects, tagSuggestions, archived, onToggle, onNavigate, onDeleted }: SavedUrlAccordionProps) {
   const [url, setUrl] = useState(record.url)
   const [title, setTitle] = useState(record.title)
   const [notes, setNotes] = useState(record.notes)
@@ -76,7 +77,7 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
   }
 
   return (
-    <article className="url-accordion" data-record-id={record.id}>
+    <article className={`url-accordion${archived ? ' archived-badge' : ''}`} data-record-id={record.id}>
       <div className="accordion-header">
         <button ref={headerRef} className="accordion-toggle" aria-expanded={expanded} aria-controls={`saved-url-${record.id}`} onClick={() => void collapse()}>
           <FileText size={18} />
