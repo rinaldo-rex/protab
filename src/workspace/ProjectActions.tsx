@@ -1,9 +1,11 @@
-import { MoreHorizontal, Play, FolderOpen, FolderInput } from 'lucide-react'
+import { MoreHorizontal, Play, FolderOpen, FolderInput, Download } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Project } from '../domain/types'
 import type { WorkspaceModel } from './useWorkspace'
 import { ActionMenu } from './ActionMenu'
 import { ConfirmDialog } from './ConfirmDialog'
+import { generateExportHtml } from './export/generateHtml'
+import { downloadFile, sanitizeFilename } from './export/downloadFile'
 
 interface ProjectActionsProps {
   project: Project
@@ -82,6 +84,10 @@ export function ProjectActions({ project, projectIndex, projectCount, model, liv
         </button>
         <button role="menuitem" onClick={() => { closeMenu(); liveTabs.prepareCloseAllProjectTabs(project.id) }}>
           <FolderInput size={14} /> Close all
+        </button>
+        <div role="separator" className="menu-separator" />
+        <button role="menuitem" onClick={() => { closeMenu(); const html = generateExportHtml(project); downloadFile(`protab-${sanitizeFilename(project.name)}.html`, new Blob([html], { type: 'text/html' })) }}>
+          <Download size={14} /> Export
         </button>
         <div role="separator" className="menu-separator" />
         <button role="menuitem" className="danger-text" onClick={() => { setMenuOpen(false); setMode('delete') }}>Delete project</button>

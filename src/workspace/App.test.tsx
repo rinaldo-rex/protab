@@ -157,8 +157,8 @@ describe('project workspace shell', () => {
       schemaVersion: 2,
       projects: [
         { id: 'p1', name: 'One', savedUrls: [
-          { id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'custom', tags: [], notes: 'Source' },
-          { id: 'u2', url: 'https://two.test/', title: 'Two URL', titleSource: 'automatic', tags: ['GlobalTag'], notes: '' },
+          { id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'custom', tags: [], notes: 'Source', archivedAt: null },
+          { id: 'u2', url: 'https://two.test/', title: 'Two URL', titleSource: 'automatic', tags: ['GlobalTag'], notes: '', archivedAt: null },
         ] },
         { id: 'p2', name: 'Two', savedUrls: [] },
       ],
