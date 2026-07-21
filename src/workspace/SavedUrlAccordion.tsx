@@ -1,4 +1,4 @@
-import { Archive, ChevronDown, FileText, MoreHorizontal } from 'lucide-react'
+import { Archive, ChevronDown, FileText, GripVertical, MoreHorizontal } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SavedUrl, Project } from '../domain/types'
 import { CopyUrlDialog } from './CopyUrlDialog'
@@ -28,11 +28,17 @@ interface SavedUrlAccordionProps {
   onHover?: (recordId: string | null) => void
   registerFocusNotes?: (recordId: string, focusFn: () => void) => void
   registerArchiveAction?: (recordId: string, archiveFn: () => void) => void
+  onDragStart?: (recordId: string) => void
+  onDragOver?: (recordId: string) => void
+  onDrop?: (recordId: string) => void
+  onDragEnd?: () => void
+  isDragging?: boolean
+  isDragOver?: boolean
 }
 
 type FieldName = 'url' | 'title' | 'notes'
 
-export function SavedUrlAccordion({ projectId, record, index, count, expanded, model, liveTabs, instanceCount, projects, tagSuggestions, archived, onToggle, onNavigate, onDeleted, onHover, registerFocusNotes, registerArchiveAction }: SavedUrlAccordionProps) {
+export function SavedUrlAccordion({ projectId, record, index, expanded, model, liveTabs, instanceCount, projects, tagSuggestions, archived, onToggle, onNavigate, onDeleted, onHover, registerFocusNotes, registerArchiveAction, onDragStart, onDragOver, onDrop, onDragEnd, isDragging, isDragOver }: SavedUrlAccordionProps) {
   const [url, setUrl] = useState(record.url)
   const [title, setTitle] = useState(record.title)
   const [notes, setNotes] = useState(record.notes)
@@ -104,12 +110,6 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
     }
   }
 
-  async function move(toIndex: number) {
-    await model.execute({ type: 'REORDER_SAVED_URL', projectId, savedUrlId: record.id, toIndex })
-    setMenuOpen(false)
-    queueMicrotask(() => headerRef.current?.focus())
-  }
-
   const handleArchiveAndClose = useCallback(() => {
     liveTabs.archive(projectId, record.id)
     setArchiveConfirm(false)
@@ -133,15 +133,49 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
         { label: 'Archive', icon: <Archive size={14} />, onClick: handleArchiveAction },
       ]
 
+  const handleDragStart = useCallback((event: React.DragEvent) => {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', record.id)
+    onDragStart?.(record.id)
+  }, [record.id, onDragStart])
+
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    onDragOver?.(record.id)
+  }, [record.id, onDragOver])
+
+  const handleDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    onDrop?.(record.id)
+  }, [record.id, onDrop])
+
+  const handleDragEnd = useCallback(() => {
+    onDragEnd?.()
+  }, [onDragEnd])
+
   return (
     <article
-      className={`url-accordion${archived ? ' archived-badge' : ''}`}
+      className={`url-accordion${archived ? ' archived-badge' : ''}${isDragging ? ' dragging' : ''}${isDragOver ? ' drag-over' : ''}`}
       data-record-id={record.id}
       onMouseEnter={() => onHover?.(record.id)}
       onMouseLeave={() => onHover?.(null)}
       onContextMenu={handleContextMenu}
+      onDragOver={!archived ? handleDragOver : undefined}
+      onDrop={!archived ? handleDrop : undefined}
     >
       <div className="accordion-header">
+        {!archived && (
+          <div
+            className="drag-handle"
+            draggable="true"
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            aria-label="Drag to reorder"
+          >
+            <GripVertical size={16} />
+          </div>
+        )}
         <button ref={headerRef} className="accordion-toggle" aria-expanded={expanded} aria-controls={`saved-url-${record.id}`} onClick={() => void collapse()}>
           <FileText size={18} />
           <span className="record-summary"><strong>{record.title}</strong>{record.tags.length > 0 && <span className="tag-summary">{record.tags.slice(0, 2).join(' · ')}{record.tags.length > 2 ? ` +${record.tags.length - 2}` : ''}</span>}</span>
@@ -161,8 +195,6 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
             </button>
             <div role="separator" className="menu-separator" />
             <button role="menuitem" onClick={() => { setMenuOpen(false); liveTabs.openCopy(projectId, record.id); queueMicrotask(() => triggerRef.current?.focus()) }}>Open another copy</button>
-            <button role="menuitem" disabled={index === 0} onClick={() => void move(index - 1)}>Move up</button>
-            <button role="menuitem" disabled={index === count - 1} onClick={() => void move(index + 1)}>Move down</button>
             <button role="menuitem" onClick={() => { setMenuOpen(false); setCopying(true) }}>Copy to project…</button>
             <button role="menuitem" className="danger-text" onClick={() => { setMenuOpen(false); setDeleting(true) }}>Delete URL</button>
           </ActionMenu>

@@ -50,6 +50,8 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [importDragOver, setImportDragOver] = useState(false)
   const [importPending, setImportPending] = useState(false)
   const [hoveredRecordId, setHoveredRecordId] = useState<string | null>(null)
+  const [draggingUrlId, setDraggingUrlId] = useState<string | null>(null)
+  const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const focusNotesRegistry = useRef<Map<string, () => void>>(new Map())
   const archiveActionRegistry = useRef<Map<string, () => void>>(new Map())
   const activeProjectId = liveTabs.activeProjectId
@@ -264,6 +266,51 @@ export function App({ client, liveTabsClient }: AppProps) {
       }
     }
   }, [importResult, importPending, model, handleImportAllFromZip])
+
+  // Drag handlers for URL reordering
+  const handleUrlDragStart = useCallback((recordId: string) => {
+    setDraggingUrlId(recordId)
+  }, [])
+
+  const handleUrlDragOver = useCallback((recordId: string) => {
+    setDragOverUrlId(recordId)
+  }, [])
+
+  const handleUrlDrop = useCallback(async (targetRecordId: string) => {
+    if (!draggingUrlId || !model.state || draggingUrlId === targetRecordId) {
+      setDraggingUrlId(null)
+      setDragOverUrlId(null)
+      return
+    }
+
+    const selectedProject = model.state.projects.find((p) => p.id === model.selectedProjectId)
+    if (!selectedProject) {
+      setDraggingUrlId(null)
+      setDragOverUrlId(null)
+      return
+    }
+
+    const activeUrls = selectedProject.savedUrls.filter((u) => !u.archivedAt)
+    const fromIndex = activeUrls.findIndex((u) => u.id === draggingUrlId)
+    const toIndex = activeUrls.findIndex((u) => u.id === targetRecordId)
+
+    if (fromIndex >= 0 && toIndex >= 0) {
+      await model.execute({
+        type: 'REORDER_SAVED_URL',
+        projectId: selectedProject.id,
+        savedUrlId: draggingUrlId,
+        toIndex,
+      })
+    }
+
+    setDraggingUrlId(null)
+    setDragOverUrlId(null)
+  }, [draggingUrlId, model])
+
+  const handleUrlDragEnd = useCallback(() => {
+    setDraggingUrlId(null)
+    setDragOverUrlId(null)
+  }, [])
 
   if (model.status === 'loading') {
     return <main className="centered-state" aria-live="polite"><div className="loader" /><h1>Loading Protab</h1><p>Preparing your local workspace…</p></main>
@@ -542,12 +589,36 @@ export function App({ client, liveTabsClient }: AppProps) {
                     {(() => { const activeUrls = selected.savedUrls.filter((u) => !u.archivedAt); return activeUrls.length === 0 ? null : (
                       <div className="url-list" aria-label={`Active URLs in ${selected.name}`}>
                         {activeUrls.map((record, index) => (
-                          <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={activeUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} onHover={setHoveredRecordId} registerFocusNotes={registerFocusNotes} registerArchiveAction={registerArchiveAction} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
-                            const remaining = activeUrls.filter((item) => item.id !== record.id)
-                            const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
-                            if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
-                            else queueMicrotask(() => document.querySelector<HTMLButtonElement>('.canvas-actions .button.primary')?.focus())
-                          }} />
+                          <SavedUrlAccordion
+                            key={record.id}
+                            projectId={selected.id}
+                            record={record}
+                            index={index}
+                            count={activeUrls.length}
+                            expanded={expandedUrlIds.has(record.id)}
+                            model={model}
+                            liveTabs={liveTabs}
+                            instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0}
+                            projects={state.projects}
+                            tagSuggestions={tagSuggestions}
+                            onHover={setHoveredRecordId}
+                            registerFocusNotes={registerFocusNotes}
+                            registerArchiveAction={registerArchiveAction}
+                            onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })}
+                            onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }}
+                            onDeleted={(deletedIndex) => {
+                              const remaining = activeUrls.filter((item) => item.id !== record.id)
+                              const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
+                              if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
+                              else queueMicrotask(() => document.querySelector<HTMLButtonElement>('.canvas-actions .button.primary')?.focus())
+                            }}
+                            onDragStart={handleUrlDragStart}
+                            onDragOver={handleUrlDragOver}
+                            onDrop={handleUrlDrop}
+                            onDragEnd={handleUrlDragEnd}
+                            isDragging={draggingUrlId === record.id}
+                            isDragOver={dragOverUrlId === record.id}
+                          />
                         ))}
                       </div>
                     ); })()}

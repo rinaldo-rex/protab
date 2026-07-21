@@ -373,6 +373,35 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   z-index: 10;
 }
 
+/* Drag handle for URL reordering */
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--on-surface-variant);
+}
+.url-accordion:hover .drag-handle {
+  opacity: 0.6;
+}
+.drag-handle:hover {
+  opacity: 1 !important;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Drag states */
+.url-accordion.dragging {
+  opacity: 0.5;
+}
+.url-accordion.drag-over {
+  border-top: 2px solid var(--primary);
+}
+
 /* Toast */
 .toast {
   position: fixed;

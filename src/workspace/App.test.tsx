@@ -173,8 +173,7 @@ describe('project workspace shell', () => {
     expect(client.state.projects[0].savedUrls[0].tags).toEqual(['GlobalTag'])
 
     await user.click(screen.getByRole('button', { name: 'Saved URL actions for Two URL' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
-    expect(client.state.projects[0].savedUrls.map((record) => record.id)).toEqual(['u2', 'u1'])
+    // Move up/down removed in Phase 4B (drag-to-reorder)
 
     await user.click(screen.getByRole('button', { name: 'Saved URL actions for One URL' }))
     await user.click(screen.getByRole('menuitem', { name: /Copy to project/ }))
