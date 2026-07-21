@@ -89,6 +89,8 @@ export interface LiveTabsModel {
   // Phase 4A: Archive
   archive: (projectId: string, savedUrlId: string) => void
   unarchive: (projectId: string, savedUrlId: string) => void
+  // Phase 4B: Silent file
+  silentFileTab: (tabId: number, projectId: string) => void
 }
 
 export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
@@ -311,5 +313,10 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     // Phase 4A: Archive
     archive: (projectId, savedUrlId) => client.send({ kind: 'ARCHIVE_SAVED_URL', projectId, savedUrlId }),
     unarchive: (projectId, savedUrlId) => client.send({ kind: 'UNARCHIVE_SAVED_URL', projectId, savedUrlId }),
+    // Phase 4B: Silent file
+    silentFileTab: (tabId, projectId) => {
+      setFilingResult(undefined)
+      client.send({ kind: 'SILENT_FILE_TAB', tabId, projectId })
+    },
   }
 }

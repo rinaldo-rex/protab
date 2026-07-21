@@ -595,6 +595,8 @@ export function App({ client, liveTabsClient }: AppProps) {
             state={state}
             onDragStart={() => {}}
             onDragEnd={() => { setDragOverProjectId(undefined); setDragOverCanvas(false) }}
+            selectedProjectId={selected?.id}
+            toastDuration={3000}
           />
         </div>
       </main>
