@@ -2,7 +2,7 @@
 
 Protab is a local-first Chrome extension for turning temporary browser tabs into durable, project-based URL collections.
 
-> **Status:** Phase 4A is implemented. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, saved-URL opening, project activation with programmatic close, open all, close all, project export/import, and URL archiving.
+> **Status:** Phase 4A is complete. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, saved-URL opening, project activation with programmatic close, open all, close all, project export/import, and URL archiving. Phase 4B (quick-capture, hover shortcuts, drag-to-rearrange, settings) is specified and ready for implementation.
 
 ## Core workflow
 
@@ -25,8 +25,12 @@ Projects, URLs, titles, tags, and notes persist locally across browser restarts.
 - Project export as self-contained HTML files
 - Project import from HTML and ZIP files via drag-and-drop
 - URL archiving with context menu and keyboard shortcuts
+- Quick-capture popup for zero-friction tab capture
+- Hover shortcut 'Add (A)' for keyboard filing
+- Drag-to-rearrange saved URLs and projects
+- Minimal settings (shortcut, close behavior, toast duration)
 
-Pinning, settings UI, cloud sync, and Chrome Web Store publishing are deferred.
+Pinning, cloud sync, and Chrome Web Store publishing are deferred.
 
 ## Develop and test
 
@@ -49,22 +53,16 @@ npm run build
 4. Choose **Load unpacked** and select this repository's `dist/` directory.
 5. Pin Protab if desired, then click its toolbar action to open the full-page workspace.
 
-The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. The extension requests only the `storage` and `tabs` permissions. It inventories and focuses ordinary tabs, opens saved URLs, tracks runtime ownership, closes tabs with explicit confirmation, exports projects as self-contained HTML, and archives URLs.
+The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. The extension requests `storage`, `tabs`, and `activeTab` permissions. It inventories and focuses ordinary tabs, opens saved URLs, tracks runtime ownership, closes tabs with explicit confirmation, exports projects as self-contained HTML, archives URLs, and provides a quick-capture popup.
 
 ## Testing
 
+- [Phase 4B testing](docs/phase-4b-testing.md) — quick-capture, hover shortcuts, drag-to-rearrange, settings
 - [Phase 4A testing](docs/phase-4a-testing.md) — export, import, archive, keyboard shortcuts
 - [Phase 4 testing](docs/phase-4-testing.md) — activation, open all, close all
 - [Phase 3 testing](docs/phase-3-testing.md) — programmatic close with confirmation
 - [Phase 2 testing](docs/phase-2-testing.md) — filing, ownership, two-window isolation
 - [Phase 1 testing](docs/phase-1-testing.md) — basic project and URL management
-
-## Documentation
-
-- [Design philosophy](design_philosophy.md) — why Protab exists and the principles behind it
-- [Design decisions](design_decisions.md) — agreed behavior and constraints for implementation
-- [Delivery phases](development_phases.md) — testable increments for building V0
-- [Implementation specifications](spec/README.md) — phase readiness and handoff documents
 
 ## Documentation
 

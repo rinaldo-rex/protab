@@ -93,6 +93,34 @@ Programmatic close is intentionally fixed for V0 because it implements the core 
 
 Settings UI, pinning, task statuses, advanced search/filtering, nested projects, cloud sync, and Chrome Web Store publishing are not part of V0.
 
+## Quick capture and shortcuts
+
+- **Quick-capture popup:** A customizable keyboard shortcut (default `Ctrl+Shift+X`) opens a browser popup for capturing the current tab to a project. The popup uses a smart text input that parses `#tag` and `@Project` with inline autocomplete.
+- **Input format:** `note #tag1 #tag2 @Project`. Multiple tags are allowed; only one project. The `@Project` is required; missing it shows an error.
+- **Duplicate handling:** If the URL already exists in the target project, quick-capture updates the existing record by adding new tags and appending the note. No duplicate records are created.
+- **Project matching:** Fuzzy match on project names. If no match, show an error and keep the popup open.
+- **Hover shortcut 'A':** Pressing `A` while hovering over a tab row in Current Tabs files it to the currently selected project with a toast overlay. No confirmation dialog; silent filing with brief feedback.
+- **Toast behavior:** Toasts appear on the affected UI element and auto-dismiss after a configurable duration (default 3 seconds). Hovering pauses auto-dismiss.
+
+## Drag-to-rearrange
+
+- **Saved URL reordering:** A hover-only hamburger icon (☰) appears on the left side of each saved URL accordion. Dragging it reorders the URL within the project. The `Move up` and `Move down` options are removed from the action menu.
+- **Project reordering:** The entire project row in the sidebar is draggable. Clicking selects the project; holding and dragging (with a 5px movement threshold) reorders it. The `Move up` and `Move down` options are removed from the project action menu.
+- **Keyboard reorder:** Deferred. Keyboard users cannot reorder URLs or projects in Phase 4B. This may be added later if requested.
+
+## Settings
+
+- **Settings access:** A gear icon next to the "Protab" brand text in the sidebar header opens a settings panel.
+- **Settings UI:** An inline panel replaces the project canvas and Current Tabs pane. Clicking a project in the sidebar returns to the normal workspace view.
+- **Configurable settings:** Quick-capture shortcut (display only; Chrome manages the binding), default close behavior (whether quick-capture closes the tab), and toast duration (2s, 3s, 5s, or manual dismiss).
+- **Settings persistence:** Settings are stored in `chrome.storage.local` and survive browser restarts.
+
+## Permissions
+
+- **New permission:** `activeTab` is added to allow the quick-capture popup to access the current tab's URL and title. This permission is granted temporarily when the user invokes the shortcut.
+- **Manifest changes:** The manifest adds `activeTab` to permissions and a `commands` entry for the shortcut.
+
 ## Decisions required after V0
 
 - Whether a future automatic-close setting governs every Protab close workflow or filing only
+- Whether keyboard reorder for URLs and projects should be added (deferred from Phase 4B)

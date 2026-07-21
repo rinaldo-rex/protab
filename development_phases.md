@@ -171,6 +171,42 @@ The V0 programmatic-close policy and initial domain-to-tag mapping are recorded.
 - Import a ZIP and verify all projects are imported.
 - Verify shortcuts `R` and `N` work on hover, including on collapsed accordions.
 
+## Phase 4B — Zero-friction capture and drag-to-rearrange
+
+**Outcome:** Users can capture tabs from anywhere via a quick-capture popup, file tabs from the Current Tabs pane with a single keystroke, and reorder saved URLs and projects by dragging.
+
+### Atomic commits
+
+1. Add capture text parser and autocomplete logic.
+2. Add quick-capture popup with background handler.
+3. Add hover shortcut 'A' with silent filing and toast feedback.
+4. Add drag-to-rearrange saved URLs with hover-only drag handle.
+5. Add drag-to-rearrange projects with whole-row draggable.
+6. Add minimal settings panel for shortcut, close behavior, and toast duration.
+7. Add Phase 4B loading and test instructions.
+
+### Definition of done
+
+- A customizable keyboard shortcut opens a quick-capture popup for the current tab.
+- The popup parses `#tag` and `@Project` with inline autocomplete.
+- Duplicate URLs update existing records without creating duplicates.
+- Pressing 'A' while hovering over a tab row files it to the selected project with a toast.
+- Saved URL accordions have a hover-only drag handle for reordering.
+- Project rows are draggable for reordering; click-to-select still works.
+- A settings gear icon opens an inline panel with shortcut, close behavior, and toast duration settings.
+
+### Tests
+
+- Run all automated checks; cover text parsing, autocomplete, quick-capture, hover shortcut, drag-to-reorder, and settings.
+- Quick-capture with various input formats and verify correct parsing.
+- Test autocomplete for tags and projects, including fuzzy matching.
+- Test error handling (missing project, storage failure).
+- Test hover 'A' shortcut with toast appearance and auto-dismiss.
+- Test drag-to-reorder URLs and verify new order persists.
+- Test drag-to-reorder projects and verify click-to-select still works.
+- Test settings persistence across sessions.
+- Verify keyboard-only completion of all new interactions.
+
 ## Phase 5 — V0 recovery and release hardening
 
 **Outcome:** The complete V0 workflow is resilient across restarts, failures, upgrades, keyboard use, and realistic multi-window sessions.

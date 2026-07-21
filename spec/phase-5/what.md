@@ -6,7 +6,7 @@ Turn the completed V0 workflow into a release-ready extension by hardening recov
 
 ## Prerequisite
 
-Phases 1–4 are complete and their specifications reflect the implemented contracts. Any known deviations are documented before hardening begins.
+Phases 1–4B are complete and their specifications reflect the implemented contracts. Any known deviations are documented before hardening begins.
 
 ## Recovery and data integrity
 
@@ -113,4 +113,4 @@ Record Chrome version, operating system, extension build identifier, results, an
 
 ## Explicitly out of scope
 
-Settings UI remains post-V0. A future automatic-close preference may default to enabled and offer a user-close handoff, but its scope across close workflows requires a later product decision. Pinning, task statuses, archive/history/timeline, advanced search/filtering, nested projects, import/export, cloud sync, telemetry, mobile UI, publishing to the Chrome Web Store, and other post-V0 feature design are also out of scope.
+A future automatic-close preference may default to enabled and offer a user-close handoff, but its scope across close workflows requires a later product decision. Pinning, task statuses, archive/history/timeline, advanced search/filtering, nested projects, cloud sync, telemetry, mobile UI, publishing to the Chrome Web Store, and other post-V0 feature design are also out of scope.
