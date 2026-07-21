@@ -41,10 +41,21 @@ void queue.read().then((state) => liveTabs.initialize(state)).catch((error: unkn
 chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
 
+// Open quick-capture popup as a small window
+function openQuickCapturePopup(): void {
+  void chrome.windows.create({
+    url: chrome.runtime.getURL('popup.html'),
+    type: 'popup',
+    width: 380,
+    height: 280,
+    focused: true,
+  })
+}
+
 // Handle quick-capture command
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'quick-capture') {
-    void chrome.action.openPopup()
+    openQuickCapturePopup()
   }
 })
 
@@ -66,7 +77,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'open-workspace') {
     serializedToolbarHandler(new ChromeToolbarAdapter())(tab!)
   } else if (info.menuItemId === 'quick-capture') {
-    void chrome.action.openPopup()
+    openQuickCapturePopup()
   }
 })
 
