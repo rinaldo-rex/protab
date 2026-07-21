@@ -159,8 +159,7 @@ export function App({ client, liveTabsClient }: AppProps) {
         <DriftReviewDialog
           operation={liveTabs.activationPrepared}
           pending={liveTabs.activationPending}
-          onConfirm={(operationId, keptTabIds) => {
-            // For now, we don't send keptTabIds - just confirm
+          onConfirm={(operationId) => {
             liveTabs.confirmActivateProject(operationId)
           }}
           onCancel={liveTabs.cancelActivateProject}
