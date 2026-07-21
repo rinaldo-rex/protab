@@ -7,11 +7,29 @@ import { ChromeToolbarAdapter, serializedToolbarHandler } from './toolbar'
 import { ChromeTabsAdapter } from './tabs/chromeTabs'
 import { LiveTabsCoordinator } from './tabs/coordinator'
 import { ChromeSessionStorageAdapter, OwnershipStore } from './tabs/ownershipStore'
+import { CloseTrackerStore, ChromeSessionStorageAdapter as CloseTrackerSessionAdapter } from './tabs/closeTracker'
+import { FilingOrchestrator } from './tabs/filing'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
 const ownership = new OwnershipStore(new ChromeSessionStorageAdapter())
 void ownership.initialize().catch((error: unknown) => console.error('Protab could not restrict live ownership storage access.', error))
-const liveTabs = new LiveTabsCoordinator(new ChromeTabsAdapter(), ownership, () => queue.read(), queue)
+
+const closeTracker = new CloseTrackerStore(new CloseTrackerSessionAdapter())
+void closeTracker.initialize().catch((error: unknown) => console.error('Protab could not restrict close tracker storage access.', error))
+
+const tabsApi = new ChromeTabsAdapter()
+
+const filingOrchestrator = new FilingOrchestrator(
+  tabsApi,
+  ownership,
+  closeTracker,
+  queue,
+  () => queue.read(),
+  () => {},
+  () => liveTabs.scheduleAll(),
+)
+
+const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator)
 
 chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
@@ -22,7 +40,10 @@ chrome.tabs.onActivated.addListener(({ windowId }) => liveTabs.scheduleWindow(wi
 chrome.tabs.onMoved.addListener((_tabId, { windowId }) => liveTabs.scheduleWindow(windowId))
 chrome.tabs.onAttached.addListener((_tabId, { newWindowId }) => liveTabs.scheduleWindow(newWindowId))
 chrome.tabs.onDetached.addListener((_tabId, { oldWindowId }) => liveTabs.scheduleWindow(oldWindowId))
-chrome.tabs.onRemoved.addListener((_tabId, { windowId }) => liveTabs.scheduleWindow(windowId))
+chrome.tabs.onRemoved.addListener((tabId, { windowId }) => {
+  liveTabs.resolveTabRemoval(tabId)
+  liveTabs.scheduleWindow(windowId)
+})
 chrome.tabs.onReplaced.addListener(() => liveTabs.scheduleAll())
 chrome.windows.onRemoved.addListener(() => liveTabs.scheduleAll())
 

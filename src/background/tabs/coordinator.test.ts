@@ -30,6 +30,7 @@ function api(): ChromeTabsApi {
     activate: vi.fn(async () => undefined),
     focusWindow: vi.fn(async () => undefined),
     create: vi.fn(async (windowId, url) => ({ id: 99, windowId, url } as chrome.tabs.Tab)),
+    remove: vi.fn(async () => undefined),
   }
 }
 

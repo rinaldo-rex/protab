@@ -79,3 +79,103 @@ describe('domain behavior', () => {
     expect(deleted.projects).toEqual([{ id: 'p2', name: 'Two', savedUrls: [] }])
   })
 })
+
+describe('FILE_LIVE_TAB command', () => {
+  function stateWithProject(): PersistedStateV1 {
+    return { schemaVersion: 1, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] }
+  }
+
+  it('creates a new record with automatic title from hostname', () => {
+    const result = applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com/path', suggestedTags: [] }, ids('u1'))
+    expect(result.state.projects[0].savedUrls[0]).toMatchObject({
+      url: 'https://example.com/path',
+      title: 'example.com',
+      titleSource: 'automatic',
+      tags: [],
+      notes: '',
+    })
+    expect(result.meta).toMatchObject({ didWrite: true, affectedProjectId: 'p1', affectedSavedUrlId: 'u1', filing: 'created' })
+  })
+
+  it('uses captured title when provided and non-empty', () => {
+    const result = applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com', capturedTitle: '  My Page  ', suggestedTags: [] }, ids('u1'))
+    expect(result.state.projects[0].savedUrls[0]).toMatchObject({
+      title: 'My Page',
+      titleSource: 'automatic',
+    })
+  })
+
+  it('falls back to hostname when captured title is empty or whitespace', () => {
+    const empty = applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com/page', capturedTitle: '', suggestedTags: [] }, ids('u1'))
+    expect(empty.state.projects[0].savedUrls[0].title).toBe('example.com')
+    const whitespace = applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://other.com', capturedTitle: '   ', suggestedTags: [] }, ids('u2'))
+    expect(whitespace.state.projects[0].savedUrls[0].title).toBe('other.com')
+  })
+
+  it('applies suggested tags to new records', () => {
+    const result = applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com', suggestedTags: ['video', 'research'] }, ids('u1'))
+    expect(result.state.projects[0].savedUrls[0].tags).toEqual(['video', 'research'])
+  })
+
+  it('normalizes suggested tags (deduplication, trimming)', () => {
+    const result = applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com', suggestedTags: [' Video ', 'video', 'CODE'] }, ids('u1'))
+    expect(result.state.projects[0].savedUrls[0].tags).toEqual(['Video', 'CODE'])
+  })
+
+  it('returns filing: created for new records', () => {
+    const result = applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com', suggestedTags: [] }, ids('u1'))
+    expect(result.meta.filing).toBe('created')
+    expect(result.meta.didWrite).toBe(true)
+  })
+
+  it('returns filing: reused with existing record ID when URL matches', () => {
+    const state: PersistedStateV1 = {
+      schemaVersion: 1,
+      projects: [{
+        id: 'p1',
+        name: 'Research',
+        savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Custom Title', titleSource: 'custom', tags: ['manual'], notes: 'My notes' }],
+      }],
+    }
+    const result = applyCommand(state, { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com/', suggestedTags: ['video'] })
+    expect(result.meta).toMatchObject({ didWrite: false, existingSavedUrlId: 'u1', affectedSavedUrlId: 'u1', filing: 'reused' })
+    expect(result.state).toBe(state) // returns same state reference
+  })
+
+  it('preserves existing metadata on reuse (title, tags, notes, ordering)', () => {
+    const state: PersistedStateV1 = {
+      schemaVersion: 1,
+      projects: [{
+        id: 'p1',
+        name: 'Research',
+        savedUrls: [
+          { id: 'u1', url: 'https://first.com/', title: 'First', titleSource: 'custom', tags: ['a'], notes: 'first notes' },
+          { id: 'u2', url: 'https://example.com/', title: 'Custom Title', titleSource: 'custom', tags: ['manual'], notes: 'My notes' },
+          { id: 'u3', url: 'https://last.com/', title: 'Last', titleSource: 'automatic', tags: ['b'], notes: '' },
+        ],
+      }],
+    }
+    const result = applyCommand(state, { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com/', suggestedTags: ['video'] })
+    const urls = result.state.projects[0].savedUrls
+    expect(urls).toHaveLength(3)
+    expect(urls[1]).toMatchObject({
+      id: 'u2',
+      title: 'Custom Title',
+      titleSource: 'custom',
+      tags: ['manual'],
+      notes: 'My notes',
+    })
+    // ordering preserved
+    expect(urls.map((u) => u.id)).toEqual(['u1', 'u2', 'u3'])
+  })
+
+  it('throws on invalid/unsupported URL', () => {
+    expect(() => applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'file:///tmp/test', suggestedTags: [] })).toThrow(/HTTP and HTTPS/)
+    expect(() => applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://user:pass@example.com', suggestedTags: [] })).toThrow(/username or password/)
+    expect(() => applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'not-a-url', suggestedTags: [] })).toThrow(/valid/)
+  })
+
+  it('throws on missing project', () => {
+    expect(() => applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'missing', url: 'https://example.com', suggestedTags: [] })).toThrow(/no longer exists/)
+  })
+})

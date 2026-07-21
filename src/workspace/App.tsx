@@ -1,15 +1,19 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
-import { CurrentTabsPane } from './CurrentTabsPane'
+import { CurrentTabsPane, type DragPayload } from './CurrentTabsPane'
 import type { LiveTabsClient } from './useLiveTabs'
 import { useLiveTabs } from './useLiveTabs'
 import { instanceCounts } from '../domain/ownership'
 import { useWorkspace } from './useWorkspace'
+import { FileTabsDialog } from './FileTabsDialog'
+import { FilingSummary } from './FilingSummary'
+import { AttentionBanner } from './AttentionBanner'
+import { FolderInput } from 'lucide-react'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -27,6 +31,55 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [formError, setFormError] = useState<string>()
   const [focusProjectId, setFocusProjectId] = useState<string>()
   const [expandedUrlIds, setExpandedUrlIds] = useState<Set<string>>(new Set())
+  const [dragOverProjectId, setDragOverProjectId] = useState<string>()
+  const [dragOverCanvas, setDragOverCanvas] = useState(false)
+  const [bulkConfirmProjectId, setBulkConfirmProjectId] = useState<string>()
+
+  // Count eligible unassigned tabs for bulk filing
+  const eligibleBulkCount = useMemo(() => {
+    if (!liveTabs.inventory?.tabs) return 0
+    return liveTabs.inventory.tabs.filter((tab) => {
+      if (!tab.supported || !tab.url) return false
+      if (tab.ownership && !tab.ownership.drifted) return false
+      return true
+    }).length
+  }, [liveTabs.inventory?.tabs])
+
+  const handleDragOver = (event: React.DragEvent, projectId?: string) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    if (projectId !== undefined) {
+      setDragOverProjectId(projectId)
+      setDragOverCanvas(false)
+    } else {
+      setDragOverCanvas(true)
+      setDragOverProjectId(undefined)
+    }
+  }
+
+  const handleDragLeave = (projectId?: string) => {
+    if (projectId !== undefined) {
+      if (dragOverProjectId === projectId) setDragOverProjectId(undefined)
+    } else {
+      setDragOverCanvas(false)
+    }
+  }
+
+  const handleDrop = (event: React.DragEvent, projectId: string) => {
+    event.preventDefault()
+    setDragOverProjectId(undefined)
+    setDragOverCanvas(false)
+    try {
+      const raw = event.dataTransfer.getData('application/json')
+      if (!raw) return
+      const payload = JSON.parse(raw) as DragPayload
+      if (payload.tabId) {
+        liveTabs.prepareFileTab(payload.tabId, projectId)
+      }
+    } catch {
+      // Invalid drag payload
+    }
+  }
 
   if (model.status === 'loading') {
     return <main className="centered-state" aria-live="polite"><div className="loader" /><h1>Loading Protab</h1><p>Preparing your local workspace…</p></main>
@@ -61,12 +114,54 @@ export function App({ client, liveTabsClient }: AppProps) {
 
   return (
     <div className="app-shell">
+      {liveTabs.preparedFiling && (
+        <FileTabsDialog
+          operation={liveTabs.preparedFiling}
+          state={state}
+          pending={liveTabs.filingPending}
+          onConfirm={liveTabs.confirmFileTab}
+          onCancel={liveTabs.cancelFileOperation}
+        />
+      )}
+      {liveTabs.bulkPrepared && bulkConfirmProjectId && (
+        <div className="filing-dialog-backdrop" role="presentation">
+          <section className="filing-dialog" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
+            <div className="filing-dialog-header">
+              <h3 id="bulk-confirm-title">File all unassigned tabs</h3>
+              <button className="icon-button" aria-label="Close" onClick={() => { liveTabs.dismissBulkSummary(); setBulkConfirmProjectId(undefined) }}><X size={18} /></button>
+            </div>
+            <div className="filing-dialog-body">
+              <p>File {liveTabs.bulkPrepared.eligible} unassigned tab{liveTabs.bulkPrepared.eligible !== 1 ? 's' : ''} to <strong>{liveTabs.bulkPrepared.projectName}</strong>?</p>
+              <p className="filing-honesty-note">Protab will save each URL and request Chrome to close the tab. Some pages may show a native warning.</p>
+            </div>
+            <div className="filing-dialog-actions">
+              <button className="button secondary" onClick={() => { liveTabs.dismissBulkSummary(); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>Cancel</button>
+              <button className="button primary" onClick={() => { liveTabs.confirmBulkFile(liveTabs.bulkPrepared!.operationId, bulkConfirmProjectId); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>{liveTabs.bulkPending ? 'Filing…' : 'File all'}</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {liveTabs.bulkSummary && selected && (
+        <div className="filing-summary-overlay">
+          <FilingSummary
+            summary={liveTabs.bulkSummary}
+            projectName={selected.name}
+            onDismiss={liveTabs.dismissBulkSummary}
+          />
+        </div>
+      )}
       <aside className="project-sidebar" aria-label="Project navigation">
         <div className="brand"><span>Protab</span><small>LOCAL WORKSPACE</small></div>
         <div className="sidebar-heading"><span>Projects</span><span>{state.projects.length}</span></div>
         <nav className="project-list" aria-label="Projects">
           {state.projects.map((project) => (
-            <div key={project.id} className={project.id === selected?.id ? 'project-row selected' : 'project-row'}>
+            <div
+              key={project.id}
+              className={`${project.id === selected?.id ? 'project-row selected' : 'project-row'} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''}`}
+              onDragOver={(e) => handleDragOver(e, project.id)}
+              onDragLeave={() => handleDragLeave(project.id)}
+              onDrop={(e) => handleDrop(e, project.id)}
+            >
               <button
                 className="project-item"
                 aria-current={project.id === selected?.id ? 'page' : undefined}
@@ -97,12 +192,46 @@ export function App({ client, liveTabsClient }: AppProps) {
 
       <main className="workspace">
         <header className="topbar"><h1>Project Workspace</h1><span className="local-status">Stored locally</span></header>
+        {liveTabs.attentionItems.length > 0 && (
+          <AttentionBanner
+            items={liveTabs.attentionItems}
+            onFocusTab={liveTabs.focus}
+            onRetryClose={liveTabs.retryFileOperation}
+            onDismissItem={liveTabs.dismissAttention}
+            onDismissBanner={liveTabs.dismissAttentionBanner}
+          />
+        )}
         {model.error && <div className="error-banner" role="alert"><span>{model.error}</span><button onClick={model.dismissError}>Dismiss</button></div>}
         <div className="workspace-body">
-          <section className="project-canvas" aria-labelledby="project-title">
+          <section
+            className={`project-canvas ${dragOverCanvas && selected ? 'drag-over-valid' : ''}`}
+            aria-labelledby="project-title"
+            onDragOver={selected ? (e) => handleDragOver(e) : undefined}
+            onDragLeave={selected ? () => handleDragLeave() : undefined}
+            onDrop={selected ? (e) => handleDrop(e, selected.id) : undefined}
+          >
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions"><AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} liveTabs={liveTabs} ownedLiveCount={projectLiveCounts[selected.id] ?? 0} onDeleted={(deletedIndex) => {
+                <div className="canvas-header"><div><p className="eyebrow">Selected project</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions">
+                  {eligibleBulkCount > 0 && (
+                    <button
+                      className="button secondary bulk-file-button"
+                      onClick={() => {
+                        if (liveTabs.bulkPrepared) {
+                          liveTabs.confirmBulkFile(liveTabs.bulkPrepared.operationId, selected.id)
+                        } else {
+                          setBulkConfirmProjectId(selected.id)
+                          liveTabs.prepareBulkFile(selected.id)
+                        }
+                      }}
+                      disabled={liveTabs.bulkPending}
+                      aria-label={`File all unassigned tabs (${eligibleBulkCount})`}
+                    >
+                      <FolderInput size={16} aria-hidden="true" />
+                      <span>File all unassigned ({eligibleBulkCount})</span>
+                    </button>
+                  )}
+                  <AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} liveTabs={liveTabs} ownedLiveCount={projectLiveCounts[selected.id] ?? 0} onDeleted={(deletedIndex) => {
                   const remainingIds = projectIds.filter((id) => id !== selected.id)
                   const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
                   if (successorId) {
@@ -142,7 +271,12 @@ export function App({ client, liveTabsClient }: AppProps) {
               </div>
             )}
           </section>
-          <CurrentTabsPane model={liveTabs} state={state} />
+          <CurrentTabsPane
+            model={liveTabs}
+            state={state}
+            onDragStart={() => {}}
+            onDragEnd={() => { setDragOverProjectId(undefined); setDragOverCanvas(false) }}
+          />
         </div>
       </main>
     </div>

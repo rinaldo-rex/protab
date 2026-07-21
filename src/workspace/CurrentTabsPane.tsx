@@ -1,16 +1,40 @@
 import { useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
+import { isSupportedTabUrl } from '../domain/liveTabs'
 import type { PersistedStateV1 } from '../domain/types'
 import type { LiveTabsModel } from './useLiveTabs'
+import { LiveTabFileActions } from './LiveTabFileActions'
+import { FilingResult } from './FilingResult'
+import type { LiveTabView } from '../domain/liveTabs'
 
-export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state: PersistedStateV1 }) {
+export interface DragPayload {
+  tabId: number
+  tabTitle: string
+}
+
+export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { model: LiveTabsModel; state: PersistedStateV1; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void }) {
   const inventory = model.inventory
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [assigningTabId, setAssigningTabId] = useState<number>()
   const [reconciliationDismissed, setReconciliationDismissed] = useState(false)
+  const [draggingTabId, setDraggingTabId] = useState<number>()
   const assignmentTrigger = useRef<HTMLButtonElement>(null)
+
+  const handleDragStart = (tab: LiveTabView, event: React.DragEvent) => {
+    const payload: DragPayload = { tabId: tab.tabId, tabTitle: tab.title }
+    event.dataTransfer.setData('application/json', JSON.stringify(payload))
+    event.dataTransfer.effectAllowed = 'move'
+    setDraggingTabId(tab.tabId)
+    onDragStart?.(tab)
+  }
+
+  const handleDragEnd = () => {
+    setDraggingTabId(undefined)
+    onDragEnd?.()
+  }
+
   return (
     <aside className="current-tabs" aria-labelledby="current-tabs-title">
       <div className="pane-heading">
@@ -35,15 +59,44 @@ export function CurrentTabsPane({ model, state }: { model: LiveTabsModel; state:
                 <span>{group.label}</span><span>{group.tabs.length}</span><ChevronDown size={14} className={isCollapsed ? 'group-chevron collapsed' : 'group-chevron'} />
               </button>
               {!isCollapsed && <ul id={`live-group-list-${group.id}`} className="live-tab-list" aria-label={`${group.label} tabs`}>
-                {group.tabs.map((tab) => (
-                  <li key={tab.tabId}>
-                    <button className="live-tab-row" aria-current={tab.active ? 'page' : undefined} aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.ownership?.drifted ? 'Navigated from saved URL. Unassigned.' : tab.ownership ? `Owned by ${group.label}.` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`} onClick={() => model.focus(tab.tabId)}>
-                      {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
-                      <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
-                    </button>
-                    {!tab.ownership && tab.candidates.length > 0 && <button ref={assigningTabId === tab.tabId ? assignmentTrigger : undefined} className="assign-button" aria-haspopup="dialog" onClick={() => setAssigningTabId(tab.tabId)}>Assign to…</button>}
-                  </li>
-                ))}
+                {group.tabs.map((tab) => {
+                  const isFileable = group.id === 'unassigned' && tab.supported && tab.url && isSupportedTabUrl(tab.url) && (!tab.ownership || tab.ownership.drifted)
+                  const isDragging = draggingTabId === tab.tabId
+                  return (
+                    <li key={tab.tabId}>
+                      <div className={`live-tab-row-container ${isDragging ? 'dragging' : ''}`}>
+                        <button
+                          className="live-tab-row"
+                          aria-current={tab.active ? 'page' : undefined}
+                          aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.ownership?.drifted ? 'Navigated from saved URL. Unassigned.' : tab.ownership ? `Owned by ${group.label}.` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`}
+                          onClick={() => model.focus(tab.tabId)}
+                          draggable={isFileable ? 'true' : undefined}
+                          onDragStart={isFileable ? (e) => handleDragStart(tab, e) : undefined}
+                          onDragEnd={isFileable ? handleDragEnd : undefined}
+                        >
+                          {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
+                          <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
+                        </button>
+                        {isFileable && model.preparedFiling?.tabId === tab.tabId ? null : isFileable ? (
+                          <LiveTabFileActions
+                            tab={tab}
+                            state={state}
+                            pending={model.filingPending}
+                            onFile={model.prepareFileTab}
+                          />
+                        ) : null}
+                        {!tab.ownership && tab.candidates.length > 0 && <button ref={assigningTabId === tab.tabId ? assignmentTrigger : undefined} className="assign-button" aria-haspopup="dialog" onClick={() => setAssigningTabId(tab.tabId)}>Assign to…</button>}
+                      </div>
+                      {model.filingResult && model.filingResult.tabId === tab.tabId && (
+                        <FilingResult
+                          result={model.filingResult}
+                          onRetry={model.retryFileOperation}
+                          onDismiss={model.dismissFilingResult}
+                        />
+                      )}
+                    </li>
+                  )
+                })}
               </ul>}
             </section>
           })}

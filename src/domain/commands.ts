@@ -13,10 +13,12 @@ export type Command =
   | { type: 'REORDER_SAVED_URL'; projectId: string; savedUrlId: string; toIndex: number }
   | { type: 'COPY_SAVED_URL'; sourceProjectId: string; savedUrlId: string; targetProjectId: string }
   | { type: 'DELETE_SAVED_URL'; projectId: string; savedUrlId: string }
+  | { type: 'FILE_LIVE_TAB'; projectId: string; url: string; capturedTitle?: string; suggestedTags: string[] }
 
 export interface CommandResultMeta {
   affectedProjectId?: string
   affectedSavedUrlId?: string
   existingSavedUrlId?: string
   didWrite: boolean
+  filing?: 'created' | 'reused'
 }

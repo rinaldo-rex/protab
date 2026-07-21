@@ -5,6 +5,8 @@ import type { LiveTabInventory } from '../../domain/liveTabs'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../messages'
 import { queryOrdinaryTabs, type ChromeTabsApi } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
+import type { CloseTrackerStore } from './closeTracker'
+import type { FilingOrchestrator } from './filing'
 
 interface ClientSubscription {
   workspaceTabId: number
@@ -24,6 +26,8 @@ export class LiveTabsCoordinator {
     private readonly ownership?: OwnershipStore,
     private readonly readState: () => Promise<PersistedStateV1> = async () => ({ schemaVersion: 1, projects: [] }),
     private readonly durableQueue?: CommandQueue,
+    private readonly closeTracker?: CloseTrackerStore,
+    private readonly filingOrchestrator?: FilingOrchestrator,
   ) {}
 
   connect(port: chrome.runtime.Port): void {
@@ -111,6 +115,30 @@ export class LiveTabsCoordinator {
     }
     if (message.kind === 'DELETE_PROJECT_WITH_LIVE_TABS' && typeof message.projectId === 'string') {
       this.enqueueWindow(client.windowId, () => this.deleteProject(client, message.projectId!))
+      return
+    }
+    if (message.kind === 'PREPARE_FILE_LIVE_TAB' && typeof message.tabId === 'number' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.prepareFileTab(client, message.tabId!, message.projectId!))
+      return
+    }
+    if (message.kind === 'CONFIRM_FILE_LIVE_TAB' && typeof message.operationId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.confirmFileTab(client, message.operationId!))
+      return
+    }
+    if (message.kind === 'CANCEL_FILE_OPERATION' && typeof message.operationId === 'string') {
+      // Clean up prepared operation, no side effects
+      return
+    }
+    if (message.kind === 'RETRY_FILE_OPERATION' && typeof message.operationId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.retryFileOperation(client, message.operationId!))
+      return
+    }
+    if (message.kind === 'PREPARE_FILE_ALL_UNASSIGNED' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.prepareBulkFile(client, message.projectId!))
+      return
+    }
+    if (message.kind === 'CONFIRM_FILE_ALL_UNASSIGNED' && typeof message.operationId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.confirmBulkFile(client, message.operationId!, message.projectId!))
       return
     }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
@@ -210,6 +238,88 @@ export class LiveTabsCoordinator {
     } catch (reason) {
       this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Protab could not open that saved URL.' })
       this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async prepareFileTab(client: ClientSubscription, tabId: number, projectId: string): Promise<void> {
+    if (!this.filingOrchestrator) return
+    try {
+      const operation = await this.filingOrchestrator.prepare(tabId, projectId, client.windowId)
+      this.post(client, { kind: 'FILING_PREPARED', operation })
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        tabId,
+        message: reason instanceof Error ? reason.message : 'Could not prepare filing.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async confirmFileTab(client: ClientSubscription, operationId: string): Promise<void> {
+    if (!this.filingOrchestrator) return
+    try {
+      const result = await this.filingOrchestrator.executeFiling(operationId, client.windowId)
+      this.post(client, { kind: 'FILING_RESULT', result })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+      this.scheduleWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        message: reason instanceof Error ? reason.message : 'Could not complete filing.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async retryFileOperation(client: ClientSubscription, operationId: string): Promise<void> {
+    if (!this.filingOrchestrator) return
+    try {
+      const result = await this.filingOrchestrator.retryClose(operationId, client.windowId)
+      this.post(client, { kind: 'FILING_RESULT', result })
+      this.scheduleWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        message: reason instanceof Error ? reason.message : 'Could not retry close.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async prepareBulkFile(client: ClientSubscription, projectId: string): Promise<void> {
+    if (!this.filingOrchestrator) return
+    try {
+      const { operationId, eligible, projectName } = await this.filingOrchestrator.prepareBulk(projectId, client.windowId)
+      this.post(client, { kind: 'BULK_FILING_PREPARED', operationId, eligible, projectName })
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        message: reason instanceof Error ? reason.message : 'Could not prepare bulk filing.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  private async confirmBulkFile(client: ClientSubscription, operationId: string, projectId: string): Promise<void> {
+    if (!this.filingOrchestrator) return
+    try {
+      const summary = await this.filingOrchestrator.executeBulkFiling(operationId, projectId, client.windowId)
+      this.post(client, { kind: 'FILING_SUMMARY', summary })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+      this.scheduleWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        message: reason instanceof Error ? reason.message : 'Could not complete bulk filing.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  resolveTabRemoval(tabId: number): void {
+    if (this.filingOrchestrator) {
+      this.filingOrchestrator.resolveTabRemoval(tabId)
     }
   }
 

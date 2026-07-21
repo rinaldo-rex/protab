@@ -116,5 +116,42 @@ export function applyCommand(
       project.savedUrls.splice(index, 1)
       return { state, meta: { didWrite: true, affectedProjectId: project.id } }
     }
+    case 'FILE_LIVE_TAB': {
+      const project = findProject(state, command.projectId)
+      const url = serializeHttpUrl(command.url)
+      const existing = project.savedUrls.find((item) => item.url === url)
+      if (existing) {
+        return {
+          state: current,
+          meta: {
+            didWrite: false,
+            affectedProjectId: project.id,
+            existingSavedUrlId: existing.id,
+            affectedSavedUrlId: existing.id,
+            filing: 'reused',
+          },
+        }
+      }
+      const capturedTitle = command.capturedTitle?.trim()
+      const savedUrlId = createId()
+      const record: SavedUrl = {
+        id: savedUrlId,
+        url,
+        title: capturedTitle ? validateTitle(capturedTitle) : automaticTitle(url),
+        titleSource: 'automatic',
+        tags: normalizeTags(command.suggestedTags),
+        notes: '',
+      }
+      project.savedUrls.push(record)
+      return {
+        state,
+        meta: {
+          didWrite: true,
+          affectedProjectId: project.id,
+          affectedSavedUrlId: savedUrlId,
+          filing: 'created',
+        },
+      }
+    }
   }
 }
