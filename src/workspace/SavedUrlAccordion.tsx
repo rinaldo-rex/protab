@@ -1,6 +1,5 @@
 import { Archive, ChevronDown, FileText, MoreHorizontal } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { tinykeys } from 'tinykeys'
 import type { SavedUrl, Project } from '../domain/types'
 import { CopyUrlDialog } from './CopyUrlDialog'
 import { TagEditor } from './TagEditor'
@@ -26,11 +25,14 @@ interface SavedUrlAccordionProps {
   onToggle: (id: string, open: boolean) => void
   onNavigate: (projectId: string, recordId: string) => void
   onDeleted: (index: number) => void
+  onHover?: (recordId: string | null) => void
+  registerFocusNotes?: (recordId: string, focusFn: () => void) => void
+  registerArchiveAction?: (recordId: string, archiveFn: () => void) => void
 }
 
 type FieldName = 'url' | 'title' | 'notes'
 
-export function SavedUrlAccordion({ projectId, record, index, count, expanded, model, liveTabs, instanceCount, projects, tagSuggestions, archived, onToggle, onNavigate, onDeleted }: SavedUrlAccordionProps) {
+export function SavedUrlAccordion({ projectId, record, index, count, expanded, model, liveTabs, instanceCount, projects, tagSuggestions, archived, onToggle, onNavigate, onDeleted, onHover, registerFocusNotes, registerArchiveAction }: SavedUrlAccordionProps) {
   const [url, setUrl] = useState(record.url)
   const [title, setTitle] = useState(record.title)
   const [notes, setNotes] = useState(record.notes)
@@ -39,39 +41,39 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
   const [deleting, setDeleting] = useState(false)
   const [copying, setCopying] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
-  const [isHovering, setIsHovering] = useState(false)
   const [archiveConfirm, setArchiveConfirm] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const headerRef = useRef<HTMLButtonElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
-  const articleRef = useRef<HTMLElement>(null)
 
   useEffect(() => { setUrl(record.url); setTitle(record.title); setNotes(record.notes) }, [record])
 
-  // tinykeys shortcuts scoped to this accordion
+  const handleArchiveAction = useCallback(() => {
+    if (archived) {
+      liveTabs.unarchive(projectId, record.id)
+    } else if (instanceCount > 0) {
+      setArchiveConfirm(true)
+    } else {
+      liveTabs.archive(projectId, record.id)
+    }
+  }, [archived, instanceCount, liveTabs, projectId, record.id])
+
+  const handleFocusNotes = useCallback(() => {
+    // Expand first if collapsed, then focus notes
+    if (!expanded) {
+      onToggle(record.id, true)
+      queueMicrotask(() => notesRef.current?.focus())
+    } else {
+      notesRef.current?.focus()
+    }
+  }, [expanded, onToggle, record.id])
+
+  // Register callbacks with parent for global keyboard shortcuts
   useEffect(() => {
-    const el = articleRef.current
-    if (!el) return
-    const unsubscribe = tinykeys(el, {
-      'r': (event: KeyboardEvent) => {
-        if (!isHovering || isTextInput(event.target)) return
-        event.preventDefault()
-        handleArchiveAction()
-      },
-      'n': (event: KeyboardEvent) => {
-        if (!isHovering || isTextInput(event.target)) return
-        event.preventDefault()
-        if (!expanded) {
-          onToggle(record.id, true)
-          queueMicrotask(() => notesRef.current?.focus())
-        } else {
-          notesRef.current?.focus()
-        }
-      },
-    })
-    return unsubscribe
-  })
+    registerFocusNotes?.(record.id, handleFocusNotes)
+    registerArchiveAction?.(record.id, handleArchiveAction)
+  }, [record.id, handleFocusNotes, handleArchiveAction, registerFocusNotes, registerArchiveAction])
 
   async function save(field: FieldName) {
     const value = field === 'url' ? url : field === 'title' ? title : notes
@@ -108,16 +110,6 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
     queueMicrotask(() => headerRef.current?.focus())
   }
 
-  const handleArchiveAction = useCallback(() => {
-    if (archived) {
-      liveTabs.unarchive(projectId, record.id)
-    } else if (instanceCount > 0) {
-      setArchiveConfirm(true)
-    } else {
-      liveTabs.archive(projectId, record.id)
-    }
-  }, [archived, instanceCount, liveTabs, projectId, record.id])
-
   const handleArchiveAndClose = useCallback(() => {
     liveTabs.archive(projectId, record.id)
     setArchiveConfirm(false)
@@ -127,12 +119,6 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
     liveTabs.archive(projectId, record.id)
     setArchiveConfirm(false)
   }, [liveTabs, projectId, record.id])
-
-  const isTextInput = useCallback((target: EventTarget | null): boolean => {
-    if (!target || !(target instanceof HTMLElement)) return false
-    const tag = target.tagName.toLowerCase()
-    return tag === 'input' || tag === 'textarea' || target.isContentEditable
-  }, [])
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -149,12 +135,10 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
 
   return (
     <article
-      ref={articleRef}
       className={`url-accordion${archived ? ' archived-badge' : ''}`}
       data-record-id={record.id}
-      tabIndex={0}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      onMouseEnter={() => onHover?.(record.id)}
+      onMouseLeave={() => onHover?.(null)}
       onContextMenu={handleContextMenu}
     >
       <div className="accordion-header">
@@ -164,12 +148,10 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
           <ChevronDown size={18} className={expanded ? 'chevron expanded' : 'chevron'} />
         </button>
         <div className="record-actions">
-          {isHovering && (
-            <div className="shortcut-hints">
-              <span className="shortcut-hint">{archived ? 'Unarchive (R)' : 'Archive (R)'}</span>
-              <span className="shortcut-hint">Note (N)</span>
-            </div>
-          )}
+          <div className="shortcut-hints">
+            <span className="shortcut-hint">{archived ? 'Unarchive (R)' : 'Archive (R)'}</span>
+            <span className="shortcut-hint">Note (N)</span>
+          </div>
           {instanceCount > 0 && <span className="instance-count" aria-label={`${instanceCount} open ${instanceCount === 1 ? 'instance' : 'instances'}`}>{instanceCount} open</span>}
           <button className="open-url-button" onClick={(event) => event.shiftKey ? liveTabs.openCopy(projectId, record.id) : liveTabs.open(projectId, record.id)}>Open</button>
           <button ref={triggerRef} className="icon-button" aria-label={`Saved URL actions for ${record.title}`} aria-haspopup="menu" aria-expanded={menuOpen} title="Saved URL actions" onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={18} /></button>

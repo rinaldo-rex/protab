@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, type FormEvent } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
 import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download, Upload } from 'lucide-react'
@@ -18,6 +18,7 @@ import { DriftReviewDialog } from './DriftReviewDialog'
 import { ActivationSummary } from './ActivationSummary'
 import { OpenAllSummary } from './OpenAllSummary'
 import { CloseAllSummary } from './CloseAllSummary'
+import { tinykeys } from 'tinykeys'
 import { ContextMenu } from './ContextMenu'
 import { createExportZip, getExportZipFilename } from './export/createZip'
 import { downloadFile } from './export/downloadFile'
@@ -48,7 +49,39 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importDragOver, setImportDragOver] = useState(false)
   const [importPending, setImportPending] = useState(false)
+  const [hoveredRecordId, setHoveredRecordId] = useState<string | null>(null)
+  const focusNotesRegistry = useRef<Map<string, () => void>>(new Map())
+  const archiveActionRegistry = useRef<Map<string, () => void>>(new Map())
   const activeProjectId = liveTabs.activeProjectId
+
+  // Global keyboard shortcuts (R for archive, N for notes) - scoped to hovered accordion
+  useEffect(() => {
+    const unsubscribe = tinykeys(window, {
+      'r': (event: KeyboardEvent) => {
+        if (!hoveredRecordId) return
+        const target = event.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        event.preventDefault()
+        archiveActionRegistry.current.get(hoveredRecordId)?.()
+      },
+      'n': (event: KeyboardEvent) => {
+        if (!hoveredRecordId) return
+        const target = event.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        event.preventDefault()
+        focusNotesRegistry.current.get(hoveredRecordId)?.()
+      },
+    })
+    return unsubscribe
+  }, [hoveredRecordId])
+
+  const registerFocusNotes = useCallback((recordId: string, focusFn: () => void) => {
+    focusNotesRegistry.current.set(recordId, focusFn)
+  }, [])
+
+  const registerArchiveAction = useCallback((recordId: string, archiveFn: () => void) => {
+    archiveActionRegistry.current.set(recordId, archiveFn)
+  }, [])
 
   // Count eligible unassigned tabs for bulk filing
   const eligibleBulkCount = useMemo(() => {
@@ -509,7 +542,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                     {(() => { const activeUrls = selected.savedUrls.filter((u) => !u.archivedAt); return activeUrls.length === 0 ? null : (
                       <div className="url-list" aria-label={`Active URLs in ${selected.name}`}>
                         {activeUrls.map((record, index) => (
-                          <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={activeUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
+                          <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={activeUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} onHover={setHoveredRecordId} registerFocusNotes={registerFocusNotes} registerArchiveAction={registerArchiveAction} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
                             const remaining = activeUrls.filter((item) => item.id !== record.id)
                             const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
                             if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
@@ -530,7 +563,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                         {archivedExpanded && (
                           <div className="url-list archived" aria-label={`Archived URLs in ${selected.name}`}>
                             {archivedUrls.map((record, index) => (
-                              <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={archivedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} archived onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
+                              <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={archivedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} archived onHover={setHoveredRecordId} registerFocusNotes={registerFocusNotes} registerArchiveAction={registerArchiveAction} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
                                 const remaining = archivedUrls.filter((item) => item.id !== record.id)
                                 const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
                                 if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
