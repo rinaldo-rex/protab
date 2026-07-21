@@ -52,9 +52,86 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [hoveredRecordId, setHoveredRecordId] = useState<string | null>(null)
   const [draggingUrlId, setDraggingUrlId] = useState<string | null>(null)
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
+  const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
+  const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
+  const dragStartPos = useRef<{ x: number; y: number } | null>(null)
+  const isDraggingProject = useRef(false)
   const focusNotesRegistry = useRef<Map<string, () => void>>(new Map())
   const archiveActionRegistry = useRef<Map<string, () => void>>(new Map())
   const activeProjectId = liveTabs.activeProjectId
+
+  // Project drag handlers
+  const handleProjectDragStart = useCallback((projectId: string, event: React.DragEvent) => {
+    // Only start drag if mouse moved > 5px
+    if (!dragStartPos.current) {
+      event.preventDefault()
+      return
+    }
+    setDraggingProjectId(projectId)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', projectId)
+    isDraggingProject.current = true
+  }, [])
+
+  const handleProjectDragOver = useCallback((projectId: string, event: React.DragEvent) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setDragOverProjectIdForReorder(projectId)
+  }, [])
+
+  const handleProjectDrop = useCallback(async (targetProjectId: string) => {
+    if (!draggingProjectId || draggingProjectId === targetProjectId || !model.state) {
+      setDraggingProjectId(null)
+      setDragOverProjectIdForReorder(null)
+      return
+    }
+
+    const fromIndex = model.state.projects.findIndex((p) => p.id === draggingProjectId)
+    const toIndex = model.state.projects.findIndex((p) => p.id === targetProjectId)
+
+    if (fromIndex >= 0 && toIndex >= 0) {
+      await model.execute({
+        type: 'REORDER_PROJECT',
+        projectId: draggingProjectId,
+        toIndex,
+      })
+    }
+
+    setDraggingProjectId(null)
+    setDragOverProjectIdForReorder(null)
+  }, [draggingProjectId, model])
+
+  const handleProjectDragEnd = useCallback(() => {
+    setDraggingProjectId(null)
+    setDragOverProjectIdForReorder(null)
+    isDraggingProject.current = false
+    dragStartPos.current = null
+  }, [])
+
+  const handleProjectMouseDown = useCallback((event: React.MouseEvent) => {
+    dragStartPos.current = { x: event.clientX, y: event.clientY }
+    isDraggingProject.current = false
+  }, [])
+
+  const handleProjectMouseMove = useCallback((projectId: string, event: React.MouseEvent) => {
+    if (!dragStartPos.current || isDraggingProject.current) return
+    const dx = Math.abs(event.clientX - dragStartPos.current.x)
+    const dy = Math.abs(event.clientY - dragStartPos.current.y)
+    if (dx > 5 || dy > 5) {
+      // Start drag
+      const dragEvent = new DragEvent('dragstart', { bubbles: true })
+      Object.defineProperty(dragEvent, 'dataTransfer', { value: new DataTransfer() })
+      handleProjectDragStart(projectId, dragEvent as unknown as React.DragEvent)
+    }
+  }, [handleProjectDragStart])
+
+  const handleProjectClick = useCallback((projectId: string) => {
+    if (!isDraggingProject.current) {
+      model.selectProject(projectId)
+    }
+    dragStartPos.current = null
+    isDraggingProject.current = false
+  }, [model])
 
   // Global keyboard shortcuts (R for archive, N for notes) - scoped to hovered accordion
   useEffect(() => {
@@ -458,13 +535,29 @@ export function App({ client, liveTabsClient }: AppProps) {
           {state.projects.map((project) => {
             const isActive = project.id === activeProjectId
             const isSelected = project.id === selected?.id
+            const isDragging = draggingProjectId === project.id
+            const isDragOver = dragOverProjectIdForReorder === project.id
             return (
               <div
                 key={project.id}
-                className={`${isSelected ? 'project-row selected' : 'project-row'} ${isActive ? 'active' : ''} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''}`}
-                onDragOver={(e) => handleDragOver(e, project.id)}
-                onDragLeave={() => handleDragLeave(project.id)}
-                onDrop={(e) => handleDrop(e, project.id)}
+                className={`${isSelected ? 'project-row selected' : 'project-row'} ${isActive ? 'active' : ''} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                draggable="true"
+                onMouseDown={handleProjectMouseDown}
+                onMouseMove={(e) => handleProjectMouseMove(project.id, e)}
+                onDragStart={(e) => handleProjectDragStart(project.id, e)}
+                onDragOver={(e) => {
+                  handleDragOver(e, project.id)
+                  handleProjectDragOver(project.id, e)
+                }}
+                onDragLeave={() => {
+                  handleDragLeave(project.id)
+                  if (dragOverProjectIdForReorder === project.id) setDragOverProjectIdForReorder(null)
+                }}
+                onDrop={(e) => {
+                  handleDrop(e, project.id)
+                  void handleProjectDrop(project.id)
+                }}
+                onDragEnd={handleProjectDragEnd}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   setContextMenu({ x: e.clientX, y: e.clientY, projectId: project.id })
@@ -476,7 +569,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                   aria-label={`${project.name}${isActive ? ' (active in this window)' : ''}`}
                   autoFocus={project.id === focusProjectId}
                   onFocus={() => setFocusProjectId(undefined)}
-                  onClick={() => model.selectProject(project.id)}
+                  onClick={() => handleProjectClick(project.id)}
                 >
                   {isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span className="project-name">{project.name}</span>

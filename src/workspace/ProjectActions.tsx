@@ -17,7 +17,7 @@ interface ProjectActionsProps {
   onDeleted: (deletedIndex: number) => void
 }
 
-export function ProjectActions({ project, projectIndex, projectCount, model, liveTabs, ownedLiveCount, onDeleted }: ProjectActionsProps) {
+export function ProjectActions({ project, projectIndex, model, liveTabs, ownedLiveCount, onDeleted }: ProjectActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [mode, setMode] = useState<'rename' | 'delete'>()
   const [name, setName] = useState(project.name)
@@ -54,11 +54,6 @@ export function ProjectActions({ project, projectIndex, projectCount, model, liv
     liveTabs.deleteProject(project.id)
   }
 
-  async function move(toIndex: number) {
-    await model.execute({ type: 'REORDER_PROJECT', projectId: project.id, toIndex })
-    closeMenu()
-  }
-
   useEffect(() => {
     if (liveTabs.deletedProject?.projectId === project.id && mode === 'delete') {
       setMode(undefined)
@@ -73,8 +68,6 @@ export function ProjectActions({ project, projectIndex, projectCount, model, liv
       <button ref={triggerRef} className="icon-button" aria-label={`Project actions for ${project.name}`} aria-haspopup="menu" aria-expanded={menuOpen} title="Project actions" onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={20} /></button>
       <ActionMenu label={`Actions for ${project.name}`} open={menuOpen} onClose={closeMenu}>
         <button role="menuitem" onClick={() => { setName(project.name); setMenuOpen(false); setMode('rename') }}>Rename</button>
-        <button role="menuitem" disabled={projectIndex === 0} onClick={() => void move(projectIndex - 1)}>Move up</button>
-        <button role="menuitem" disabled={projectIndex === projectCount - 1} onClick={() => void move(projectIndex + 1)}>Move down</button>
         <div role="separator" className="menu-separator" />
         <button role="menuitem" onClick={() => { closeMenu(); liveTabs.prepareActivateProject(project.id) }}>
           <Play size={14} /> {isActive ? 'Reactivate' : 'Activate'}

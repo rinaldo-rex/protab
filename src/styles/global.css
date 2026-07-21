@@ -402,6 +402,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   border-top: 2px solid var(--primary);
 }
 
+/* Project drag states */
+.project-row.dragging {
+  opacity: 0.5;
+}
+.project-row.drag-over {
+  border-top: 2px solid rgba(255,255,255,.5);
+}
+.project-row[draggable="true"] {
+  cursor: grab;
+}
+.project-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
 /* Toast */
 .toast {
   position: fixed;

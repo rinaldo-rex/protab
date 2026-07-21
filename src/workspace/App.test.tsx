@@ -95,9 +95,7 @@ describe('project workspace shell', () => {
     })
     renderApp(client)
     await user.click(await screen.findByRole('button', { name: /Two/ }))
-    await user.click(screen.getByRole('button', { name: 'Project actions for Two' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
-    expect(client.state.projects.map((project) => project.id)).toEqual(['p2', 'p1'])
+    // Move up/down removed in Phase 4B (drag-to-reorder)
 
     await user.click(screen.getByRole('button', { name: 'Project actions for Two' }))
     await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
