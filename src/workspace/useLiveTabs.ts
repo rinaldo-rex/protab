@@ -12,16 +12,48 @@ export interface LiveTabsClient {
 
 export class ChromeLiveTabsClient implements LiveTabsClient {
   private port?: chrome.runtime.Port
+  private listener?: (message: LiveTabMessage) => void
+  private reconnectTimer?: ReturnType<typeof setTimeout>
 
   subscribe(listener: (message: LiveTabMessage) => void): () => void {
-    const port = chrome.runtime.connect({ name: LIVE_TAB_PORT })
-    this.port = port
-    const onMessage = (message: unknown) => listener(message as LiveTabMessage)
-    port.onMessage.addListener(onMessage)
+    this.listener = listener
+    this.connect()
     return () => {
-      port.onMessage.removeListener(onMessage)
-      if (this.port === port) this.port = undefined
-      port.disconnect()
+      this.listener = undefined
+      this.disconnect()
+    }
+  }
+
+  private connect(): void {
+    this.disconnect()
+    try {
+      const port = chrome.runtime.connect({ name: LIVE_TAB_PORT })
+      this.port = port
+      const onMessage = (message: unknown) => this.listener?.(message as LiveTabMessage)
+      port.onMessage.addListener(onMessage)
+      port.onDisconnect.addListener(() => {
+        this.port = undefined
+        // Auto-reconnect after a short delay if we still have a listener
+        if (this.listener) {
+          this.reconnectTimer = setTimeout(() => this.connect(), 1000)
+        }
+      })
+    } catch {
+      // Connection failed, retry
+      if (this.listener) {
+        this.reconnectTimer = setTimeout(() => this.connect(), 1000)
+      }
+    }
+  }
+
+  private disconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = undefined
+    }
+    if (this.port) {
+      this.port.disconnect()
+      this.port = undefined
     }
   }
 
@@ -182,6 +214,27 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         break
     }
   }), [client])
+
+  // Refresh inventory when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        client.send({ kind: 'RETRY_TAB_INVENTORY' })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [client])
+
+  // Periodic refresh every 30 seconds to catch any missed events
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        client.send({ kind: 'RETRY_TAB_INVENTORY' })
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [client])
 
   // Track attention items from filing results
   useEffect(() => {

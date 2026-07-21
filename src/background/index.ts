@@ -74,6 +74,11 @@ chrome.tabs.onRemoved.addListener((tabId, { windowId }) => {
 })
 chrome.tabs.onReplaced.addListener(() => liveTabs.scheduleAll())
 chrome.windows.onRemoved.addListener(() => liveTabs.scheduleAll())
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+    liveTabs.scheduleWindow(windowId)
+  }
+})
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse: (response: BackgroundResponse) => void) => {
   const request = message as Partial<ClientMessage>
