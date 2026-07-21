@@ -4,7 +4,7 @@ import type { ChromeTabsApi } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
 import type { CloseTrackerStore } from './closeTracker'
 import type { CommandQueue } from '../../storage/commandQueue'
-import type { PersistedStateV1 } from '../../domain/types'
+import type { PersistedState } from '../../domain/types'
 import type { LiveTabView } from '../../domain/liveTabs'
 import type { OwnershipEntry } from '../../domain/ownership'
 
@@ -24,11 +24,11 @@ function createTab(overrides: Partial<LiveTabView> = {}): LiveTabView {
   }
 }
 
-function createState(projects: PersistedStateV1['projects'] = []): PersistedStateV1 {
-  return { schemaVersion: 1, projects }
+function createState(projects: PersistedState['projects'] = []): PersistedState {
+  return { schemaVersion: 2, projects }
 }
 
-function createProject(id: string, name: string, urls: PersistedStateV1['projects'][0]['savedUrls'] = []) {
+function createProject(id: string, name: string, urls: PersistedState['projects'][0]['savedUrls'] = []) {
   return { id, name, savedUrls: urls }
 }
 
@@ -40,6 +40,7 @@ function createSavedUrl(id: string, url: string, overrides: Record<string, unkno
     titleSource: 'automatic' as const,
     tags: [],
     notes: '',
+    archivedAt: null,
     ...overrides,
   }
 }
@@ -106,7 +107,7 @@ describe('FilingOrchestrator', () => {
   let ownership: OwnershipStore
   let closeTracker: CloseTrackerStore
   let durableQueue: CommandQueue
-  let readState: () => Promise<PersistedStateV1>
+  let readState: () => Promise<PersistedState>
   let events: FilingEvent[]
   let inventoryChanges: number
   let orchestrator: FilingOrchestrator
@@ -141,7 +142,7 @@ describe('FilingOrchestrator', () => {
       resolveByTabId: vi.fn().mockResolvedValue([]),
     } as unknown as CloseTrackerStore
 
-    const state: PersistedStateV1 = createState([
+    const state: PersistedState = createState([
       createProject('p1', 'Research', []),
     ])
 

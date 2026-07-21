@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Folder, X } from 'lucide-react'
 import type { PreparedFilingOperation } from '../background/tabs/filing'
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 
 interface FileTabsDialogProps {
   operation: PreparedFilingOperation
-  state: PersistedStateV1
+  state: PersistedState
   pending: boolean
   onConfirm: (operationId: string) => void
   onCancel: (operationId: string) => void

@@ -1,4 +1,4 @@
-import type { PersistedStateV1 } from '../../domain/types'
+import type { PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
@@ -27,7 +27,7 @@ export class LiveTabsCoordinator {
   constructor(
     private readonly api: ChromeTabsApi,
     private readonly ownership?: OwnershipStore,
-    private readonly readState: () => Promise<PersistedStateV1> = async () => ({ schemaVersion: 1, projects: [] }),
+    private readonly readState: () => Promise<PersistedState> = async () => ({ schemaVersion: 2, projects: [] }),
     private readonly durableQueue?: CommandQueue,
     private readonly closeTracker?: CloseTrackerStore,
     private readonly filingOrchestrator?: FilingOrchestrator,
@@ -383,14 +383,14 @@ export class LiveTabsCoordinator {
     }
   }
 
-  private cachedState?: PersistedStateV1
+  private cachedState?: PersistedState
 
-  async initialize(state: PersistedStateV1): Promise<void> {
+  async initialize(state: PersistedState): Promise<void> {
     this.cachedState = state
     await this.restoreActiveState()
   }
 
-  updateCachedState(state: PersistedStateV1): void {
+  updateCachedState(state: PersistedState): void {
     this.cachedState = state
   }
 

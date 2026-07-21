@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { FolderInput } from 'lucide-react'
 import type { LiveTabView } from '../domain/liveTabs'
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 
 interface LiveTabFileActionsProps {
   tab: LiveTabView
-  state: PersistedStateV1
+  state: PersistedState
   pending: boolean
   onFile: (tabId: number, projectId: string) => void
 }

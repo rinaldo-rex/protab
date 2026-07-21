@@ -40,7 +40,7 @@ export interface LiveTabsModel {
   open: (projectId: string, savedUrlId: string) => void
   openCopy: (projectId: string, savedUrlId: string) => void
   deleteProject: (projectId: string) => void
-  deletedProject?: { projectId: string; state: import('../domain/types').PersistedStateV1 }
+  deletedProject?: { projectId: string; state: import('../domain/types').PersistedState }
   dismissActionError: () => void
   // Filing operations
   prepareFileTab: (tabId: number, projectId: string) => void

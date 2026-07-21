@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 import type { LiveTabsModel } from './useLiveTabs'
 import { LiveTabFileActions } from './LiveTabFileActions'
 import { FilingResult } from './FilingResult'
@@ -13,7 +13,7 @@ export interface DragPayload {
   tabTitle: string
 }
 
-export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { model: LiveTabsModel; state: PersistedStateV1; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void }) {
+export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { model: LiveTabsModel; state: PersistedState; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void }) {
   const inventory = model.inventory
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { Command, CommandResultMeta } from '../domain/commands'
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 import type { WorkspaceClient } from './client'
 
 export interface WorkspaceModel {
   status: 'loading' | 'ready' | 'storage-error'
-  state?: PersistedStateV1
+  state?: PersistedState
   selectedProjectId?: string
   error?: string
   commandPending: boolean
@@ -15,14 +15,14 @@ export interface WorkspaceModel {
   dismissError: () => void
 }
 
-function chooseSelection(previousId: string | undefined, state: PersistedStateV1): string | undefined {
+function chooseSelection(previousId: string | undefined, state: PersistedState): string | undefined {
   if (previousId && state.projects.some((project) => project.id === previousId)) return previousId
   return state.projects[0]?.id
 }
 
 export function useWorkspace(client: WorkspaceClient): WorkspaceModel {
   const [status, setStatus] = useState<WorkspaceModel['status']>('loading')
-  const [state, setState] = useState<PersistedStateV1>()
+  const [state, setState] = useState<PersistedState>()
   const [selectedProjectId, setSelectedProjectId] = useState<string>()
   const [error, setError] = useState<string>()
   const [commandPending, setCommandPending] = useState(false)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyCommand } from './applyCommand'
-import { emptyState, type PersistedStateV1 } from './types'
+import { emptyState, type PersistedState } from './types'
 import { DomainError, normalizeTags, serializeHttpUrl } from './validation'
 
 function ids(...values: string[]) {
@@ -8,8 +8,8 @@ function ids(...values: string[]) {
   return () => values[index++]
 }
 
-function stateWithProject(): PersistedStateV1 {
-  return { schemaVersion: 1, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] }
+function stateWithProject(): PersistedState {
+  return { schemaVersion: 2, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] }
 }
 
 describe('domain behavior', () => {
@@ -50,10 +50,10 @@ describe('domain behavior', () => {
   })
 
   it('allows cross-project copies and keeps snapshots independent', () => {
-    const initial: PersistedStateV1 = {
-      schemaVersion: 1,
+    const initial: PersistedState = {
+      schemaVersion: 2,
       projects: [
-        { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'custom', tags: ['A'], notes: 'Source' }] },
+        { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'custom', tags: ['A'], notes: 'Source', archivedAt: null }] },
         { id: 'p2', name: 'Two', savedUrls: [] },
       ],
     }
@@ -66,10 +66,10 @@ describe('domain behavior', () => {
   })
 
   it('reorders arrays and cascade deletes projects', () => {
-    const initial: PersistedStateV1 = {
-      schemaVersion: 1,
+    const initial: PersistedState = {
+      schemaVersion: 2,
       projects: [
-        { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic', tags: [], notes: '' }] },
+        { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
         { id: 'p2', name: 'Two', savedUrls: [] },
       ],
     }
@@ -81,8 +81,8 @@ describe('domain behavior', () => {
 })
 
 describe('FILE_LIVE_TAB command', () => {
-  function stateWithProject(): PersistedStateV1 {
-    return { schemaVersion: 1, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] }
+  function stateWithProject(): PersistedState {
+    return { schemaVersion: 2, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] }
   }
 
   it('creates a new record with automatic title from hostname', () => {
@@ -129,12 +129,12 @@ describe('FILE_LIVE_TAB command', () => {
   })
 
   it('returns filing: reused with existing record ID when URL matches', () => {
-    const state: PersistedStateV1 = {
-      schemaVersion: 1,
+    const state: PersistedState = {
+      schemaVersion: 2,
       projects: [{
         id: 'p1',
         name: 'Research',
-        savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Custom Title', titleSource: 'custom', tags: ['manual'], notes: 'My notes' }],
+        savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Custom Title', titleSource: 'custom', tags: ['manual'], notes: 'My notes', archivedAt: null }],
       }],
     }
     const result = applyCommand(state, { type: 'FILE_LIVE_TAB', projectId: 'p1', url: 'https://example.com/', suggestedTags: ['video'] })
@@ -143,15 +143,15 @@ describe('FILE_LIVE_TAB command', () => {
   })
 
   it('preserves existing metadata on reuse (title, tags, notes, ordering)', () => {
-    const state: PersistedStateV1 = {
-      schemaVersion: 1,
+    const state: PersistedState = {
+      schemaVersion: 2,
       projects: [{
         id: 'p1',
         name: 'Research',
         savedUrls: [
-          { id: 'u1', url: 'https://first.com/', title: 'First', titleSource: 'custom', tags: ['a'], notes: 'first notes' },
-          { id: 'u2', url: 'https://example.com/', title: 'Custom Title', titleSource: 'custom', tags: ['manual'], notes: 'My notes' },
-          { id: 'u3', url: 'https://last.com/', title: 'Last', titleSource: 'automatic', tags: ['b'], notes: '' },
+          { id: 'u1', url: 'https://first.com/', title: 'First', titleSource: 'custom', tags: ['a'], notes: 'first notes', archivedAt: null },
+          { id: 'u2', url: 'https://example.com/', title: 'Custom Title', titleSource: 'custom', tags: ['manual'], notes: 'My notes', archivedAt: null },
+          { id: 'u3', url: 'https://last.com/', title: 'Last', titleSource: 'automatic', tags: ['b'], notes: '', archivedAt: null },
         ],
       }],
     }

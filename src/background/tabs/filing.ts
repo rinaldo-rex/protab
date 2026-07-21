@@ -1,4 +1,4 @@
-import type { PersistedStateV1 } from '../../domain/types'
+import type { PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabView } from '../../domain/liveTabs'
@@ -79,7 +79,7 @@ export class FilingOrchestrator {
     private readonly ownership: OwnershipStore,
     private readonly closeTracker: CloseTrackerStore,
     private readonly durableQueue: CommandQueue,
-    private readonly readState: () => Promise<PersistedStateV1>,
+    private readonly readState: () => Promise<PersistedState>,
     private readonly onEvent: (event: FilingEvent) => void,
     private readonly onInventoryChange: () => void,
     private readonly createId: () => string = () => crypto.randomUUID(),

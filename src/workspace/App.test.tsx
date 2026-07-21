@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { applyCommand } from '../domain/applyCommand'
-import { emptyState, type PersistedStateV1 } from '../domain/types'
+import { emptyState, type PersistedState } from '../domain/types'
 import type { Command } from '../domain/commands'
 import type { WorkspaceClient } from './client'
 import type { LiveTabsClient } from './useLiveTabs'
@@ -10,8 +10,8 @@ import type { LiveTabMessage, LiveTabRequest } from '../background/messages'
 import { App } from './App'
 
 class TestClient implements WorkspaceClient {
-  state: PersistedStateV1
-  listeners = new Set<(state: PersistedStateV1) => void>()
+  state: PersistedState
+  listeners = new Set<(state: PersistedState) => void>()
   ids = 0
   readError?: Error
 
@@ -23,7 +23,7 @@ class TestClient implements WorkspaceClient {
     this.listeners.forEach((listener) => listener(this.state))
     return result
   }
-  subscribe(listener: (state: PersistedStateV1) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener) }
+  subscribe(listener: (state: PersistedState) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener) }
 }
 
 class TestLiveTabsClient implements LiveTabsClient {
@@ -50,7 +50,7 @@ function renderApp(client: TestClient, liveTabsClient = new TestLiveTabsClient(c
 
 describe('project workspace shell', () => {
   it('loads before showing the first-use state', async () => {
-    let release!: (state: PersistedStateV1) => void
+    let release!: (state: PersistedState) => void
     const client = new TestClient()
     client.read = () => new Promise((resolve) => { release = resolve })
     renderApp(client)
@@ -87,10 +87,10 @@ describe('project workspace shell', () => {
   it('renames, reorders, and confirms project deletion', async () => {
     const user = userEvent.setup()
     const client = new TestClient({
-      schemaVersion: 1,
+      schemaVersion: 2,
       projects: [
         { id: 'p1', name: 'One', savedUrls: [] },
-        { id: 'p2', name: 'Two', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '' }] },
+        { id: 'p2', name: 'Two', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
       ],
     })
     renderApp(client)
@@ -122,7 +122,7 @@ describe('project workspace shell', () => {
 
   it('creates, expands, autosaves, validates, and deletes saved URLs', async () => {
     const user = userEvent.setup()
-    const client = new TestClient({ schemaVersion: 1, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] })
+    const client = new TestClient({ schemaVersion: 2, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] })
     renderApp(client)
     await screen.findByRole('heading', { name: 'Research' })
     await user.click(screen.getByRole('button', { name: 'Add URL' }))
@@ -154,7 +154,7 @@ describe('project workspace shell', () => {
   it('reorders URLs, suggests global tags, and copies metadata snapshots', async () => {
     const user = userEvent.setup()
     const client = new TestClient({
-      schemaVersion: 1,
+      schemaVersion: 2,
       projects: [
         { id: 'p1', name: 'One', savedUrls: [
           { id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'custom', tags: [], notes: 'Source' },
@@ -213,7 +213,7 @@ describe('project workspace shell', () => {
   it('opens saved URL records and displays owned instance counts', async () => {
     const user = userEvent.setup()
     const liveTabs = new TestLiveTabsClient()
-    const client = new TestClient({ schemaVersion: 1, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'automatic', tags: [], notes: '' }] }] })
+    const client = new TestClient({ schemaVersion: 2, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] }] })
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
@@ -229,7 +229,7 @@ describe('project workspace shell', () => {
 
   it('moves a navigated owned tab into Unassigned while retaining its drift label', async () => {
     const liveTabs = new TestLiveTabsClient()
-    const client = new TestClient({ schemaVersion: 1, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://saved.test/', title: 'Saved page', titleSource: 'automatic', tags: [], notes: '' }] }] })
+    const client = new TestClient({ schemaVersion: 2, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://saved.test/', title: 'Saved page', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] }] })
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
@@ -243,9 +243,9 @@ describe('project workspace shell', () => {
   it('assigns an ambiguous matching tab without changing saved metadata', async () => {
     const user = userEvent.setup()
     const liveTabs = new TestLiveTabsClient()
-    const client = new TestClient({ schemaVersion: 1, projects: [
-      { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'One copy', titleSource: 'custom', tags: ['Keep'], notes: 'Untouched' }] },
-      { id: 'p2', name: 'Two', savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Two copy', titleSource: 'automatic', tags: [], notes: '' }] },
+    const client = new TestClient({ schemaVersion: 2, projects: [
+      { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'One copy', titleSource: 'custom', tags: ['Keep'], notes: 'Untouched', archivedAt: null }] },
+      { id: 'p2', name: 'Two', savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Two copy', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
     ] })
     renderApp(client, liveTabs)
     await screen.findByText('No ordinary tabs in this window')

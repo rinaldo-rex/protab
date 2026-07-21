@@ -1,10 +1,10 @@
 import { applyCommand } from '../domain/applyCommand'
 import type { Command, CommandResultMeta } from '../domain/commands'
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 import { loadState, type StorageAdapter } from './repository'
 
 export interface CommittedCommand {
-  state: PersistedStateV1
+  state: PersistedState
   meta: CommandResultMeta
 }
 
@@ -30,7 +30,7 @@ export class CommandQueue {
     return operation
   }
 
-  read(): Promise<PersistedStateV1> {
+  read(): Promise<PersistedState> {
     return this.tail.then(() => loadState(this.storage))
   }
 }

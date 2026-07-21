@@ -1,5 +1,5 @@
 import type { Command, CommandResultMeta } from '../domain/commands'
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 import type { LiveTabInventory } from '../domain/liveTabs'
 import type { PreparedFilingOperation, FilingResult, FilingSummary } from './tabs/filing'
 
@@ -57,7 +57,7 @@ export type ClientMessage =
   | { channel: typeof MESSAGE_CHANNEL; kind: 'COMMAND'; command: Command }
 
 export type BackgroundResponse =
-  | { ok: true; state: PersistedStateV1; meta?: CommandResultMeta }
+  | { ok: true; state: PersistedState; meta?: CommandResultMeta }
   | { ok: false; error: { message: string; code?: string; existingId?: string; storageBlocked?: boolean } }
 
 export const STATE_COMMITTED = 'STATE_COMMITTED'
@@ -65,7 +65,7 @@ export const STATE_COMMITTED = 'STATE_COMMITTED'
 export interface StateCommittedMessage {
   channel: typeof MESSAGE_CHANNEL
   kind: typeof STATE_COMMITTED
-  state: PersistedStateV1
+  state: PersistedState
 }
 
 export type LiveTabRequest =
@@ -95,7 +95,7 @@ export type LiveTabRequest =
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
   | { kind: 'LIVE_TAB_ACTION_ERROR'; message: string; tabId?: number }
-  | { kind: 'PROJECT_DELETED'; projectId: string; state: PersistedStateV1 }
+  | { kind: 'PROJECT_DELETED'; projectId: string; state: PersistedState }
   | { kind: 'FILING_PREPARED'; operation: PreparedFilingOperation }
   | { kind: 'FILING_RESULT'; result: FilingResult }
   | { kind: 'FILING_SUMMARY'; summary: FilingSummary }
