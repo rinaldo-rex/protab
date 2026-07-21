@@ -564,11 +564,54 @@ export class LiveTabsCoordinator {
       }
     }
 
-    // Set active project (do not open saved URLs per spec)
+    // Set active project
     if (this.activeProjectStore) {
       await this.activeProjectStore.setActiveProject(client.windowId, projectId)
     }
     client.activeProjectId = projectId
+
+    // Open saved URLs that aren't already open (no duplicates)
+    const state = await this.readState()
+    const project = state.projects.find((p) => p.id === projectId)
+    if (project) {
+      const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
+      const entries = this.ownership ? await this.ownership.read() : []
+      const reconciled = reconcileOwnership(state, rawTabs, entries)
+
+      for (const record of project.savedUrls) {
+        // Check if already open and owned by this project
+        const alreadyOpen = reconciled.tabs.some(
+          (tab) =>
+            tab.ownership?.projectId === projectId &&
+            tab.ownership.savedUrlId === record.id &&
+            !tab.ownership.drifted &&
+            tab.url === record.url
+        )
+        if (alreadyOpen) continue
+
+        // Create new tab
+        try {
+          const created = await this.api.create(client.windowId, record.url)
+          if (created.id === undefined) continue
+
+          // Establish ownership
+          if (this.ownership) {
+            await this.ownership.update((current) => [
+              ...current.filter((entry) => entry.tabId !== created.id),
+              {
+                tabId: created.id!,
+                windowId: client.windowId,
+                projectId,
+                savedUrlId: record.id,
+                establishedUrl: record.url,
+              },
+            ])
+          }
+        } catch {
+          // Continue after individual failures
+        }
+      }
+    }
 
     // Refocus the workspace tab so the user stays on the extension page
     try {
