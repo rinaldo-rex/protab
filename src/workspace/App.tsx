@@ -16,6 +16,7 @@ import { AttentionBanner } from './AttentionBanner'
 import { FolderInput } from 'lucide-react'
 import { DriftReviewDialog } from './DriftReviewDialog'
 import { ActivationSummary } from './ActivationSummary'
+import { OpenAllSummary } from './OpenAllSummary'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -170,6 +171,15 @@ export function App({ client, liveTabsClient }: AppProps) {
             summary={liveTabs.activationSummary}
             projectName={selected.name}
             onDismiss={liveTabs.dismissActivationSummary}
+          />
+        </div>
+      )}
+      {liveTabs.openAllSummary && selected && (
+        <div className="filing-summary-overlay">
+          <OpenAllSummary
+            summary={liveTabs.openAllSummary}
+            projectName={selected.name}
+            onDismiss={liveTabs.dismissOpenAllSummary}
           />
         </div>
       )}
