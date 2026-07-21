@@ -192,9 +192,9 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 
 ## Right-click context menu on projects
 
-- [ ] Right-click on a project in the sidebar.
-- [ ] Verify a context menu appears with "Activate" and "Deactivate (close tabs)" options.
-- [ ] Verify "Activate" shows "Reactivate" if the project is already active.
+- [x] Right-click on a project in the sidebar.
+- [x] Verify a context menu appears with "Activate" and "Deactivate (close tabs)" options.
+- [x] Verify "Activate" shows "Reactivate" if the project is already active.
 - [ ] Click "Activate" and verify the activation flow starts.
 - [ ] Right-click on a non-active project.
 - [ ] Verify "Deactivate (close tabs)" is disabled (greyed out).
@@ -206,11 +206,11 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 
 ## Unsupported tabs group
 
-- [ ] Open a new tab page (chrome://newtab) or an extension page.
-- [ ] Verify it appears under a separate "Unsupported" group in the Current Tabs pane.
-- [ ] Verify the "Unsupported" group is pre-collapsed by default.
-- [ ] Expand the "Unsupported" group and verify the tab is listed.
-- [ ] Verify unsupported tabs show "Unsupported page — view only" status.
-- [ ] Verify unsupported tabs cannot be dragged or filed.
-- [ ] Open a regular HTTP page and verify it appears under "Unassigned" (not "Unsupported").
-- [ ] Verify the "Unsupported" group has distinct styling (slightly muted heading).
+- [x] Open a new tab page (chrome://newtab) or an extension page.
+- [x] Verify it appears under a separate "Unsupported" group in the Current Tabs pane.
+- [x] Verify the "Unsupported" group is pre-collapsed by default.
+- [x] Expand the "Unsupported" group and verify the tab is listed.
+- [x] Verify unsupported tabs show "Unsupported page — view only" status.
+- [x] Verify unsupported tabs cannot be dragged or filed.
+- [x] Open a regular HTTP page and verify it appears under "Unassigned" (not "Unsupported").
+- [x] Verify the "Unsupported" group has distinct styling (slightly muted heading).

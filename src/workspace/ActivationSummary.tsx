@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle, X, RefreshCw, FolderOpen } from 'lucide-react'
+import { AlertTriangle, CheckCircle, X, RefreshCw } from 'lucide-react'
 import type { ActivationSummary as ActivationSummaryType } from '../background/messages'
 
 interface ActivationSummaryProps {
@@ -9,9 +9,7 @@ interface ActivationSummaryProps {
 }
 
 export function ActivationSummary({ summary, projectName, onDismiss, onRetryFailed }: ActivationSummaryProps) {
-  const hasCloseIssues = summary.skipped.length > 0 || summary.failed.length > 0
-  const hasOpenIssues = summary.openedFailed && summary.openedFailed.length > 0
-  const hasIssues = hasCloseIssues || hasOpenIssues
+  const hasIssues = summary.skipped.length > 0 || summary.failed.length > 0
   const successCount = summary.closed + summary.requested
 
   return (
@@ -34,18 +32,6 @@ export function ActivationSummary({ summary, projectName, onDismiss, onRetryFail
             <div className="filing-count">
               <CheckCircle size={14} />
               <span>{successCount} other-project tab{successCount !== 1 ? 's' : ''} closed</span>
-            </div>
-          )}
-          {summary.openedFocused > 0 && (
-            <div className="filing-count">
-              <FolderOpen size={14} />
-              <span>{summary.openedFocused} existing tab{summary.openedFocused !== 1 ? 's' : ''} focused</span>
-            </div>
-          )}
-          {summary.openedCreated > 0 && (
-            <div className="filing-count">
-              <CheckCircle size={14} />
-              <span>{summary.openedCreated} new tab{summary.openedCreated !== 1 ? 's' : ''} opened</span>
             </div>
           )}
           {summary.kept > 0 && (
@@ -89,31 +75,18 @@ export function ActivationSummary({ summary, projectName, onDismiss, onRetryFail
                 </div>
               </div>
             )}
-            {hasOpenIssues && (
-              <div className="filing-issue">
-                <AlertTriangle size={14} />
-                <div>
-                  <strong>Open failures ({summary.openedFailed!.length})</strong>
-                  <ul className="filing-issue-list">
-                    {summary.openedFailed!.map((item, index) => (
-                      <li key={index}>{item.savedUrlId}: {item.message}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
         {!hasIssues && (
           <p className="filing-summary-success">
-            All other-project tabs closed and project URLs opened successfully.
+            All other-project tabs closed successfully.
           </p>
         )}
       </div>
 
       <div className="filing-dialog-actions">
-        {hasIssues && onRetryFailed && (
+        {hasIssues && onRetryFailed && summary.failed.length > 0 && (
           <button className="button secondary" onClick={onRetryFailed}>
             <RefreshCw size={14} /> Retry failed
           </button>
