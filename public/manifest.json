@@ -4,11 +4,21 @@
   "description": "Turn temporary browser tabs into durable, project-based URL collections.",
   "version": "0.1.0",
   "action": {
-    "default_title": "Open Protab"
+    "default_popup": "popup.html",
+    "default_title": "Quick capture"
   },
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "tabs"]
+  "permissions": ["storage", "tabs", "activeTab"],
+  "commands": {
+    "quick-capture": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+X",
+        "mac": "Command+Shift+X"
+      },
+      "description": "Open quick-capture popup"
+    }
+  }
 }

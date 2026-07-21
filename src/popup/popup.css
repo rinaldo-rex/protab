@@ -1,0 +1,225 @@
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --color-bg: #1a1a2e;
+  --color-surface: #16213e;
+  --color-surface-hover: #1a2745;
+  --color-border: #2a3a5c;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+  --color-primary: #818cf8;
+  --color-primary-hover: #6366f1;
+  --color-success: #34d399;
+  --color-success-bg: #065f46;
+  --color-error: #f87171;
+  --color-error-bg: #7f1d1d;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-width: 320px;
+  max-width: 400px;
+}
+
+.popup-container {
+  padding: 16px;
+}
+
+.popup-header {
+  margin-bottom: 12px;
+}
+
+.popup-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.popup-input-container {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.popup-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 40px;
+  max-height: 120px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.popup-input:focus {
+  border-color: var(--color-primary);
+}
+
+.popup-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.popup-autocomplete {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.autocomplete-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.autocomplete-option:hover,
+.autocomplete-option.selected {
+  background: var(--color-surface-hover);
+}
+
+.autocomplete-type {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.autocomplete-label {
+  flex: 1;
+}
+
+.popup-error {
+  padding: 8px 12px;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error);
+  border-radius: 8px;
+  color: var(--color-error);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.popup-submit,
+.popup-cancel {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.popup-submit {
+  background: var(--color-primary);
+  color: white;
+}
+
+.popup-submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.popup-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.popup-cancel {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.popup-cancel:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.popup-hint {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.popup-hint code {
+  background: var(--color-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.popup-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+}
+
+.success-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.popup-success p {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.popup-close {
+  padding: 8px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.popup-close:hover {
+  background: var(--color-surface-hover);
+}

@@ -186,6 +186,16 @@ export class LiveTabsCoordinator {
       this.enqueueWindow(client.windowId, () => this.unarchiveSavedUrl(client, message.projectId!, message.savedUrlId!))
       return
     }
+    // Phase 4B: Quick capture
+    if (message.kind === 'QUICK_CAPTURE_TAB' && typeof message.projectId === 'string' && Array.isArray(message.tags)) {
+      this.enqueueWindow(client.windowId, () => this.quickCaptureTab(client, message.projectId!, message.note ?? '', message.tags!))
+      return
+    }
+    // Phase 4B: Silent file
+    if (message.kind === 'SILENT_FILE_TAB' && typeof message.tabId === 'number' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.silentFileTab(client, message.tabId!, message.projectId!))
+      return
+    }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
@@ -871,6 +881,110 @@ export class LiveTabsCoordinator {
 
     this.post(client, { kind: 'CLOSE_ALL_SUMMARY', summary })
     await this.refreshWindow(client.windowId)
+  }
+
+  // Phase 4B: Quick capture tab
+  private async quickCaptureTab(client: ClientSubscription, projectId: string, note: string, tags: string[]): Promise<void> {
+    if (!this.durableQueue) {
+      this.post(client, { kind: 'QUICK_CAPTURE_RESULT', success: false, projectName: '', error: 'Storage not available.' })
+      return
+    }
+
+    try {
+      const state = await this.readState()
+      const project = state.projects.find((p) => p.id === projectId)
+      if (!project) {
+        this.post(client, { kind: 'QUICK_CAPTURE_RESULT', success: false, projectName: '', error: 'Project not found.' })
+        return
+      }
+
+      // Get current tab from the sender's window
+      const [tab] = await this.api.query(client.windowId)
+      if (!tab || !tab.url) {
+        this.post(client, { kind: 'QUICK_CAPTURE_RESULT', success: false, projectName: project.name, error: 'Could not access current tab.' })
+        return
+      }
+
+      // Check if URL already exists
+      const existing = project.savedUrls.find((u) => u.url === tab.url)
+      if (existing) {
+        // Update existing record
+        const newTags = [...new Set([...existing.tags, ...tags])]
+        const newNotes = note
+          ? existing.notes
+            ? `${existing.notes}\n---\n${note}`
+            : note
+          : existing.notes
+
+        await this.durableQueue.execute({
+          type: 'UPDATE_SAVED_URL',
+          projectId,
+          savedUrlId: existing.id,
+          changes: { tags: newTags, notes: newNotes },
+        })
+
+        this.post(client, {
+          kind: 'QUICK_CAPTURE_RESULT',
+          success: true,
+          projectName: project.name,
+        })
+      } else {
+        // Create new record
+        await this.durableQueue.execute({
+          type: 'CREATE_SAVED_URL',
+          projectId,
+          url: tab.url,
+          title: tab.title,
+          tags,
+          notes: note,
+        })
+
+        this.post(client, {
+          kind: 'QUICK_CAPTURE_RESULT',
+          success: true,
+          projectName: project.name,
+        })
+      }
+
+      // Notify workspace of state change
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'QUICK_CAPTURE_RESULT',
+        success: false,
+        projectName: '',
+        error: reason instanceof Error ? reason.message : 'Could not capture tab.',
+      })
+    }
+  }
+
+  // Phase 4B: Silent file tab (no confirmation)
+  private async silentFileTab(client: ClientSubscription, tabId: number, projectId: string): Promise<void> {
+    if (!this.filingOrchestrator) return
+
+    try {
+      // Prepare filing
+      const operation = await this.filingOrchestrator.prepare(tabId, projectId, client.windowId)
+
+      // Execute immediately without confirmation
+      const result = await this.filingOrchestrator.executeFiling(operation.operationId, client.windowId)
+
+      // Post result
+      this.post(client, { kind: 'FILING_RESULT', result })
+
+      // Notify workspace of state change
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+
+      // Refresh inventory
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        tabId,
+        message: reason instanceof Error ? reason.message : 'Could not file tab.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
   }
 
   // Phase 4A: Archive a saved URL

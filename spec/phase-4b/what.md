@@ -197,10 +197,25 @@ A gear icon (⚙) next to the "Protab" brand text in the sidebar header.
 
 ### Settings
 
+The settings panel is divided into two sections: **Extension Page** (workspace behavior) and **Extension Popup** (quick-capture behavior).
+
+#### Extension Page
+
 | Setting | Type | Default | Description |
 |---|---|---|---|
-| Quick-capture shortcut | Text field (shows current shortcut, click to record new) | `Ctrl+Shift+X` | The keyboard shortcut to open the quick-capture popup. |
-| Default close behavior | Toggle | Enabled | Whether quick-capture closes the tab after saving. If disabled, the tab stays open. |
+| Close tab after filing | Toggle | Enabled | When pressing 'A' to file a tab from the Current Tabs pane, close the tab after saving. |
+
+#### Extension Popup
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| Close tab after capture | Toggle | Disabled | When using quick-capture, close the tab after saving. Default keeps the tab open. |
+
+#### General
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| Quick-capture shortcut | Display field (read-only) | `Ctrl+Shift+X` | Shows the current shortcut. Users change it via `chrome://extensions/shortcuts`. |
 | Toast duration | Dropdown | 3 seconds | How long success/error toasts stay visible. Options: 2s, 3s, 5s, Manual dismiss. |
 
 ### Persistence
@@ -221,7 +236,7 @@ Settings are stored in `chrome.storage.local` as part of the durable state or a 
 - **P4B-A8:** Saved URL accordions show a hover-only drag handle for reordering.
 - **P4B-A9:** Project rows are draggable for reordering; click-to-select still works.
 - **P4B-A10:** Move up/Move down are removed from both URL and project action menus.
-- **P4B-A11:** The settings gear icon opens an inline panel with shortcut, close behavior, and toast duration settings.
+- **P4B-A11:** The settings gear icon opens an inline panel with two sections (Extension Page, Extension Popup) containing close behavior toggles, plus General section with shortcut display and toast duration.
 - **P4B-A12:** All new interactions are keyboard accessible (popup submit/cancel, autocomplete navigation, settings navigation).
 
 ## Manual acceptance checklist
@@ -240,11 +255,12 @@ Settings are stored in `chrome.storage.local` as part of the durable state or a 
 12. Click a project row; verify it still selects the project (no drag conflict).
 13. Open the `⋯` menu on a saved URL; verify Move up/Move down are absent.
 14. Open the `⋯` menu on a project; verify Move up/Move down are absent.
-15. Click the gear icon; verify the settings panel opens.
-16. Change the shortcut key; verify it works on the next invocation.
+15. Click the gear icon; verify the settings panel opens with two sections (Extension Page, Extension Popup).
+16. Verify the shortcut field shows `Ctrl+Shift+X` and links to `chrome://extensions/shortcuts`.
 17. Change the toast duration; verify toasts use the new duration.
-18. Disable default close behavior; verify quick-capture doesn't close the tab.
-19. Complete all actions using keyboard only.
+18. Disable 'Close tab after capture' in Extension Popup section; verify quick-capture doesn't close the tab.
+19. Enable 'Close tab after filing' in Extension Page section; verify hover 'A' closes the tab.
+20. Complete all actions using keyboard only.
 
 ## Explicitly out of scope
 

@@ -186,18 +186,20 @@ private async quickCaptureTab(client: ClientSubscription, projectId: string, not
 
 ### Settings storage
 
-Store settings in `chrome.storage.local`:
+Store settings in `chrome.storage.local` as a separate key, independent of project state:
 
 ```ts
+const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
+
 interface ProtabSettings {
   schemaVersion: 1
-  quickCaptureShortcut: string // Display only; Chrome manages actual shortcut
-  defaultCloseBehavior: boolean // true = close tab after capture
+  pageCloseBehavior: boolean // Extension page: true = close tab after filing (default: true)
+  popupCloseBehavior: boolean // Extension popup: true = close tab after capture (default: false)
   toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)
 }
 ```
 
-The shortcut display is informational; Chrome manages the actual shortcut binding at `chrome://extensions/shortcuts`.
+The shortcut is display-only; Chrome manages the actual shortcut binding at `chrome://extensions/shortcuts`. The settings panel shows the current shortcut (default: `Ctrl+Shift+X`) and links to Chrome's shortcut page.
 
 ---
 
@@ -439,23 +441,31 @@ The panel renders in the center pane, replacing the project canvas:
 
 ### Settings fields
 
-1. **Quick-capture shortcut**: Display the current shortcut (read-only; Chrome manages the actual binding). Show a link to `chrome://extensions/shortcuts`.
+The settings panel is divided into two sections:
 
-2. **Default close behavior**: Toggle switch. When enabled, quick-capture closes the tab after saving. When disabled, the tab stays open.
+**Extension Page** (workspace behavior):
+1. **Close tab after filing**: Toggle switch. When enabled (default), pressing 'A' to file a tab from the Current Tabs pane closes the tab after saving.
 
-3. **Toast duration**: Dropdown with options: 2 seconds, 3 seconds, 5 seconds, Manual dismiss.
+**Extension Popup** (quick-capture behavior):
+2. **Close tab after capture**: Toggle switch. When disabled (default), quick-capture keeps the tab open after saving. When enabled, the tab is closed.
+
+**General**:
+3. **Quick-capture shortcut**: Display field (read-only) showing the current shortcut (default: `Ctrl+Shift+X`). Includes a link to `chrome://extensions/shortcuts` where users can change it.
+
+4. **Toast duration**: Dropdown with options: 2 seconds, 3 seconds, 5 seconds, Manual dismiss.
 
 ### Settings persistence
 
-Store settings in `chrome.storage.local`:
+Store settings in `chrome.storage.local` as a separate key, independent of project state:
 
 ```ts
 const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
 
 interface ProtabSettings {
   schemaVersion: 1
-  defaultCloseBehavior: boolean
-  toastDuration: number
+  pageCloseBehavior: boolean // Extension page: close tab after filing (default: true)
+  popupCloseBehavior: boolean // Extension popup: close tab after capture (default: false)
+  toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)
 }
 ```
 

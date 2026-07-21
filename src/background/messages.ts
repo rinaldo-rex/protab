@@ -94,6 +94,10 @@ export type LiveTabRequest =
   // Phase 4A: Archive
   | { kind: 'ARCHIVE_SAVED_URL'; projectId: string; savedUrlId: string }
   | { kind: 'UNARCHIVE_SAVED_URL'; projectId: string; savedUrlId: string }
+  // Phase 4B: Quick capture
+  | { kind: 'QUICK_CAPTURE_TAB'; projectId: string; note: string; tags: string[] }
+  // Phase 4B: Silent file (no confirmation)
+  | { kind: 'SILENT_FILE_TAB'; tabId: number; projectId: string }
 
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
@@ -113,3 +117,5 @@ export type LiveTabMessage =
   | { kind: 'CLOSE_ALL_SUMMARY'; summary: CloseAllSummary }
   // Phase 4A: Archive
   | { kind: 'ARCHIVE_RESULT'; projectId: string; savedUrlId: string; archived: boolean }
+  // Phase 4B: Quick capture
+  | { kind: 'QUICK_CAPTURE_RESULT'; success: boolean; projectName: string; error?: string }

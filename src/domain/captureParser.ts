@@ -58,7 +58,7 @@ export function parseCaptureInput(input: string): ParsedCapture {
 }
 
 export interface AutocompleteOption {
-  type: 'tag' | 'project' | 'create-tag'
+  type: string
   label: string
   value: string
 }
@@ -68,11 +68,11 @@ export interface AutocompleteOption {
  */
 export function getTagAutocomplete(partial: string, existingTags: string[]): AutocompleteOption[] {
   const lowerPartial = partial.toLowerCase()
-  const matches = existingTags
+  const matches: AutocompleteOption[] = existingTags
     .filter((tag) => tag.toLowerCase().startsWith(lowerPartial))
     .slice(0, 8)
     .map((tag) => ({
-      type: 'tag' as const,
+      type: 'tag',
       label: tag,
       value: tag,
     }))
