@@ -44,12 +44,12 @@ Do not let React call Chrome APIs, write storage, decide eligibility from stale 
 
 ### Manifest changes
 
-Add `activeTab` permission and a `commands` entry:
+Add `activeTab` and `contextMenus` permissions, a `commands` entry, and configure the action to open the workspace on click:
 
 ```json
 {
   "manifest_version": 3,
-  "permissions": ["storage", "tabs", "activeTab"],
+  "permissions": ["storage", "tabs", "activeTab", "contextMenus"],
   "commands": {
     "quick-capture": {
       "suggested_key": {
@@ -60,11 +60,12 @@ Add `activeTab` permission and a `commands` entry:
     }
   },
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "Quick capture"
+    "default_title": "Open Protab"
   }
 }
 ```
+
+Note: `default_popup` is intentionally omitted so that clicking the extension icon opens the workspace via `chrome.action.onClicked`. The quick-capture popup is opened programmatically via `chrome.windows.create()`.
 
 ### Popup architecture
 
@@ -80,6 +81,55 @@ src/
 ```
 
 The popup communicates with the background via `chrome.runtime.sendMessage` (same as the workspace). It does not use a long-lived port connection.
+
+### Opening the popup
+
+Since `default_popup` is not set (to allow icon click to open workspace), use `chrome.windows.create()` to open the popup as a focused window:
+
+```ts
+function openQuickCapturePopup(): void {
+  void chrome.windows.create({
+    url: chrome.runtime.getURL('popup.html'),
+    type: 'popup',
+    width: 380,
+    height: 280,
+    focused: true,
+  })
+}
+```
+
+This is triggered by:
+1. The `quick-capture` keyboard command
+2. The "Quick capture" context menu item on the extension icon
+
+### Context menu
+
+Add context menu items for the extension icon:
+
+```ts
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: 'open-workspace',
+    title: 'Open workspace',
+    contexts: ['action'],
+  })
+  chrome.contextMenus.create({
+    id: 'quick-capture',
+    title: 'Quick capture (Ctrl+Shift+X)',
+    contexts: ['action'],
+  })
+})
+```
+
+### Getting the active tab
+
+Since the popup opens as a separate window, `chrome.tabs.query({ active: true, currentWindow: true })` would return the popup's own tab. Instead, query the active tab from the last focused normal window:
+
+```ts
+const windows = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] })
+const lastFocusedWindow = windows.sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0))[0]
+const tab = lastFocusedWindow?.tabs?.find((t) => t.active)
+```
 
 ### Popup component
 

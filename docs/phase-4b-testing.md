@@ -15,13 +15,27 @@ This checklist validates Phase 4B behavior (quick-capture, hover shortcuts, drag
 
 ## Quick-capture popup
 
-### Basic capture
+### Access methods
 
 - [ ] Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac) on any Chrome tab.
-- [ ] Verify a small popup appears.
+- [ ] Verify a popup window opens (not anchored to the icon).
+- [ ] Close the popup with Escape.
+- [ ] Right-click the extension icon in the toolbar.
+- [ ] Verify a context menu appears with "Open workspace" and "Quick capture (Ctrl+Shift+X)".
+- [ ] Click "Quick capture".
+- [ ] Verify the popup window opens.
+- [ ] Click "Open workspace" from the context menu.
+- [ ] Verify the workspace page opens.
+- [ ] Click the extension icon (without right-click).
+- [ ] Verify the workspace page opens (not the popup).
+
+### Basic capture
+
+- [ ] Open the quick-capture popup via shortcut or context menu.
+- [ ] Verify the popup uses the dark theme matching the workspace sidebar.
 - [ ] Type `Need to read this #blog @Work` and press Enter.
 - [ ] Verify a green checkmark appears with "Saved to Work."
-- [ ] Close the popup by clicking away or pressing Escape.
+- [ ] Verify the popup auto-closes after 1.5 seconds.
 - [ ] Open the Protab workspace and verify the URL was saved to "Work" with tag "blog" and note "Need to read this."
 
 ### Capture with multiple tags
@@ -47,14 +61,21 @@ This checklist validates Phase 4B behavior (quick-capture, hover shortcuts, drag
 - [ ] Press `Ctrl+Shift+X` on any tab.
 - [ ] Type `Some note #tag` (no @Project) and press Enter.
 - [ ] Verify an error appears: "Please specify a project with @ProjectName."
-- [ ] Verify the popup stays open.
+- [ ] Verify the popup stays open (does not auto-close).
 
 ### Error: project not found
 
 - [ ] Press `Ctrl+Shift+X` on any tab.
 - [ ] Type `@NonExistent` and press Enter.
 - [ ] Verify an error appears: "Project 'NonExistent' not found."
-- [ ] Verify the popup stays open.
+- [ ] Verify the popup stays open (does not auto-close).
+
+### Auto-close behavior
+
+- [ ] Quick-capture a URL successfully.
+- [ ] Verify the success message appears.
+- [ ] Verify the popup auto-closes after approximately 1.5 seconds.
+- [ ] If an error occurs, verify the popup does NOT auto-close.
 
 ### Duplicate URL handling
 
@@ -236,8 +257,10 @@ This checklist validates Phase 4B behavior (quick-capture, hover shortcuts, drag
 
 ## Manifest permissions
 
-- [ ] Verify `manifest.json` contains `["storage", "tabs", "activeTab"]`.
+- [ ] Verify `manifest.json` contains `["storage", "tabs", "activeTab", "contextMenus"]`.
 - [ ] Verify no host permissions or content scripts are declared.
+- [ ] Verify `default_popup` is NOT in the manifest (icon click opens workspace).
+- [ ] Verify the `commands` section defines `quick-capture` with `Ctrl+Shift+X`.
 
 ## Production build
 

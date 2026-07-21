@@ -12,20 +12,24 @@ Phase 4 is complete. The extension has per-window active project state, activate
 
 ## Feature 1: Quick-capture popup
 
-### Trigger
+### Access methods
 
-A customizable keyboard shortcut (default: `Ctrl+Shift+X`) opens a small browser popup for capturing the current tab to a project.
+There are three ways to open the quick-capture popup:
 
-- The shortcut works on any Chrome tab, not just the workspace.
-- Chrome allows users to customize extension shortcuts at `chrome://extensions/shortcuts`.
-- The extension defines a default shortcut; the user can override it.
+1. **Keyboard shortcut**: `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac) opens the popup from any Chrome tab.
+2. **Context menu**: Right-click the extension icon and select "Quick capture (Ctrl+Shift+X)".
+3. **Settings link**: The settings panel shows the shortcut and a link to customize it at `chrome://extensions/shortcuts`.
+
+The extension icon click opens the full-page workspace (not the popup).
 
 ### Popup UI
 
-- A compact browser popup anchored to the extension icon.
+- A compact popup window that opens as a focused window (not anchored to the icon).
+- Uses the same dark theme as the workspace sidebar for visual consistency.
 - A single smart text input that starts as one line and expands if the user types long text or presses `Shift+Enter`.
 - A submit button (or `Enter` to submit).
 - A cancel button (or `Escape` to cancel and close the popup).
+- On success, shows a green checkmark with "Saved to ProjectName" and auto-closes after 1.5 seconds.
 
 ### Input format
 
@@ -77,11 +81,11 @@ On submit (`Enter`):
 1. Parse the input to extract note, tags, and project name.
 2. Validate: project must exist, at least one `@Project` required.
 3. If validation fails, show error in popup. Do not close.
-4. Query the current tab's URL and title from Chrome.
+4. Query the active tab from the last focused normal window (not the popup window).
 5. Execute `FILE_LIVE_TAB` command through the background (reuse Phase 3 primitive).
 6. If the URL already exists in the project, execute `UPDATE_SAVED_URL` to add new tags and append note.
 7. Show a green checkmark in the popup with "Saved to ProjectName."
-8. The user closes the popup manually (click away, `Escape`, or `Enter` again).
+8. The popup auto-closes after 1.5 seconds.
 9. The tab remains open; the user closes it when ready.
 
 ### Error handling

@@ -2,7 +2,7 @@
 
 Protab is a local-first Chrome extension for turning temporary browser tabs into durable, project-based URL collections.
 
-> **Status:** Phase 4A is complete. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, saved-URL opening, project activation with programmatic close, open all, close all, project export/import, and URL archiving. Phase 4B (quick-capture, hover shortcuts, drag-to-rearrange, settings) is specified and ready for implementation.
+> **Status:** Phase 4B is complete. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, saved-URL opening, project activation with programmatic close, open all, close all, project export/import, URL archiving, quick-capture popup, hover shortcuts, drag-to-rearrange, and minimal settings.
 
 ## Core workflow
 
@@ -53,7 +53,13 @@ npm run build
 4. Choose **Load unpacked** and select this repository's `dist/` directory.
 5. Pin Protab if desired, then click its toolbar action to open the full-page workspace.
 
-The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. The extension requests `storage`, `tabs`, and `activeTab` permissions. It inventories and focuses ordinary tabs, opens saved URLs, tracks runtime ownership, closes tabs with explicit confirmation, exports projects as self-contained HTML, archives URLs, and provides a quick-capture popup.
+The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. The extension requests `storage`, `tabs`, `activeTab`, and `contextMenus` permissions. It inventories and focuses ordinary tabs, opens saved URLs, tracks runtime ownership, closes tabs with explicit confirmation, exports projects as self-contained HTML, archives URLs, and provides a quick-capture popup.
+
+### Extension icon behavior
+
+- **Click**: Opens the full-page workspace
+- **Right-click**: Shows context menu with "Open workspace" and "Quick capture" options
+- **Ctrl+Shift+X**: Opens quick-capture popup window
 
 ## Testing
 
