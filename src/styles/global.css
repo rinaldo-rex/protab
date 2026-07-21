@@ -339,3 +339,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Shortcut hints */
 .shortcut-hints { display: flex; gap: 6px; align-items: center; }
 .shortcut-hint { padding: 2px 5px; border: 1px solid var(--outline-variant); border-radius: 3px; color: var(--on-surface-variant); font-size: 9px; font-weight: 600; background: var(--surface-low); white-space: nowrap; }
+
+/* Sidebar export button */
+.sidebar-heading-actions { display: flex; align-items: center; gap: 6px; }
+.sidebar-export { width: 20px; height: 20px; color: rgba(255,255,255,.45); }
+.sidebar-export:hover { color: #fff; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); }

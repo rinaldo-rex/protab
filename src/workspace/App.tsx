@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
@@ -19,6 +19,8 @@ import { ActivationSummary } from './ActivationSummary'
 import { OpenAllSummary } from './OpenAllSummary'
 import { CloseAllSummary } from './CloseAllSummary'
 import { ContextMenu } from './ContextMenu'
+import { createExportZip, getExportZipFilename } from './export/createZip'
+import { downloadFile } from './export/downloadFile'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -212,7 +214,25 @@ export function App({ client, liveTabsClient }: AppProps) {
       )}
       <aside className="project-sidebar" aria-label="Project navigation">
         <div className="brand"><span>Protab</span><small>LOCAL WORKSPACE</small></div>
-        <div className="sidebar-heading"><span>Projects</span><span>{state.projects.length}</span></div>
+        <div className="sidebar-heading">
+          <span>Projects</span>
+          <div className="sidebar-heading-actions">
+            {state.projects.length > 0 && (
+              <button
+                className="icon-button sidebar-export"
+                title="Export all projects"
+                aria-label="Export all projects"
+                onClick={() => {
+                  const zip = createExportZip(state.projects)
+                  downloadFile(getExportZipFilename(), zip)
+                }}
+              >
+                <Download size={14} />
+              </button>
+            )}
+            <span>{state.projects.length}</span>
+          </div>
+        </div>
         <nav className="project-list" aria-label="Projects">
           {state.projects.map((project) => {
             const isActive = project.id === activeProjectId
