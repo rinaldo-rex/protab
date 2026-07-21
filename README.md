@@ -2,7 +2,7 @@
 
 Protab is a local-first Chrome extension for turning temporary browser tabs into durable, project-based URL collections.
 
-> **Status:** Phase 2 is implemented. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, and saved-URL opening. Phase 3 is specified and ready for implementation using persist-first, explicitly confirmed programmatic close. Recorded Chrome acceptance is partial; remaining checks are listed in the Phase 2 evidence.
+> **Status:** Phase 4 is implemented. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, saved-URL opening, project activation with programmatic close, open all, and close all. Phase 4A (export and archive) is ready for testing.
 
 ## Core workflow
 
