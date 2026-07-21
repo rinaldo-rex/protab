@@ -17,6 +17,7 @@ import { FolderInput } from 'lucide-react'
 import { DriftReviewDialog } from './DriftReviewDialog'
 import { ActivationSummary } from './ActivationSummary'
 import { OpenAllSummary } from './OpenAllSummary'
+import { CloseAllSummary } from './CloseAllSummary'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -180,6 +181,30 @@ export function App({ client, liveTabsClient }: AppProps) {
             summary={liveTabs.openAllSummary}
             projectName={selected.name}
             onDismiss={liveTabs.dismissOpenAllSummary}
+          />
+        </div>
+      )}
+      {liveTabs.closeAllPrepared && (
+        <DriftReviewDialog
+          operation={{
+            operationId: liveTabs.closeAllPrepared.operationId,
+            projectId: '',
+            projectName: liveTabs.closeAllPrepared.projectName,
+            otherProjectTabs: liveTabs.closeAllPrepared.total,
+            driftedTabs: liveTabs.closeAllPrepared.driftedTabs,
+            unassignedCount: 0,
+          }}
+          pending={liveTabs.closeAllPending}
+          onConfirm={(operationId) => liveTabs.confirmCloseAllProjectTabs(operationId)}
+          onCancel={(operationId) => liveTabs.cancelCloseAllProjectTabs(operationId)}
+        />
+      )}
+      {liveTabs.closeAllSummary && selected && (
+        <div className="filing-summary-overlay">
+          <CloseAllSummary
+            summary={liveTabs.closeAllSummary}
+            projectName={selected.name}
+            onDismiss={liveTabs.dismissCloseAllSummary}
           />
         </div>
       )}
