@@ -10,7 +10,7 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "tabs", "activeTab"],
+  "permissions": ["storage", "tabs", "activeTab", "contextMenus"],
   "commands": {
     "quick-capture": {
       "suggested_key": {
