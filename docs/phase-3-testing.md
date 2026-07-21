@@ -84,7 +84,7 @@ This checklist validates Phase 3 behavior against the production build in Chrome
 
 ## Tag suggestions
 
-- [ ] File tabs with these hostnames and verify suggested tags:
+- [x] File tabs with these hostnames and verify suggested tags:
   - `youtube.com` → `video`
   - `www.youtube.com` → `video`
   - `github.com` → `code`
@@ -133,10 +133,10 @@ This checklist validates Phase 3 behavior against the production build in Chrome
 
 ## Two-window isolation
 
-- [ ] Open Protab in two Chrome windows.
-- [ ] File a tab in window 1.
-- [ ] Verify window 2's inventory updates but is not affected by the close.
-- [ ] Verify cross-window filing is rejected (tab moved error).
+- [x] Open Protab in two Chrome windows.
+- [x] File a tab in window 1.
+- [x] Verify window 2's inventory updates but is not affected by the close.
+- [x] Verify cross-window filing is rejected (tab moved error).
 
 ## Console and network review
 
