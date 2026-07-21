@@ -11,7 +11,7 @@ export default defineConfig({
       input: {
         workspace: resolve(__dirname, 'workspace.html'),
         background: resolve(__dirname, 'src/background/index.ts'),
-        popup: resolve(__dirname, 'src/popup/index.html'),
+        popup: resolve(__dirname, 'popup.html'),
       },
       output: {
         entryFileNames: (chunk) =>
