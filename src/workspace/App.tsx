@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download, Upload } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download, Upload, Settings } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
@@ -24,6 +24,8 @@ import { createExportZip, getExportZipFilename } from './export/createZip'
 import { downloadFile } from './export/downloadFile'
 import { parseImportFile, type ImportResult } from './export/parseImport'
 import { ConfirmImportDialog } from './ConfirmImportDialog'
+import { SettingsPanel } from './SettingsPanel'
+import { useSettings } from './useSettings'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -54,6 +56,8 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'workspace' | 'settings'>('workspace')
+  const [settings, updateSettings] = useSettings()
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
   const isDraggingProject = useRef(false)
   const focusNotesRegistry = useRef<Map<string, () => void>>(new Map())
@@ -511,7 +515,20 @@ export function App({ client, liveTabsClient }: AppProps) {
         </div>
       )}
       <aside className="project-sidebar" aria-label="Project navigation">
-        <div className="brand"><span>Protab</span><small>LOCAL WORKSPACE</small></div>
+        <div className="brand">
+          <div className="brand-header">
+            <span>Protab</span>
+            <button
+              className="icon-button settings-button"
+              onClick={() => setViewMode(viewMode === 'settings' ? 'workspace' : 'settings')}
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings size={16} />
+            </button>
+          </div>
+          <small>LOCAL WORKSPACE</small>
+        </div>
         <div className="sidebar-heading">
           <span>Projects</span>
           <div className="sidebar-heading-actions">
@@ -631,6 +648,13 @@ export function App({ client, liveTabsClient }: AppProps) {
         )}
         {model.error && <div className="error-banner" role="alert"><span>{model.error}</span><button onClick={model.dismissError}>Dismiss</button></div>}
         <div className="workspace-body">
+          {viewMode === 'settings' ? (
+            <SettingsPanel
+              settings={settings}
+              onSave={updateSettings}
+              onBack={() => setViewMode('workspace')}
+            />
+          ) : (
           <section
             className={`project-canvas ${dragOverCanvas && selected ? 'drag-over-valid' : ''}`}
             aria-labelledby="project-title"
@@ -754,14 +778,17 @@ export function App({ client, liveTabsClient }: AppProps) {
               </div>
             )}
           </section>
+          )}
+          {viewMode !== 'settings' && (
           <CurrentTabsPane
             model={liveTabs}
             state={state}
             onDragStart={() => {}}
             onDragEnd={() => { setDragOverProjectId(undefined); setDragOverCanvas(false) }}
             selectedProjectId={selected?.id}
-            toastDuration={3000}
+            toastDuration={settings.toastDuration}
           />
+          )}
         </div>
       </main>
       {importResult && importResult.kind === 'html' && (() => {
