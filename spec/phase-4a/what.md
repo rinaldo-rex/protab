@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Add project export and tab archiving. Users can export a single project or all projects as self-contained HTML files. Within a project, saved URLs can be archived to separate active work from completed reference material.
+Add project export/import and tab archiving. Users can export a single project or all projects as self-contained HTML files, and import projects from HTML or ZIP files via drag-and-drop. Within a project, saved URLs can be archived to separate active work from completed reference material.
 
 ## Prerequisite
 
@@ -47,6 +47,39 @@ The HTML includes:
   - Archived status (if archived, show archived date)
 - Export timestamp
 - Total count of active and archived URLs
+
+---
+
+## Import
+
+### Drag-and-drop import
+
+- Users can import projects by dragging HTML or ZIP files onto the sidebar.
+- The sidebar shows a drop zone at the bottom: "Drop HTML or ZIP to import".
+- Clicking the drop zone opens a file picker for HTML/ZIP files.
+- An "Import from file" button is also available on the empty first-use state.
+
+### File type detection
+
+- HTML files are parsed as single project exports.
+- ZIP files are extracted and each HTML file inside is parsed as a project import.
+- Unsupported file types show an error dialog.
+
+### Conflict resolution
+
+- If an imported project has the same name as an existing project, a confirmation dialog appears.
+- Options:
+  - **Merge**: Add imported URLs to the existing project (skip duplicates).
+  - **Create new**: Create a new project with a user-configurable suffix (default: " (imported)").
+  - **Cancel**: Abort the import.
+- If no conflict exists, the project is imported directly.
+
+### ZIP import
+
+- ZIP files may contain multiple HTML exports.
+- Each HTML file is parsed independently.
+- Projects without name conflicts are auto-imported.
+- If any project has a conflict, a dialog is shown for that project.
 
 ---
 
@@ -125,6 +158,10 @@ This requires a schema migration from V1 to V2.
 - **P4A-A10:** "Open all archived" opens only archived URLs.
 - **P4A-A11:** Export includes both active and archived URLs.
 - **P4A-A12:** Schema migration from V1 to V2 preserves all existing data.
+- **P4A-A13:** Import from HTML creates a new project with all saved URLs.
+- **P4A-A14:** Import from ZIP creates multiple projects.
+- **P4A-A15:** Import conflict dialog offers merge and create-new options.
+- **P4A-A16:** Merge adds URLs to existing project, skipping duplicates.
 
 ## Manual acceptance checklist
 
@@ -142,7 +179,12 @@ This requires a schema migration from V1 to V2.
 12. Verify N shortcut focuses the note editor.
 13. Verify shortcuts don't work when typing in text fields.
 14. Verify schema migration preserves all existing URLs and metadata.
+15. Import a project HTML file and verify all URLs are imported.
+16. Import a ZIP file and verify multiple projects are created.
+17. Import a project with a name conflict and verify the merge/create-new dialog appears.
+18. Merge an imported project and verify URLs are added to the existing project.
+19. Create a new project from import with a suffix and verify it's created correctly.
 
 ## Explicitly out of scope
 
-Memory consumption display, import from HTML/JSON, cloud sync, settings UI, pinning, task statuses, advanced search/filtering, nested projects, and Chrome Web Store publishing.
+Memory consumption display, cloud sync, settings UI, pinning, task statuses, advanced search/filtering, nested projects, and Chrome Web Store publishing.

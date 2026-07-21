@@ -1,6 +1,6 @@
 # Phase 4A — How to build it
 
-This document fixes the implementation boundaries for project export and tab archiving on top of the completed Phase 4 code. Phase 4A adds two independent features: self-contained HTML export and per-URL archiving with keyboard shortcuts.
+This document fixes the implementation boundaries for project export/import and tab archiving on top of the completed Phase 4 code. Phase 4A adds three features: self-contained HTML export, project import via drag-and-drop, and per-URL archiving with keyboard shortcuts.
 
 Local names and component decomposition may vary when tests, ordering, safety, and product behavior remain equivalent.
 
@@ -181,7 +181,74 @@ function sanitizeFilename(name: string): string {
 
 ---
 
-## Feature 2: Archive
+## Feature 2: Import
+
+### File parsing
+
+Create a module `src/workspace/export/parseImport.ts` that handles file parsing:
+
+```ts
+type ImportResult =
+  | { kind: 'html'; project: ImportedProject }
+  | { kind: 'zip'; projects: ImportedProject[] }
+  | { kind: 'error'; message: string }
+
+async function parseImportFile(file: File): Promise<ImportResult>
+```
+
+### HTML parsing
+
+Use `DOMParser` to parse exported HTML files:
+1. Verify the title contains "Protab Export".
+2. Extract project name from the title.
+3. Parse all `.url-card` elements to extract URLs, titles, tags, notes, and archived status.
+
+### ZIP parsing
+
+Use `fflate` (already installed) to extract ZIP files:
+1. Unzip the file using `unzipSync`.
+2. Parse each `.html` file as a project import.
+3. Return all valid projects.
+
+### Conflict resolution UI
+
+Create `src/workspace/ConfirmImportDialog.tsx`:
+- Shows when an imported project name matches an existing project.
+- Offers "Merge" and "Create new" options.
+- "Create new" allows customizing the suffix (default: " (imported)").
+
+### Drag-and-drop in sidebar
+
+Update `App.tsx` to add import functionality:
+1. Add a drop zone at the bottom of the sidebar: `<div className="import-drop-zone">`.
+2. Handle `onDragOver`, `onDragLeave`, `onDrop` events.
+3. Also support click to open file picker.
+4. Add an "Import from file" button on the empty first-use state.
+
+### Auto-import
+
+When no conflict exists:
+- HTML files are auto-imported as new projects.
+- ZIP files with no conflicts are auto-imported.
+- A `useEffect` handles auto-import when `importResult` changes.
+
+### Merge logic
+
+When merging with an existing project:
+1. Iterate through imported URLs.
+2. Call `CREATE_SAVED_URL` for each URL.
+3. Skip URLs that already exist (catch duplicate errors).
+
+### Create-new logic
+
+When creating a new project:
+1. Call `CREATE_PROJECT` with the name (plus optional suffix).
+2. Iterate through imported URLs.
+3. Call `CREATE_SAVED_URL` for each URL.
+
+---
+
+## Feature 3: Archive
 
 ### Schema migration (V1 → V2)
 
@@ -418,18 +485,22 @@ src/
 │   ├── commandQueue.ts          add migration support
 │   └── schema.ts                update schema validation
 ├── workspace/
-│   ├── App.tsx                  add archived section, export buttons
-│   ├── SavedUrlAccordion.tsx    add context menu, keyboard shortcuts
+│   ├── App.tsx                  add archived section, export buttons, import drop zone
+│   ├── SavedUrlAccordion.tsx    add context menu, keyboard shortcuts (tinykeys)
 │   ├── ProjectActions.tsx       add Export action
 │   ├── ArchiveConfirmDialog.tsx new: confirmation for archiving open tabs
-│   ├── ExportAllButton.tsx      new: export all projects
+│   ├── ConfirmImportDialog.tsx  new: import conflict resolution
 │   └── export/
 │       ├── generateHtml.ts      new: HTML export generation
-│       ├── inlineStyles.ts      new: inlined CSS for export
-│       ├── inlineFonts.ts       new: inlined fonts (base64)
-│       └── createZip.ts         new: ZIP creation for export all
+│       ├── generateHtml.test.ts new: export tests
+│       ├── createZip.ts         new: ZIP creation for export all
+│       ├── createZip.test.ts    new: ZIP tests
+│       ├── downloadFile.ts      new: download helper
+│       ├── font-data.ts         new: generated font base64 data
+│       ├── parseImport.ts       new: HTML/ZIP import parsing
+│       └── parseImport.test.ts  new: import tests
 └── styles/
-    └── global.css               add archived section styles
+    └── global.css               add archived section, import drop zone styles
 ```
 
 ---
@@ -506,8 +577,9 @@ Complete `what.md` against the production build, including:
 5. `feat: add single project HTML export`
 6. `feat: add export all projects as ZIP`
 7. `docs: add Phase 4A loading and test instructions`
+8. `fix: action menu position, context menu, unarchive, shortcuts with tinykeys, import via drag-drop`
 
-Commit 1 introduces the migration without any UI changes. Commit 2 adds the backend logic. Commits 3 and 4 add the UI. Commits 5 and 6 add export functionality. Commit 7 adds documentation.
+Commit 1 introduces the migration without any UI changes. Commit 2 adds the backend logic. Commits 3 and 4 add the UI. Commits 5 and 6 add export functionality. Commit 7 adds documentation. Commit 8 fixes bugs and adds import functionality.
 
 ---
 

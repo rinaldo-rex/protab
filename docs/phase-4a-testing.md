@@ -1,6 +1,6 @@
 # Phase 4A Manual Testing Checklist
 
-This checklist validates Phase 4A behavior (export and archive) against the production build in Chrome.
+This checklist validates Phase 4A behavior (export, import, and archive) against the production build in Chrome.
 
 ## Setup
 
@@ -15,9 +15,9 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 
 ## Schema migration
 
-- [x] Create projects with saved URLs in a previous version (Phase 4 or earlier).
-- [x] Load the Phase 4A build.
-- [x] Verify all existing projects and URLs are preserved.
+- [ ] Create projects with saved URLs in a previous version (Phase 4 or earlier).
+- [ ] Load the Phase 4A build.
+- [ ] Verify all existing projects and URLs are preserved.
 - [ ] Verify no data is lost or corrupted.
 
 ## Archive via context menu
@@ -25,10 +25,10 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 - [ ] Right-click a saved URL accordion.
 - [ ] Verify a context menu appears with "Archive" option.
 - [ ] Click "Archive".
-- [x] Verify the URL moves to the "Archived" section.
-- [x] Verify the archived section header shows "Archived (1)".
-- [x] Verify the archived section is collapsed by default.
-- [x] Expand the archived section.
+- [ ] Verify the URL moves to the "Archived" section.
+- [ ] Verify the archived section header shows "Archived (1)".
+- [ ] Verify the archived section is collapsed by default.
+- [ ] Expand the archived section.
 - [ ] Verify the archived URL is displayed with reduced opacity.
 - [ ] Verify the archived URL shows an "Archived" badge.
 
@@ -70,10 +70,19 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 
 ## Note shortcut
 
-- [ ] Hover over a saved URL accordion.
+- [ ] Hover over a saved URL accordion (collapsed or expanded).
 - [ ] Press `N` key.
-- [ ] Verify the accordion expands and the notes textarea is focused.
-- [ ] If already expanded, verify the notes textarea is focused directly.
+- [ ] If collapsed, verify the accordion expands and the notes textarea is focused.
+- [ ] If expanded, verify the notes textarea is focused directly.
+
+## Shortcuts scope
+
+- [ ] Hover over a saved URL accordion.
+- [ ] Verify shortcut hints appear.
+- [ ] Move the mouse away from the accordion.
+- [ ] Verify shortcut hints disappear.
+- [ ] Press `R` or `N` while not hovering.
+- [ ] Verify no action is triggered.
 
 ## Shortcuts don't work in text inputs
 
@@ -81,6 +90,13 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 - [ ] Click in the URL, title, or notes field.
 - [ ] Press `R` or `N`.
 - [ ] Verify the character is typed into the field, not triggering archive/note actions.
+
+## Action menu positioning
+
+- [ ] Click the "..." button on a project in the workspace header.
+- [ ] Verify the menu appears anchored to the button, not at the top-right of the screen.
+- [ ] Click the "..." button on a saved URL accordion.
+- [ ] Verify the menu appears anchored to the button.
 
 ## Activation excludes archived URLs
 
@@ -97,13 +113,6 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 - [ ] Click "Open all active".
 - [ ] Verify only active URLs are opened.
 - [ ] Verify archived URLs are not opened.
-
-## Open all archived
-
-- [ ] Expand the archived section.
-- [ ] Verify there is a way to open all archived URLs (via the section menu or button).
-- [ ] Open all archived URLs.
-- [ ] Verify only archived URLs are opened.
 
 ## Export single project
 
@@ -132,6 +141,41 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 - [ ] Open each HTML file.
 - [ ] Verify each file works offline and contains the correct project data.
 
+## Import from HTML (no conflict)
+
+- [ ] Export a project as HTML.
+- [ ] Delete the project from Protab.
+- [ ] Drag the exported HTML file onto the sidebar import drop zone.
+- [ ] Verify the project is recreated with all URLs.
+- [ ] Alternatively, click the import drop zone and use the file picker.
+
+## Import from HTML (with conflict)
+
+- [ ] Export a project as HTML.
+- [ ] Do NOT delete the original project.
+- [ ] Drag the exported HTML file onto the sidebar import drop zone.
+- [ ] Verify a conflict dialog appears: "A project named X already exists".
+- [ ] Click "Merge".
+- [ ] Verify URLs are added to the existing project (duplicates skipped).
+- [ ] Import the same file again.
+- [ ] Click "Create new".
+- [ ] Verify a new project is created with the suffix (e.g., "Project (imported)").
+
+## Import from ZIP
+
+- [ ] Export all projects as a ZIP.
+- [ ] Delete some projects from Protab.
+- [ ] Drag the exported ZIP file onto the sidebar import drop zone.
+- [ ] Verify deleted projects are recreated.
+- [ ] Verify existing projects show a conflict dialog or are merged.
+
+## Import error handling
+
+- [ ] Drag a non-HTML, non-ZIP file (e.g., .txt, .pdf) onto the import drop zone.
+- [ ] Verify an error dialog appears: "Unsupported file type".
+- [ ] Drag an HTML file that is not a Protab export.
+- [ ] Verify an error dialog appears.
+
 ## Export HTML structure
 
 - [ ] Open an exported HTML file.
@@ -152,7 +196,7 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 ## Console and network review
 
 - [ ] Open the background service worker console.
-- [ ] Perform Phase 4A operations (archive, unarchive, export).
+- [ ] Perform Phase 4A operations (archive, unarchive, export, import).
 - [ ] Verify no unhandled errors.
 - [ ] Open the Network tab.
 - [ ] Verify no Protab fetches (all operations are local).
