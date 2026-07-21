@@ -117,6 +117,12 @@ export function applyCommand(
       project.savedUrls.splice(index, 1)
       return { state, meta: { didWrite: true, affectedProjectId: project.id } }
     }
+    case 'ARCHIVE_SAVED_URL': {
+      const project = findProject(state, command.projectId)
+      const record = findSavedUrl(project, command.savedUrlId)
+      record.archivedAt = command.archived ? Date.now() : null
+      return { state, meta: { didWrite: true, affectedProjectId: project.id, affectedSavedUrlId: record.id } }
+    }
     case 'FILE_LIVE_TAB': {
       const project = findProject(state, command.projectId)
       const url = serializeHttpUrl(command.url)

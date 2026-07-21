@@ -177,6 +177,15 @@ export class LiveTabsCoordinator {
       // Clean up prepared operation, no side effects
       return
     }
+    // Phase 4A: Archive
+    if (message.kind === 'ARCHIVE_SAVED_URL' && typeof message.projectId === 'string' && typeof message.savedUrlId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.archiveSavedUrl(client, message.projectId!, message.savedUrlId!))
+      return
+    }
+    if (message.kind === 'UNARCHIVE_SAVED_URL' && typeof message.projectId === 'string' && typeof message.savedUrlId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.unarchiveSavedUrl(client, message.projectId!, message.savedUrlId!))
+      return
+    }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
@@ -578,7 +587,7 @@ export class LiveTabsCoordinator {
       const entries = this.ownership ? await this.ownership.read() : []
       const reconciled = reconcileOwnership(state, rawTabs, entries)
 
-      for (const record of project.savedUrls) {
+      for (const record of project.savedUrls.filter((url) => !url.archivedAt)) {
         // Check if already open and owned by this project
         const alreadyOpen = reconciled.tabs.some(
           (tab) =>
@@ -644,9 +653,10 @@ export class LiveTabsCoordinator {
         throw new Error('That project no longer exists.')
       }
 
-      summary.total = project.savedUrls.length
+      const activeUrls = project.savedUrls.filter((url) => !url.archivedAt)
+      summary.total = activeUrls.length
 
-      for (const record of project.savedUrls) {
+      for (const record of activeUrls) {
         try {
           // Check if already open and owned
           const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
@@ -861,6 +871,30 @@ export class LiveTabsCoordinator {
 
     this.post(client, { kind: 'CLOSE_ALL_SUMMARY', summary })
     await this.refreshWindow(client.windowId)
+  }
+
+  // Phase 4A: Archive a saved URL
+  private async archiveSavedUrl(client: ClientSubscription, projectId: string, savedUrlId: string): Promise<void> {
+    if (!this.durableQueue) return
+    try {
+      await this.durableQueue.execute({ type: 'ARCHIVE_SAVED_URL', projectId, savedUrlId, archived: true })
+      this.post(client, { kind: 'ARCHIVE_RESULT', projectId, savedUrlId, archived: true })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not archive this URL.' })
+    }
+  }
+
+  // Phase 4A: Unarchive a saved URL
+  private async unarchiveSavedUrl(client: ClientSubscription, projectId: string, savedUrlId: string): Promise<void> {
+    if (!this.durableQueue) return
+    try {
+      await this.durableQueue.execute({ type: 'ARCHIVE_SAVED_URL', projectId, savedUrlId, archived: false })
+      this.post(client, { kind: 'ARCHIVE_RESULT', projectId, savedUrlId, archived: false })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not unarchive this URL.' })
+    }
   }
 
   private post(client: ClientSubscription, message: LiveTabMessage): void {

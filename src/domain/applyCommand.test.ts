@@ -179,3 +179,59 @@ describe('FILE_LIVE_TAB command', () => {
     expect(() => applyCommand(stateWithProject(), { type: 'FILE_LIVE_TAB', projectId: 'missing', url: 'https://example.com', suggestedTags: [] })).toThrow(/no longer exists/)
   })
 })
+
+describe('ARCHIVE_SAVED_URL command', () => {
+  it('archives a saved URL by setting archivedAt to a timestamp', () => {
+    const state: PersistedState = {
+      schemaVersion: 2,
+      projects: [{ id: 'p1', name: 'Test', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] }],
+    }
+    const result = applyCommand(state, { type: 'ARCHIVE_SAVED_URL', projectId: 'p1', savedUrlId: 'u1', archived: true })
+    expect(result.state.projects[0].savedUrls[0].archivedAt).toBeTypeOf('number')
+    expect(result.state.projects[0].savedUrls[0].archivedAt).toBeGreaterThan(0)
+    expect(result.meta).toMatchObject({ didWrite: true, affectedProjectId: 'p1', affectedSavedUrlId: 'u1' })
+  })
+
+  it('unarchives a saved URL by setting archivedAt to null', () => {
+    const state: PersistedState = {
+      schemaVersion: 2,
+      projects: [{ id: 'p1', name: 'Test', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '', archivedAt: Date.now() }] }],
+    }
+    const result = applyCommand(state, { type: 'ARCHIVE_SAVED_URL', projectId: 'p1', savedUrlId: 'u1', archived: false })
+    expect(result.state.projects[0].savedUrls[0].archivedAt).toBeNull()
+    expect(result.meta).toMatchObject({ didWrite: true, affectedProjectId: 'p1', affectedSavedUrlId: 'u1' })
+  })
+
+  it('preserves all other URL metadata when archiving', () => {
+    const state: PersistedState = {
+      schemaVersion: 2,
+      projects: [{ id: 'p1', name: 'Test', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Custom', titleSource: 'custom', tags: ['a', 'b'], notes: 'Some notes', archivedAt: null }] }],
+    }
+    const result = applyCommand(state, { type: 'ARCHIVE_SAVED_URL', projectId: 'p1', savedUrlId: 'u1', archived: true })
+    const url = result.state.projects[0].savedUrls[0]
+    expect(url).toMatchObject({ id: 'u1', url: 'https://example.com/', title: 'Custom', titleSource: 'custom', tags: ['a', 'b'], notes: 'Some notes' })
+  })
+
+  it('does not affect other URLs in the project', () => {
+    const state: PersistedState = {
+      schemaVersion: 2,
+      projects: [{ id: 'p1', name: 'Test', savedUrls: [
+        { id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic', tags: [], notes: '', archivedAt: null },
+        { id: 'u2', url: 'https://two.test/', title: 'Two', titleSource: 'automatic', tags: [], notes: '', archivedAt: null },
+      ] }],
+    }
+    const result = applyCommand(state, { type: 'ARCHIVE_SAVED_URL', projectId: 'p1', savedUrlId: 'u1', archived: true })
+    expect(result.state.projects[0].savedUrls[0].archivedAt).toBeTypeOf('number')
+    expect(result.state.projects[0].savedUrls[1].archivedAt).toBeNull()
+  })
+
+  it('throws on missing project', () => {
+    const state: PersistedState = { schemaVersion: 2, projects: [] }
+    expect(() => applyCommand(state, { type: 'ARCHIVE_SAVED_URL', projectId: 'missing', savedUrlId: 'u1', archived: true })).toThrow(/no longer exists/)
+  })
+
+  it('throws on missing saved URL', () => {
+    const state: PersistedState = { schemaVersion: 2, projects: [{ id: 'p1', name: 'Test', savedUrls: [] }] }
+    expect(() => applyCommand(state, { type: 'ARCHIVE_SAVED_URL', projectId: 'p1', savedUrlId: 'missing', archived: true })).toThrow(/no longer exists/)
+  })
+})
