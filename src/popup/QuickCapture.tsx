@@ -28,6 +28,14 @@ export function QuickCapture() {
     })
   }, [])
 
+  // Auto-close on success after 1.5 seconds
+  useEffect(() => {
+    if (status === 'success') {
+      const timer = setTimeout(() => window.close(), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [status])
+
   // Parse input
   const parsed = useMemo(() => parseCaptureInput(input), [input])
 
