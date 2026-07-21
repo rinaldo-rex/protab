@@ -9,6 +9,7 @@ import { LiveTabsCoordinator } from './tabs/coordinator'
 import { ChromeSessionStorageAdapter, OwnershipStore } from './tabs/ownershipStore'
 import { CloseTrackerStore, ChromeSessionStorageAdapter as CloseTrackerSessionAdapter } from './tabs/closeTracker'
 import { FilingOrchestrator } from './tabs/filing'
+import { ActiveProjectStore, ChromeSessionStorageAdapter as ActiveProjectSessionAdapter } from './tabs/activeProjectStore'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
 const ownership = new OwnershipStore(new ChromeSessionStorageAdapter())
@@ -16,6 +17,9 @@ void ownership.initialize().catch((error: unknown) => console.error('Protab coul
 
 const closeTracker = new CloseTrackerStore(new CloseTrackerSessionAdapter())
 void closeTracker.initialize().catch((error: unknown) => console.error('Protab could not restrict close tracker storage access.', error))
+
+const activeProjectStore = new ActiveProjectStore(new ActiveProjectSessionAdapter())
+void activeProjectStore.initialize().catch((error: unknown) => console.error('Protab could not restrict active project storage access.', error))
 
 const tabsApi = new ChromeTabsAdapter()
 
@@ -29,7 +33,10 @@ const filingOrchestrator = new FilingOrchestrator(
   () => liveTabs.scheduleAll(),
 )
 
-const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator)
+const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore)
+
+// Initialize coordinator and restore active state
+void queue.read().then((state) => liveTabs.initialize(state)).catch((error: unknown) => console.error('Protab could not initialize live tabs coordinator.', error))
 
 chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))

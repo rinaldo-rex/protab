@@ -493,6 +493,8 @@ export class LiveTabsCoordinator {
     }
 
     this.preparedActivateOperations.delete(operationId)
+    // Update cached state
+    this.cachedState = await this.readState()
     const { projectId, projectName, otherProjectTabIds, unassignedCount } = prepared
 
     const summary = {
