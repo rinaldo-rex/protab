@@ -21,8 +21,9 @@ The generated Stitch HTML is a reference, not production code. Features shown th
 | [Phase 1](phase-1/what.md) | **Complete** ([evidence](../docs/phase-1-completion.md)) | [Implemented](phase-1/how.md) | — |
 | [Phase 2](phase-2/what.md) | **Implemented** ([evidence](../docs/phase-2-completion.md)) | [Implemented](phase-2/how.md) | Completed Phase 1 contracts and code |
 | [Phase 3](phase-3/what.md) | **Ready: programmatic close approved** | [Ready](phase-3/how.md) | Completed Phase 2 interfaces and approved close policy |
-| [Phase 4](phase-4/what.md) | Ready after Phase 3 | Write after Phase 3 | Phase 3 shared close workflow |
-| [Phase 5](phase-5/what.md) | Ready | Write after Phase 4 | Phase 4 |
+| [Phase 4](phase-4/what.md) | Ready after Phase 3 | [Ready](phase-4/how.md) | Phase 3 shared close workflow |
+| [Phase 4A](phase-4a/what.md) | **Ready: export and archive** | [Ready](phase-4a/how.md) | Completed Phase 4 |
+| [Phase 5](phase-5/what.md) | Ready | Write after Phase 4A | Phase 4A |
 
 ## Handoff rule
 
