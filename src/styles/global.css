@@ -81,7 +81,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .inline-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .form-error { margin: 8px 0 0; color: var(--error); font-size: 12px; }
 .url-list { display: flex; flex-direction: column; gap: 8px; }
-.url-accordion { overflow: visible; border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface-lowest); }
+.url-accordion { position: relative; overflow: visible; border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface-lowest); }
+.url-accordion:focus { outline: 2px solid #a8907f; outline-offset: -2px; }
+.url-accordion:focus:not(:focus-visible) { outline: none; }
 .accordion-header { display: flex; min-height: 48px; align-items: stretch; }
 .accordion-toggle { display: flex; flex: 1; min-width: 0; align-items: center; gap: 12px; padding: 10px 12px; border: 0; background: transparent; color: var(--on-surface-variant); text-align: left; }
 .accordion-toggle:hover { background: var(--surface-low); }
@@ -114,6 +116,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .autosave-note { margin: -4px 0 0; color: #8b837c; font-size: 10px; }
 .icon-button { display: inline-grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--on-surface-variant); }
 .icon-button:hover { border-color: var(--outline-variant); background: var(--surface-high); color: var(--primary); }
+.project-actions { position: relative; }
+
 .action-menu { position: absolute; z-index: 20; top: 36px; right: 0; width: 170px; padding: 4px; border: 1px solid var(--outline-variant); border-radius: 4px; background: var(--surface-lowest); box-shadow: 0 8px 24px rgba(45,41,38,.12); }
 .action-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 2px; background: transparent; color: var(--on-surface); text-align: left; font-size: 12px; }
 .action-menu button:hover:not(:disabled), .action-menu button:focus-visible { background: var(--surface-low); }
@@ -140,6 +144,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .first-use-mark { display: grid; width: 64px; height: 64px; place-items: center; margin: 0 auto 24px; border: 1px solid var(--outline-variant); border-radius: 8px; background: var(--surface-lowest); }
 .first-use h2 { margin: 8px 0 16px; font-size: 36px; line-height: 1.15; letter-spacing: -.035em; }
 .first-use > p:not(.eyebrow) { max-width: 570px; margin: 0 auto 24px; color: var(--on-surface-variant); font-size: 15px; line-height: 1.7; }
+.first-use-actions { display: flex; gap: 12px; justify-content: center; }
 .button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 7px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; }
 .button.primary { border: 1px solid var(--primary); background: var(--primary); color: var(--on-primary); }
 .button.primary:hover { background: var(--primary-container); }
@@ -344,3 +349,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .sidebar-heading-actions { display: flex; align-items: center; gap: 6px; }
 .sidebar-export { width: 20px; height: 20px; color: rgba(255,255,255,.45); }
 .sidebar-export:hover { color: #fff; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); }
+
+/* Import drop zone */
+.import-drop-zone { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; margin-top: 16px; border: 1px dashed rgba(255,255,255,.15); border-radius: 6px; color: rgba(255,255,255,.3); font-size: 11px; cursor: pointer; transition: all .15s ease; }
+.import-drop-zone:hover, .import-drop-zone.import-drag-over { border-color: rgba(255,255,255,.4); color: rgba(255,255,255,.6); background: rgba(255,255,255,.05); }

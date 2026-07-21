@@ -1,7 +1,7 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, useCallback, useEffect, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download, Upload } from 'lucide-react'
 import { ProjectActions } from './ProjectActions'
 import type { WorkspaceClient } from './client'
 import { ChromeWorkspaceClient } from './client'
@@ -21,6 +21,8 @@ import { CloseAllSummary } from './CloseAllSummary'
 import { ContextMenu } from './ContextMenu'
 import { createExportZip, getExportZipFilename } from './export/createZip'
 import { downloadFile } from './export/downloadFile'
+import { parseImportFile, type ImportResult } from './export/parseImport'
+import { ConfirmImportDialog } from './ConfirmImportDialog'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -43,6 +45,9 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [bulkConfirmProjectId, setBulkConfirmProjectId] = useState<string>()
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; projectId: string } | null>(null)
   const [archivedExpanded, setArchivedExpanded] = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [importDragOver, setImportDragOver] = useState(false)
+  const [importPending, setImportPending] = useState(false)
   const activeProjectId = liveTabs.activeProjectId
 
   // Count eligible unassigned tabs for bulk filing
@@ -90,6 +95,142 @@ export function App({ client, liveTabsClient }: AppProps) {
       // Invalid drag payload
     }
   }
+
+  // Import file handling
+  const handleImportFile = useCallback(async (file: File) => {
+    const result = await parseImportFile(file)
+    setImportResult(result)
+  }, [])
+
+  const handleImportDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setImportDragOver(true)
+  }, [])
+
+  const handleImportDragLeave = useCallback(() => {
+    setImportDragOver(false)
+  }, [])
+
+  const handleImportDrop = useCallback(async (event: React.DragEvent) => {
+    event.preventDefault()
+    setImportDragOver(false)
+    const files = event.dataTransfer.files
+    if (files.length === 0) return
+    await handleImportFile(files[0])
+  }, [handleImportFile])
+
+  const handleImportAllFromZip = useCallback(async () => {
+    if (!importResult || importResult.kind !== 'zip') return
+    setImportPending(true)
+    try {
+      for (const project of importResult.projects) {
+        const existing = model.state?.projects.find((p) => p.name === project.name)
+        if (existing) {
+          // Merge into existing
+          for (const url of project.savedUrls) {
+            try {
+              await model.execute({ type: 'CREATE_SAVED_URL', projectId: existing.id, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
+            } catch {
+              // Skip duplicates
+            }
+          }
+        } else {
+          // Create new
+          const meta = await model.execute({ type: 'CREATE_PROJECT', name: project.name })
+          const projectId = meta.affectedProjectId!
+          for (const url of project.savedUrls) {
+            try {
+              await model.execute({ type: 'CREATE_SAVED_URL', projectId, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
+            } catch {
+              // Skip duplicates
+            }
+          }
+        }
+      }
+      setImportResult(null)
+    } finally {
+      setImportPending(false)
+    }
+  }, [importResult, model])
+
+  const handleMergeImport = useCallback(async () => {
+    if (!importResult || importResult.kind === 'error') return
+    const project = importResult.kind === 'html' ? importResult.project : importResult.projects[0]
+    if (!project || !model.state) return
+    setImportPending(true)
+    try {
+      const existingProject = model.state.projects.find((p) => p.name === project.name)
+      if (existingProject) {
+        for (const url of project.savedUrls) {
+          try {
+            await model.execute({ type: 'CREATE_SAVED_URL', projectId: existingProject.id, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
+          } catch {
+            // Skip duplicate URLs
+          }
+        }
+      }
+      setImportResult(null)
+    } finally {
+      setImportPending(false)
+    }
+  }, [importResult, model])
+
+  const handleCreateNewImport = useCallback(async (suffix: string) => {
+    if (!importResult || importResult.kind === 'error') return
+    const project = importResult.kind === 'html' ? importResult.project : importResult.projects[0]
+    if (!project) return
+    setImportPending(true)
+    try {
+      const meta = await model.execute({ type: 'CREATE_PROJECT', name: `${project.name}${suffix}` })
+      const projectId = meta.affectedProjectId!
+      for (const url of project.savedUrls) {
+        try {
+          await model.execute({ type: 'CREATE_SAVED_URL', projectId, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
+        } catch {
+          // Skip duplicate URLs
+        }
+      }
+      setImportResult(null)
+    } finally {
+      setImportPending(false)
+    }
+  }, [importResult, model])
+
+  // Auto-import when no conflicts
+  useEffect(() => {
+    const projects = model.state?.projects
+    if (!projects || !importResult || importResult.kind === 'error' || importPending) return
+    if (importResult.kind === 'html') {
+      const project = importResult.project
+      const existing = projects.find((p) => p.name === project.name)
+      if (!existing) {
+        // Create new project
+        void (async () => {
+          setImportPending(true)
+          try {
+            const meta = await model.execute({ type: 'CREATE_PROJECT', name: project.name })
+            const projectId = meta.affectedProjectId!
+            for (const url of project.savedUrls) {
+              try {
+                await model.execute({ type: 'CREATE_SAVED_URL', projectId, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
+              } catch {
+                // Skip duplicates
+              }
+            }
+            setImportResult(null)
+          } finally {
+            setImportPending(false)
+          }
+        })()
+      }
+    } else if (importResult.kind === 'zip') {
+      const hasConflict = importResult.projects.some((p) => projects.some((ep) => ep.name === p.name))
+      if (!hasConflict) {
+        void handleImportAllFromZip()
+      }
+    }
+  }, [importResult, importPending, model, handleImportAllFromZip])
 
   if (model.status === 'loading') {
     return <main className="centered-state" aria-live="polite"><div className="loader" /><h1>Loading Protab</h1><p>Preparing your local workspace…</p></main>
@@ -278,6 +419,30 @@ export function App({ client, liveTabsClient }: AppProps) {
         ) : (
           <button className="new-project-button" onClick={() => setCreating(true)}><Plus size={17} /> New project</button>
         )}
+        <div
+          className={`import-drop-zone${importDragOver ? ' import-drag-over' : ''}`}
+          onDragOver={handleImportDragOver}
+          onDragLeave={handleImportDragLeave}
+          onDrop={(e) => void handleImportDrop(e)}
+          onClick={() => document.getElementById('import-file-input')?.click()}
+          role="button"
+          tabIndex={0}
+          aria-label="Import project from HTML or ZIP file"
+        >
+          <Upload size={16} />
+          <span>Drop HTML or ZIP to import</span>
+          <input
+            id="import-file-input"
+            type="file"
+            accept=".html,.htm,.zip"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void handleImportFile(file)
+              e.target.value = ''
+            }}
+          />
+        </div>
       </aside>
 
       <main className="workspace">
@@ -385,7 +550,10 @@ export function App({ client, liveTabsClient }: AppProps) {
                 <p className="eyebrow">A calmer browser starts here</p>
                 <h2 id="project-title">Turn temporary tabs into durable project context.</h2>
                 <p>Create your first project, then collect URLs, titles, tags, and notes that remain available after Chrome closes.</p>
-                <button className="button primary" onClick={() => setCreating(true)}><Plus size={17} /> Create first project</button>
+                <div className="first-use-actions">
+                  <button className="button primary" onClick={() => setCreating(true)}><Plus size={17} /> Create first project</button>
+                  <button className="button secondary" onClick={() => document.getElementById('import-file-input')?.click()}><Upload size={17} /> Import from file</button>
+                </div>
               </div>
             )}
           </section>
@@ -397,6 +565,31 @@ export function App({ client, liveTabsClient }: AppProps) {
           />
         </div>
       </main>
+      {importResult && importResult.kind === 'html' && (() => {
+        const project = importResult.project
+        const existing = state.projects.find((p) => p.name === project.name)
+        if (existing) {
+          return <ConfirmImportDialog projectName={project.name} existingProjectName={existing.name} urlCount={project.savedUrls.length} onMerge={handleMergeImport} onCreateNew={handleCreateNewImport} onCancel={() => setImportResult(null)} pending={importPending} />
+        }
+        return null
+      })()}
+      {importResult && importResult.kind === 'zip' && (() => {
+        const projects = importResult.projects
+        const hasConflict = projects.some((p) => state.projects.some((ep) => ep.name === p.name))
+        if (hasConflict) {
+          return <ConfirmImportDialog projectName={projects[0].name} existingProjectName={state.projects.find((p) => p.name === projects[0].name)?.name || ''} urlCount={projects.reduce((sum, p) => sum + p.savedUrls.length, 0)} onMerge={handleImportAllFromZip} onCreateNew={handleImportAllFromZip} onCancel={() => setImportResult(null)} pending={importPending} />
+        }
+        return null
+      })()}
+      {importResult && importResult.kind === 'error' && (
+        <div className="filing-dialog-backdrop" role="presentation">
+          <section className="filing-dialog" role="dialog" aria-modal="true">
+            <div className="filing-dialog-header"><h3>Import error</h3></div>
+            <div className="filing-dialog-body"><p>{importResult.message}</p></div>
+            <div className="filing-dialog-actions"><button className="button primary" onClick={() => setImportResult(null)}>OK</button></div>
+          </section>
+        </div>
+      )}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

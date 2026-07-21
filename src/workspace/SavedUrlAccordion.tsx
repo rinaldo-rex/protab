@@ -1,11 +1,13 @@
 import { Archive, ChevronDown, FileText, MoreHorizontal } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { tinykeys } from 'tinykeys'
 import type { SavedUrl, Project } from '../domain/types'
 import { CopyUrlDialog } from './CopyUrlDialog'
 import { TagEditor } from './TagEditor'
 import { ActionMenu } from './ActionMenu'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ArchiveConfirmDialog } from './ArchiveConfirmDialog'
+import { ContextMenu } from './ContextMenu'
 import type { WorkspaceModel } from './useWorkspace'
 import type { LiveTabsModel } from './useLiveTabs'
 
@@ -39,11 +41,37 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
   const [deleteError, setDeleteError] = useState<string>()
   const [isHovering, setIsHovering] = useState(false)
   const [archiveConfirm, setArchiveConfirm] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const headerRef = useRef<HTMLButtonElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
+  const articleRef = useRef<HTMLElement>(null)
 
   useEffect(() => { setUrl(record.url); setTitle(record.title); setNotes(record.notes) }, [record])
+
+  // tinykeys shortcuts scoped to this accordion
+  useEffect(() => {
+    const el = articleRef.current
+    if (!el) return
+    const unsubscribe = tinykeys(el, {
+      'r': (event: KeyboardEvent) => {
+        if (!isHovering || isTextInput(event.target)) return
+        event.preventDefault()
+        handleArchiveAction()
+      },
+      'n': (event: KeyboardEvent) => {
+        if (!isHovering || isTextInput(event.target)) return
+        event.preventDefault()
+        if (!expanded) {
+          onToggle(record.id, true)
+          queueMicrotask(() => notesRef.current?.focus())
+        } else {
+          notesRef.current?.focus()
+        }
+      },
+    })
+    return unsubscribe
+  })
 
   async function save(field: FieldName) {
     const value = field === 'url' ? url : field === 'title' ? title : notes
@@ -80,15 +108,13 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
     queueMicrotask(() => headerRef.current?.focus())
   }
 
-  const handleArchive = useCallback(() => {
-    if (instanceCount > 0) {
+  const handleArchiveAction = useCallback(() => {
+    if (archived) {
+      liveTabs.unarchive(projectId, record.id)
+    } else if (instanceCount > 0) {
       setArchiveConfirm(true)
     } else {
-      if (archived) {
-        liveTabs.unarchive(projectId, record.id)
-      } else {
-        liveTabs.archive(projectId, record.id)
-      }
+      liveTabs.archive(projectId, record.id)
     }
   }, [archived, instanceCount, liveTabs, projectId, record.id])
 
@@ -108,30 +134,28 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
     return tag === 'input' || tag === 'textarea' || target.isContentEditable
   }, [])
 
-  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (!isHovering || isTextInput(event.target)) return
-    if (event.key === 'r' || event.key === 'R') {
-      event.preventDefault()
-      handleArchive()
-    }
-    if (event.key === 'n' || event.key === 'N') {
-      event.preventDefault()
-      if (!expanded) {
-        onToggle(record.id, true)
-        queueMicrotask(() => notesRef.current?.focus())
-      } else {
-        notesRef.current?.focus()
-      }
-    }
-  }, [isHovering, isTextInput, handleArchive, expanded, onToggle, record.id])
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY })
+  }, [])
+
+  const contextMenuItems = archived
+    ? [
+        { label: 'Unarchive', icon: <Archive size={14} />, onClick: () => liveTabs.unarchive(projectId, record.id) },
+      ]
+    : [
+        { label: 'Archive', icon: <Archive size={14} />, onClick: handleArchiveAction },
+      ]
 
   return (
     <article
+      ref={articleRef}
       className={`url-accordion${archived ? ' archived-badge' : ''}`}
       data-record-id={record.id}
+      tabIndex={0}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
-      onKeyDown={handleKeyDown}
+      onContextMenu={handleContextMenu}
     >
       <div className="accordion-header">
         <button ref={headerRef} className="accordion-toggle" aria-expanded={expanded} aria-controls={`saved-url-${record.id}`} onClick={() => void collapse()}>
@@ -150,7 +174,7 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
           <button className="open-url-button" onClick={(event) => event.shiftKey ? liveTabs.openCopy(projectId, record.id) : liveTabs.open(projectId, record.id)}>Open</button>
           <button ref={triggerRef} className="icon-button" aria-label={`Saved URL actions for ${record.title}`} aria-haspopup="menu" aria-expanded={menuOpen} title="Saved URL actions" onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={18} /></button>
           <ActionMenu label={`Actions for ${record.title}`} open={menuOpen} onClose={() => { setMenuOpen(false); queueMicrotask(() => triggerRef.current?.focus()) }}>
-            <button role="menuitem" onClick={() => { setMenuOpen(false); handleArchive(); queueMicrotask(() => triggerRef.current?.focus()) }}>
+            <button role="menuitem" onClick={() => { setMenuOpen(false); handleArchiveAction(); queueMicrotask(() => triggerRef.current?.focus()) }}>
               <Archive size={14} /> {archived ? 'Unarchive' : 'Archive'}
             </button>
             <div role="separator" className="menu-separator" />
@@ -175,6 +199,14 @@ export function SavedUrlAccordion({ projectId, record, index, count, expanded, m
       {copying && <CopyUrlDialog sourceProjectId={projectId} savedUrlId={record.id} projects={projects} model={model} onCancel={() => { setCopying(false); queueMicrotask(() => triggerRef.current?.focus()) }} onComplete={(targetProjectId, targetRecordId) => { setCopying(false); onNavigate(targetProjectId, targetRecordId) }} />}
       {deleting && <ConfirmDialog title={`Delete "${record.title}"?`} confirmLabel="Delete URL" destructive pending={model.commandPending} onCancel={() => { setDeleting(false); queueMicrotask(() => triggerRef.current?.focus()) }} onConfirm={() => void remove()}><p>This removes the saved URL and its metadata. It does not affect browser tabs.</p>{deleteError && <p className="form-error" role="alert">{deleteError}</p>}</ConfirmDialog>}
       {archiveConfirm && <ArchiveConfirmDialog title={record.title} onArchiveAndClose={handleArchiveAndClose} onArchiveOnly={handleArchiveOnly} onCancel={() => setArchiveConfirm(false)} />}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenuItems}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </article>
   )
 }

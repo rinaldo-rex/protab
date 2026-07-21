@@ -15,9 +15,9 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 
 ## Schema migration
 
-- [ ] Create projects with saved URLs in a previous version (Phase 4 or earlier).
-- [ ] Load the Phase 4A build.
-- [ ] Verify all existing projects and URLs are preserved.
+- [x] Create projects with saved URLs in a previous version (Phase 4 or earlier).
+- [x] Load the Phase 4A build.
+- [x] Verify all existing projects and URLs are preserved.
 - [ ] Verify no data is lost or corrupted.
 
 ## Archive via context menu
@@ -25,10 +25,10 @@ This checklist validates Phase 4A behavior (export and archive) against the prod
 - [ ] Right-click a saved URL accordion.
 - [ ] Verify a context menu appears with "Archive" option.
 - [ ] Click "Archive".
-- [ ] Verify the URL moves to the "Archived" section.
-- [ ] Verify the archived section header shows "Archived (1)".
-- [ ] Verify the archived section is collapsed by default.
-- [ ] Expand the archived section.
+- [x] Verify the URL moves to the "Archived" section.
+- [x] Verify the archived section header shows "Archived (1)".
+- [x] Verify the archived section is collapsed by default.
+- [x] Expand the archived section.
 - [ ] Verify the archived URL is displayed with reduced opacity.
 - [ ] Verify the archived URL shows an "Archived" badge.
 
