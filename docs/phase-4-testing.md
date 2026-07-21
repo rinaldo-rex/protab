@@ -15,25 +15,25 @@ This checklist validates Phase 4 behavior against the production build in Chrome
 
 ## Active project UI indicators
 
-- [ ] Create two projects (e.g., "Work" and "Personal").
-- [ ] Verify neither project shows an active indicator initially.
-- [ ] Open the project actions menu (⋯) for "Work" and click **Activate**.
-- [ ] Verify a green dot (●) appears next to "Work" in the sidebar.
-- [ ] Verify the project header shows "Selected project · Active".
-- [ ] Select "Personal" project.
-- [ ] Verify "Work" still shows the active dot, and "Personal" does not.
-- [ ] Verify the active indicator is not color-only (dot symbol is visible).
+- [x] Create two projects (e.g., "Work" and "Personal").
+- [x] Verify neither project shows an active indicator initially.
+- [x] Open the project actions menu (⋯) for "Work" and click **Activate**.
+- [x] Verify a green dot (●) appears next to "Work" in the sidebar.
+- [x] Verify the project header shows "Selected project · Active".
+- [x] Select "Personal" project.
+- [x] Verify "Work" still shows the active dot, and "Personal" does not.
+- [x] Verify the active indicator is not color-only (dot symbol is visible).
 
 ## Selecting vs activating
 
-- [ ] Create two projects with saved URLs.
-- [ ] Select a project and verify no tabs open or close.
-- [ ] Select a different project and verify the first project's active state is unchanged.
-- [ ] Verify selecting a project never changes the active project.
+- [x] Create two projects with saved URLs.
+- [x] Select a project and verify no tabs open or close.
+- [x] Select a different project and verify the first project's active state is unchanged.
+- [x] Verify selecting a project never changes the active project.
 
 ## Activate project
 
-- [ ] Create two projects: "Work" (active) and "Research".
+- [x] Create two projects: "Work" (active) and "Research".
 - [ ] Open tabs for both projects (some owned by Work, some by Research).
 - [ ] Also open some unassigned tabs.
 - [ ] Select "Research" and click **Activate** from the project actions menu.

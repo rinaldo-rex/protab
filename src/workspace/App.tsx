@@ -225,14 +225,14 @@ export function App({ client, liveTabsClient }: AppProps) {
                 <button
                   className="project-item"
                   aria-current={isSelected ? 'page' : undefined}
-                  aria-label={`${project.name}${isActive ? ' (active)' : ''}`}
+                  aria-label={`${project.name}${isActive ? ' (active in this window)' : ''}`}
                   autoFocus={project.id === focusProjectId}
                   onFocus={() => setFocusProjectId(undefined)}
                   onClick={() => model.selectProject(project.id)}
                 >
                   {isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span className="project-name">{project.name}</span>
-                  {isActive && <span className="active-indicator" aria-label="Active project">●</span>}
+                  {isActive && <span className="active-indicator" title="Active in this window" aria-label="Active in this window">●</span>}
                 </button>
               </div>
             )
@@ -275,7 +275,7 @@ export function App({ client, liveTabsClient }: AppProps) {
           >
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project{selected.id === activeProjectId ? ' · Active' : ''}</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions">
+                <div className="canvas-header"><div><p className="eyebrow">Selected project{selected.id === activeProjectId ? ' · Active in this window' : ''}</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions">
                   {eligibleBulkCount > 0 && (
                     <button
                       className="button secondary bulk-file-button"

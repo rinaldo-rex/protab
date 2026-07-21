@@ -260,6 +260,7 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     prepareActivateProject: (projectId) => {
       setActivationPending(true)
       setActivationSummary(undefined)
+      setActivationPrepared(undefined)
       client.send({ kind: 'PREPARE_ACTIVATE_PROJECT', projectId })
     },
     confirmActivateProject: (operationId) => {
