@@ -335,3 +335,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .url-list.archived { margin-top: 8px; }
 .url-list.archived .url-accordion { opacity: 0.85; }
 .url-accordion.archived-badge::after { content: 'Archived'; position: absolute; top: 4px; right: 4px; padding: 2px 6px; border-radius: 3px; background: var(--surface-container); color: var(--on-surface-variant); font-size: 9px; font-weight: 600; }
+
+/* Shortcut hints */
+.shortcut-hints { display: flex; gap: 6px; align-items: center; }
+.shortcut-hint { padding: 2px 5px; border: 1px solid var(--outline-variant); border-radius: 3px; color: var(--on-surface-variant); font-size: 9px; font-weight: 600; background: var(--surface-low); white-space: nowrap; }
