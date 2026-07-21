@@ -49,17 +49,22 @@ npm run build
 4. Choose **Load unpacked** and select this repository's `dist/` directory.
 5. Pin Protab if desired, then click its toolbar action to open the full-page workspace.
 
-The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. Phase 2 requests only the `storage` and `tabs` permissions. It inventories and focuses ordinary tabs, opens saved URLs, and tracks runtime ownership; no Phase 2 path closes an ordinary tab. Phase 3 will use the existing `tabs` permission for explicitly confirmed programmatic close after durable persistence and a final URL recheck.
+The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. The extension requests only the `storage` and `tabs` permissions. It inventories and focuses ordinary tabs, opens saved URLs, tracks runtime ownership, closes tabs with explicit confirmation, exports projects as self-contained HTML, and archives URLs.
 
-## Phase 2 manual checks
+## Testing
 
-See [`docs/phase-2-testing.md`](docs/phase-2-testing.md) for the recorded two-window, ownership, keyboard, console, and Network checks, including the still-pending restart/failure evidence. See [`docs/phase-2-completion.md`](docs/phase-2-completion.md) for implementation evidence and the Phase 3 handoff.
+- [Phase 4A testing](docs/phase-4a-testing.md) — export, import, archive, keyboard shortcuts
+- [Phase 4 testing](docs/phase-4-testing.md) — activation, open all, close all
+- [Phase 3 testing](docs/phase-3-testing.md) — programmatic close with confirmation
+- [Phase 2 testing](docs/phase-2-testing.md) — filing, ownership, two-window isolation
+- [Phase 1 testing](docs/phase-1-testing.md) — basic project and URL management
 
-## Phase 1 records
+## Documentation
 
-Phase 1 implementation and reported manual acceptance results are recorded in [`docs/phase-1-completion.md`](docs/phase-1-completion.md). The production extension is built into `dist/`.
-
-The remaining V0 workflow is filing with programmatic close, followed by deliberate activation and project-wide actions. Settings remain post-V0. A future automatic-close preference may default to enabled and offer a manual user-close handoff, but its scope across filing and project-wide close actions is deliberately undecided.
+- [Design philosophy](design_philosophy.md) — why Protab exists and the principles behind it
+- [Design decisions](design_decisions.md) — agreed behavior and constraints for implementation
+- [Delivery phases](development_phases.md) — testable increments for building V0
+- [Implementation specifications](spec/README.md) — phase readiness and handoff documents
 
 ## Documentation
 

@@ -63,9 +63,35 @@ Programmatic close is intentionally fixed for V0 because it implements the core 
 - Tab ownership and active-project state are restored best-effort because Chrome window and tab identities may change across restarts.
 - Stored data must use an explicit schema version so later releases can migrate it.
 
+## Archiving
+
+- A saved URL may be archived to separate active work from completed reference material.
+- Archiving sets a timestamp (`archivedAt`); unarchiving clears it.
+- Archived URLs appear in a separate collapsible section below active URLs.
+- **Activation** and **Open all** only consider active URLs. Archived URLs are excluded.
+- **Export** includes both active and archived URLs, clearly labeled.
+- Archiving is available via right-click context menu or `R` keyboard shortcut when hovering.
+- `N` keyboard shortcut focuses the notes field, expanding the accordion if collapsed.
+- Keyboard shortcuts are global listeners scoped to the hovered accordion — they work whether the accordion is focused or not.
+- If a URL is currently open when archived, a confirmation dialog offers: archive and close, archive only, or cancel.
+- Unarchiving requires no confirmation.
+- Schema migration from V1 to V2 adds `archivedAt: null` to all existing URLs.
+
+## Export and import
+
+- A project can be exported as a self-contained HTML file with inlined CSS, fonts (base64), and SVG icons.
+- Exported HTML files work offline — no internet connection required.
+- Links in exported HTML are clickable and open in new tabs.
+- All projects can be exported as a ZIP file containing one HTML per project.
+- Export filenames are sanitized: `protab-{name}.html` for single, `protab-export-DD-MMM-YYYY.zip` for all.
+- Projects can be imported by dragging HTML or ZIP files onto the sidebar import zone, or by clicking to browse.
+- If an imported project name conflicts with an existing project, the user can merge (add URLs, skip duplicates) or create a new project with a suffix.
+- If no conflict exists, import proceeds automatically.
+- Import parses the same HTML structure that export produces.
+
 ## Deferred features
 
-Settings UI, pinning, recent/archive/timeline views, task statuses, advanced search/filtering, nested projects, import/export, cloud sync, and split-view management are not part of V0. A post-V0 close preference is a recorded candidate: automatic programmatic close would remain the default, with an optional user-close handoff. Its scope across filing, activation, and Close all is deliberately undecided.
+Settings UI, pinning, task statuses, advanced search/filtering, nested projects, cloud sync, and Chrome Web Store publishing are not part of V0.
 
 ## Decisions required after V0
 
