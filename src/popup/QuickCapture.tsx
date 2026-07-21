@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { parseCaptureInput, getTagAutocomplete, getProjectAutocomplete, type AutocompleteOption } from '../domain/captureParser'
 import type { PersistedState } from '../domain/types'
 import { MESSAGE_CHANNEL, type ClientMessage, type BackgroundResponse } from '../background/messages'
+import { ExternalLink } from 'lucide-react'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -133,10 +134,8 @@ export function QuickCapture() {
     setStatus('loading')
     setErrorMessage(undefined)
 
-    // Get the active tab from the last focused normal window (not the popup window)
-    const windows = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] })
-    const lastFocusedWindow = windows.sort((a, b) => (b.focused ? 1 : 0) - (a.focused ? 1 : 0))[0]
-    const tab = lastFocusedWindow?.tabs?.find((t) => t.active)
+    // Get the active tab from the current browser window
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab || !tab.url) {
       setErrorMessage('Could not access current tab.')
       setStatus('error')
@@ -242,13 +241,17 @@ export function QuickCapture() {
     setCursorPosition(event.currentTarget.selectionStart ?? 0)
   }, [])
 
+  const openWorkspace = useCallback(() => {
+    void chrome.tabs.create({ url: chrome.runtime.getURL('workspace.html') })
+    window.close()
+  }, [])
+
   return (
     <div className="popup-container">
       {status === 'success' ? (
         <div className="popup-success">
           <div className="success-icon">✓</div>
           <p>Saved to {successProject}</p>
-          <button className="popup-close" onClick={() => window.close()}>Close</button>
         </div>
       ) : (
         <>
@@ -295,16 +298,13 @@ export function QuickCapture() {
             >
               {status === 'loading' ? 'Saving...' : 'Save'}
             </button>
-            <button
-              className="popup-cancel"
-              onClick={() => window.close()}
-              disabled={status === 'loading'}
-            >
-              Cancel
-            </button>
           </div>
-          <div className="popup-hint">
-            <small>Format: <code>note #tag @Project</code></small>
+          <div className="popup-footer">
+            <small className="popup-hint">Format: <code>note #tag @Project</code></small>
+            <button className="popup-workspace-link" onClick={openWorkspace}>
+              <ExternalLink size={12} />
+              <span>Open workspace</span>
+            </button>
           </div>
         </>
       )}

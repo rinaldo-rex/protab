@@ -38,37 +38,20 @@ const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(),
 // Initialize coordinator and restore active state
 void queue.read().then((state) => liveTabs.initialize(state)).catch((error: unknown) => console.error('Protab could not initialize live tabs coordinator.', error))
 
-chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
 
-// Open quick-capture popup as a small window
-function openQuickCapturePopup(): void {
-  void chrome.windows.create({
-    url: chrome.runtime.getURL('popup.html'),
-    type: 'popup',
-    width: 380,
-    height: 280,
-    focused: true,
-  })
-}
-
-// Handle quick-capture command
+// Handle quick-capture command - opens the popup programmatically
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'quick-capture') {
-    openQuickCapturePopup()
+    void chrome.action.openPopup()
   }
 })
 
-// Context menu for extension icon
+// Context menu for extension icon - workspace shortcut
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'open-workspace',
-    title: 'Open workspace',
-    contexts: ['action'],
-  })
-  chrome.contextMenus.create({
-    id: 'quick-capture',
-    title: 'Quick capture (Ctrl+Shift+X)',
+    title: 'Open workspace in new tab',
     contexts: ['action'],
   })
 })
@@ -76,8 +59,6 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'open-workspace') {
     serializedToolbarHandler(new ChromeToolbarAdapter())(tab!)
-  } else if (info.menuItemId === 'quick-capture') {
-    openQuickCapturePopup()
   }
 })
 

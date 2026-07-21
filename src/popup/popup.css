@@ -233,3 +233,33 @@ body {
 .popup-close:hover {
   background: var(--surface-high);
 }
+
+/* Footer */
+.popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.popup-workspace-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.popup-workspace-link:hover {
+  background: var(--surface-container);
+  color: var(--on-surface);
+}
