@@ -48,7 +48,7 @@ describe('runtime ownership', () => {
     expect(instanceCounts([drifted])).toEqual({ 'p1:u1': 1 })
   })
 
-  it('groups in project order and tabs in strip order with Unassigned last', () => {
+  it('groups with Unassigned first then project order and tabs in strip order', () => {
     const tabs = [
       { ...tab(1, 4), ownership: { projectId: 'p2', savedUrlId: 'u2', establishedUrl: 'https://same.test/', drifted: false } },
       { ...tab(2, 3), ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://same.test/', drifted: false } },
@@ -56,8 +56,8 @@ describe('runtime ownership', () => {
       tab(4, 0),
     ]
     const groups = groupLiveTabs(state, tabs)
-    expect(groups.map((group) => group.label)).toEqual(['First', 'Second', 'Unassigned'])
-    expect(groups[0].tabs.map((item) => item.tabId)).toEqual([3, 2])
+    expect(groups.map((group) => group.label)).toEqual(['Unassigned', 'First', 'Second'])
+    expect(groups[1].tabs.map((item) => item.tabId)).toEqual([3, 2])
     expect(instanceCounts(tabs)).toEqual({ 'p1:u1': 2, 'p2:u2': 1 })
   })
 })

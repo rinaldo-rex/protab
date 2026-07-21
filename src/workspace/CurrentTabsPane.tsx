@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
@@ -17,13 +17,27 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { mode
   const inventory = model.inventory
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    // Pre-collapse groups marked as preCollapsed
     const initial = new Set<string>()
     for (const group of groups) {
       if (group.preCollapsed) initial.add(group.id)
     }
     return initial
   })
+
+  // Keep pre-collapsed groups collapsed when inventory updates
+  useEffect(() => {
+    setCollapsed((current) => {
+      const next = new Set(current)
+      let changed = false
+      for (const group of groups) {
+        if (group.preCollapsed && !next.has(group.id)) {
+          next.add(group.id)
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [groups])
   const [assigningTabId, setAssigningTabId] = useState<number>()
   const [reconciliationDismissed, setReconciliationDismissed] = useState(false)
   const [draggingTabId, setDraggingTabId] = useState<number>()

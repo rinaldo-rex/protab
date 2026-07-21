@@ -202,7 +202,9 @@ describe('project workspace shell', () => {
     ] } }))
     const row = screen.getByRole('button', { name: /A very useful reference.*Current tab/ })
     expect(row).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByText('Unsupported page — view only')).toBeInTheDocument()
+    // Unsupported group is pre-collapsed, so check the heading exists
+    expect(screen.getByRole('button', { name: /Unsupported/ })).toBeInTheDocument()
+    expect(screen.queryByText('Chrome Settings')).not.toBeInTheDocument()
     row.focus()
     await user.keyboard('{Enter}')
     expect(liveTabs.sent).toContainEqual({ kind: 'FOCUS_LIVE_TAB', tabId: 12 })
