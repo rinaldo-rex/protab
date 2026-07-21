@@ -14,6 +14,8 @@ import { FileTabsDialog } from './FileTabsDialog'
 import { FilingSummary } from './FilingSummary'
 import { AttentionBanner } from './AttentionBanner'
 import { FolderInput } from 'lucide-react'
+import { DriftReviewDialog } from './DriftReviewDialog'
+import { ActivationSummary } from './ActivationSummary'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -148,6 +150,26 @@ export function App({ client, liveTabsClient }: AppProps) {
             summary={liveTabs.bulkSummary}
             projectName={selected.name}
             onDismiss={liveTabs.dismissBulkSummary}
+          />
+        </div>
+      )}
+      {liveTabs.activationPrepared && (
+        <DriftReviewDialog
+          operation={liveTabs.activationPrepared}
+          pending={liveTabs.activationPending}
+          onConfirm={(operationId, keptTabIds) => {
+            // For now, we don't send keptTabIds - just confirm
+            liveTabs.confirmActivateProject(operationId)
+          }}
+          onCancel={liveTabs.cancelActivateProject}
+        />
+      )}
+      {liveTabs.activationSummary && selected && (
+        <div className="filing-summary-overlay">
+          <ActivationSummary
+            summary={liveTabs.activationSummary}
+            projectName={selected.name}
+            onDismiss={liveTabs.dismissActivationSummary}
           />
         </div>
       )}

@@ -118,6 +118,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .action-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 2px; background: transparent; color: var(--on-surface); text-align: left; font-size: 12px; }
 .action-menu button:hover:not(:disabled), .action-menu button:focus-visible { background: var(--surface-low); }
 .action-menu button:disabled { cursor: default; opacity: .4; }
+.action-menu button { display: flex; align-items: center; gap: 8px; }
+.menu-separator { height: 1px; margin: 4px 0; background: var(--outline-variant); }
 .danger-text { color: var(--error) !important; }
 .dialog { width: min(440px, calc(100vw - 48px)); padding: 0; border: 1px solid var(--outline-variant); border-radius: 8px; background: var(--surface-lowest); color: var(--on-surface); box-shadow: 0 16px 60px rgba(24,21,18,.2); }
 .dialog[open]:not(:modal) { position: fixed; inset: 0; margin: auto; z-index: 50; }
@@ -278,3 +280,37 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .attention-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .live-tab-row.attention { border-color: var(--error); background: rgba(255,218,214,.3); }
 .attention-badge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--error); color: var(--on-primary); font-size: 9px; font-weight: 700; }
+
+/* Drift review dialog */
+.drift-review-dialog { max-height: 80vh; display: flex; flex-direction: column; }
+.drift-review-dialog .filing-dialog-body { overflow-y: auto; flex: 1; }
+.drift-review-intro { margin: 0 0 16px; font-size: 13px; line-height: 1.5; }
+.drift-review-list { margin: 0; padding: 0; list-style: none; }
+.drift-review-item { display: flex; align-items: center; gap: 12px; padding: 12px; margin-bottom: 8px; border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface-low); }
+.drift-review-item.kept { border-color: #7cb342; background: rgba(124,179,66,.08); }
+.drift-review-urls { flex: 1; min-width: 0; }
+.drift-url-original, .drift-url-current { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+.drift-url-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--on-surface-variant); }
+.drift-url-value { font-size: 12px; word-break: break-all; }
+.drift-keep-toggle { padding: 6px 12px; border: 1px solid var(--outline-variant); border-radius: 4px; background: var(--surface-lowest); color: var(--on-surface); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.drift-keep-toggle.kept { border-color: #7cb342; background: #7cb342; color: #fff; }
+.drift-kept-note { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 8px 12px; border-radius: 4px; background: #fff3e0; color: #e65100; font-size: 12px; }
+
+/* Activation summary */
+.filing-count.kept { color: #e65100; }
+.filing-count.unassigned { color: var(--on-surface-variant); }
+
+/* Unassigned group pulse */
+.live-group-heading.pulse-once { animation: pulse-highlight 1.5s ease-out 1; }
+@keyframes pulse-highlight {
+  0%, 100% { background: var(--surface-container); }
+  30% { background: #fff3e0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-group-heading.pulse-once { animation: none; }
+  .live-group-heading.pulse-once { background: #fff3e0; }
+}
+
+/* Unassigned notice */
+.unassigned-notice { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; margin: 4px 0; background: #fff3e0; border-radius: 4px; font-size: 12px; color: #e65100; }
+.unassigned-notice button { padding: 0; border: 0; background: transparent; color: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
