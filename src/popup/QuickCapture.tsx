@@ -3,6 +3,30 @@ import { parseCaptureInput, getTagAutocomplete, getProjectAutocomplete, type Aut
 import type { PersistedState } from '../domain/types'
 import { MESSAGE_CHANNEL, type ClientMessage, type BackgroundResponse } from '../background/messages'
 import { ExternalLink } from 'lucide-react'
+import { readSettings, DEFAULT_SETTINGS, type ProtabSettings, type WorkspaceShortcut } from '../domain/settings'
+
+function matchesWorkspaceShortcut(event: React.KeyboardEvent, shortcut: WorkspaceShortcut): boolean {
+  switch (shortcut) {
+    case 'ctrl+enter':
+      return event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey
+    case 'ctrl+shift+enter':
+      return event.key === 'Enter' && (event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey
+    case 'alt+enter':
+      return event.key === 'Enter' && event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+  }
+}
+
+function shortcutLabel(shortcut: WorkspaceShortcut): string {
+  const isMac = navigator.platform.includes('Mac')
+  switch (shortcut) {
+    case 'ctrl+enter':
+      return isMac ? '⌘↵' : 'Ctrl+↵'
+    case 'ctrl+shift+enter':
+      return isMac ? '⌘⇧↵' : 'Ctrl+Shift+↵'
+    case 'alt+enter':
+      return isMac ? '⌥↵' : 'Alt+↵'
+  }
+}
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -12,6 +36,7 @@ export function QuickCapture() {
   const [errorMessage, setErrorMessage] = useState<string>()
   const [successProject, setSuccessProject] = useState<string>()
   const [state, setState] = useState<PersistedState>()
+  const [settings, setSettings] = useState<ProtabSettings>(DEFAULT_SETTINGS)
   const [autocomplete, setAutocomplete] = useState<AutocompleteOption[]>([])
   const [autocompleteVisible, setAutocompleteVisible] = useState(false)
   const [autocompleteIndex, setAutocompleteIndex] = useState(-1)
@@ -19,7 +44,7 @@ export function QuickCapture() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const autocompleteRef = useRef<HTMLDivElement>(null)
 
-  // Fetch state on mount
+  // Fetch state and settings on mount
   useEffect(() => {
     const message: ClientMessage = { channel: MESSAGE_CHANNEL, kind: 'READ_STATE' }
     chrome.runtime.sendMessage(message).then((response: BackgroundResponse) => {
@@ -27,6 +52,7 @@ export function QuickCapture() {
         setState(response.state)
       }
     })
+    void readSettings().then(setSettings)
   }, [])
 
   // Auto-close on success after 1.5 seconds
@@ -196,6 +222,11 @@ export function QuickCapture() {
     }
   }, [parsed, state])
 
+  const openWorkspace = useCallback(() => {
+    void chrome.tabs.create({ url: chrome.runtime.getURL('workspace.html') })
+    window.close()
+  }, [])
+
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (autocompleteVisible) {
       if (event.key === 'ArrowDown') {
@@ -221,6 +252,13 @@ export function QuickCapture() {
       }
     }
 
+    // Workspace shortcut (configurable)
+    if (matchesWorkspaceShortcut(event, settings.popupWorkspaceShortcut)) {
+      event.preventDefault()
+      openWorkspace()
+      return
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       void handleSubmit()
@@ -230,7 +268,7 @@ export function QuickCapture() {
       event.preventDefault()
       window.close()
     }
-  }, [autocompleteVisible, autocompleteIndex, autocomplete, selectAutocomplete, handleSubmit])
+  }, [autocompleteVisible, autocompleteIndex, autocomplete, selectAutocomplete, handleSubmit, settings.popupWorkspaceShortcut, openWorkspace])
 
   const handleInput = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(event.target.value)
@@ -239,11 +277,6 @@ export function QuickCapture() {
 
   const handleSelect = useCallback((event: React.SyntheticEvent<HTMLTextAreaElement>) => {
     setCursorPosition(event.currentTarget.selectionStart ?? 0)
-  }, [])
-
-  const openWorkspace = useCallback(() => {
-    void chrome.tabs.create({ url: chrome.runtime.getURL('workspace.html') })
-    window.close()
   }, [])
 
   return (
@@ -304,6 +337,7 @@ export function QuickCapture() {
             <button className="popup-workspace-link" onClick={openWorkspace}>
               <ExternalLink size={12} />
               <span>Open workspace</span>
+              <kbd className="popup-shortcut-hint">{shortcutLabel(settings.popupWorkspaceShortcut)}</kbd>
             </button>
           </div>
         </>

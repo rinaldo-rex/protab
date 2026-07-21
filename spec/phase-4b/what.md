@@ -25,11 +25,12 @@ The popup includes an "Open workspace" link at the bottom for quick access to th
 
 ### Popup UI
 
-- A compact popup anchored to the extension icon (tooltip style).
+- A compact popup anchored to the extension icon (tooltip style), 380–480px wide.
 - Uses the same dark theme as the workspace sidebar for visual consistency.
 - A single smart text input that starts as one line and expands if the user types long text or presses `Shift+Enter`.
 - A submit button (or `Enter` to submit).
-- An "Open workspace" link at the bottom to open the full workspace in a new tab.
+- An "Open workspace" link at the bottom to open the full workspace in a new tab, with a keyboard shortcut hint badge.
+- A configurable keyboard shortcut (default: `Ctrl+Enter`) opens the workspace from the popup without using the mouse.
 - On success, shows a green checkmark with "Saved to ProjectName" and auto-closes after 1.5 seconds.
 
 ### Input format
@@ -215,6 +216,7 @@ The settings panel is divided into two sections: **Extension Page** (workspace b
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | Close tab after capture | Toggle | Disabled | When using quick-capture, close the tab after saving. Default keeps the tab open. |
+| Open workspace shortcut | Dropdown | `Ctrl+Enter` | Keyboard shortcut to open the full workspace from the popup. Options: `Ctrl+Enter`, `Ctrl+Shift+Enter`, `Alt+Enter`. |
 
 #### General
 
@@ -243,6 +245,8 @@ Settings are stored in `chrome.storage.local` as part of the durable state or a 
 - **P4B-A10:** Move up/Move down are removed from both URL and project action menus.
 - **P4B-A11:** The settings gear icon opens an inline panel with two sections (Extension Page, Extension Popup) containing close behavior toggles, plus General section with shortcut display and toast duration.
 - **P4B-A12:** All new interactions are keyboard accessible (popup submit/cancel, autocomplete navigation, settings navigation).
+- **P4B-A13:** The popup has a configurable keyboard shortcut (default: `Ctrl+Enter`) to open the workspace, shown as a hint badge next to the "Open workspace" link.
+- **P4B-A14:** The "Open workspace shortcut" setting is configurable from the Extension Popup section of the settings panel.
 
 ## Manual acceptance checklist
 
@@ -265,7 +269,10 @@ Settings are stored in `chrome.storage.local` as part of the durable state or a 
 17. Change the toast duration; verify toasts use the new duration.
 18. Disable 'Close tab after capture' in Extension Popup section; verify quick-capture doesn't close the tab.
 19. Enable 'Close tab after filing' in Extension Page section; verify hover 'A' closes the tab.
-20. Complete all actions using keyboard only.
+20. Open the popup and press `Ctrl+Enter`; verify the workspace opens in a new tab.
+21. Change the "Open workspace shortcut" setting to `Ctrl+Shift+Enter` and verify the new shortcut works.
+22. Verify the shortcut hint badge in the popup footer updates when the setting changes.
+23. Complete all actions using keyboard only.
 
 ## Explicitly out of scope
 

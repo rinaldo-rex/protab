@@ -223,17 +223,22 @@ private async quickCaptureTab(client: ClientSubscription, projectId: string, not
 Store settings in `chrome.storage.local` as a separate key, independent of project state:
 
 ```ts
+type WorkspaceShortcut = 'ctrl+enter' | 'ctrl+shift+enter' | 'alt+enter'
+
 const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
 
 interface ProtabSettings {
   schemaVersion: 1
   pageCloseBehavior: boolean // Extension page: true = close tab after filing (default: true)
   popupCloseBehavior: boolean // Extension popup: true = close tab after capture (default: false)
+  popupWorkspaceShortcut: WorkspaceShortcut // default: 'ctrl+enter'
   toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)
 }
 ```
 
 The shortcut is display-only; Chrome manages the actual shortcut binding at `chrome://extensions/shortcuts`. The settings panel shows the current shortcut (default: `Ctrl+Shift+X`) and links to Chrome's shortcut page.
+
+The `popupWorkspaceShortcut` setting controls which key combination opens the full workspace from within the popup. The popup footer shows a `<kbd>` hint badge with the current shortcut label (Mac-aware: `⌘↵` vs `Ctrl+↵`). The shortcut is matched in the popup's `handleKeyDown` via a `matchesWorkspaceShortcut` helper that checks modifier keys against the stored value.
 
 ---
 
@@ -482,23 +487,27 @@ The settings panel is divided into two sections:
 
 **Extension Popup** (quick-capture behavior):
 2. **Close tab after capture**: Toggle switch. When disabled (default), quick-capture keeps the tab open after saving. When enabled, the tab is closed.
+3. **Open workspace shortcut**: Dropdown to configure the keyboard shortcut that opens the full workspace from the popup. Options: `Ctrl+Enter` (default), `Ctrl+Shift+Enter`, `Alt+Enter`.
 
 **General**:
-3. **Quick-capture shortcut**: Display field (read-only) showing the current shortcut (default: `Ctrl+Shift+X`). Includes a link to `chrome://extensions/shortcuts` where users can change it.
+4. **Quick-capture shortcut**: Display field (read-only) showing the current shortcut (default: `Ctrl+Shift+X`). Includes a link to `chrome://extensions/shortcuts` where users can change it.
 
-4. **Toast duration**: Dropdown with options: 2 seconds, 3 seconds, 5 seconds, Manual dismiss.
+5. **Toast duration**: Dropdown with options: 2 seconds, 3 seconds, 5 seconds, Manual dismiss.
 
 ### Settings persistence
 
 Store settings in `chrome.storage.local` as a separate key, independent of project state:
 
 ```ts
+type WorkspaceShortcut = 'ctrl+enter' | 'ctrl+shift+enter' | 'alt+enter'
+
 const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
 
 interface ProtabSettings {
   schemaVersion: 1
   pageCloseBehavior: boolean // Extension page: close tab after filing (default: true)
   popupCloseBehavior: boolean // Extension popup: close tab after capture (default: false)
+  popupWorkspaceShortcut: WorkspaceShortcut // default: 'ctrl+enter'
   toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)
 }
 ```

@@ -1,5 +1,6 @@
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import type { ProtabSettings } from '../domain/settings'
+import { WORKSPACE_SHORTCUTS } from '../domain/settings'
 
 interface SettingsPanelProps {
   settings: ProtabSettings
@@ -58,6 +59,23 @@ export function SettingsPanel({ settings, onSave, onBack }: SettingsPanelProps) 
               >
                 <span className="toggle-thumb" />
               </button>
+            </div>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="popup-workspace-shortcut">Open workspace shortcut</label>
+              <p>Keyboard shortcut to open the full workspace from the popup.</p>
+            </div>
+            <div className="setting-control">
+              <select
+                id="popup-workspace-shortcut"
+                value={settings.popupWorkspaceShortcut}
+                onChange={(e) => onSave({ popupWorkspaceShortcut: e.target.value as ProtabSettings['popupWorkspaceShortcut'] })}
+              >
+                {WORKSPACE_SHORTCUTS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </div>
           </div>
         </section>

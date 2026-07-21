@@ -28,7 +28,7 @@ Projects, URLs, titles, tags, and notes persist locally across browser restarts.
 - Quick-capture popup for zero-friction tab capture
 - Hover shortcut 'Add (A)' for keyboard filing
 - Drag-to-rearrange saved URLs and projects
-- Minimal settings (shortcut, close behavior, toast duration)
+- Minimal settings (shortcut, close behavior, toast duration, configurable popup workspace shortcut)
 
 Pinning, cloud sync, and Chrome Web Store publishing are deferred.
 
@@ -60,7 +60,7 @@ The production build is entirely local: fonts, icons, scripts, and styles are bu
 - **Click**: Opens a quick-capture popup anchored to the icon (tooltip style)
 - **Right-click**: Shows context menu with "Open workspace in new tab" option
 - **Ctrl+Shift+X**: Opens the same quick-capture popup from any tab
-- **Popup footer**: Contains an "Open workspace" link to access the full workspace
+- **Popup footer**: Contains an "Open workspace" link with a keyboard shortcut hint (default: `Ctrl+↵`) to access the full workspace
 
 ## Testing
 

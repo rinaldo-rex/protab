@@ -32,8 +32,8 @@ body {
   font-family: var(--font-sans);
   background: var(--surface);
   color: var(--on-surface);
-  min-width: 320px;
-  max-width: 400px;
+  min-width: 380px;
+  max-width: 480px;
 }
 
 .popup-container {
@@ -262,4 +262,18 @@ body {
 .popup-workspace-link:hover {
   background: var(--surface-container);
   color: var(--on-surface);
+}
+
+.popup-shortcut-hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  background: var(--surface-high);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  line-height: 1.4;
+  margin-left: 2px;
 }

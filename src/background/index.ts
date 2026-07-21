@@ -43,7 +43,19 @@ chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
 // Handle quick-capture command - opens the popup programmatically
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'quick-capture') {
-    void chrome.action.openPopup()
+    // openPopup() is not supported in all Chromium browsers (e.g. Vivaldi, Edge).
+    // Fall back to opening popup.html in a small centered window.
+    void chrome.action.openPopup().catch(() => {
+      const width = 480
+      const height = 360
+      void chrome.windows.create({
+        url: chrome.runtime.getURL('popup.html'),
+        type: 'popup',
+        width,
+        height,
+        focused: true,
+      })
+    })
   }
 })
 

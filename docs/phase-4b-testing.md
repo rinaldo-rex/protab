@@ -35,6 +35,9 @@ This checklist validates Phase 4B behavior (quick-capture, hover shortcuts, drag
 - [ ] Click the "Open workspace" link at the bottom.
 - [ ] Verify the workspace opens in a new tab.
 - [ ] Verify the popup closes.
+- [ ] Open the popup again and press `Ctrl+Enter`.
+- [ ] Verify the workspace opens in a new tab and the popup closes.
+- [ ] Verify a small keyboard hint badge (e.g. `Ctrl+↵`) appears next to the "Open workspace" link.
 
 ### Basic capture
 
@@ -216,6 +219,15 @@ This checklist validates Phase 4B behavior (quick-capture, hover shortcuts, drag
 - [ ] Verify the default is disabled (toggle is inactive).
 - [ ] Click the toggle to enable it.
 - [ ] Verify the toggle changes state.
+- [ ] Verify "Open workspace shortcut" dropdown is present.
+- [ ] Verify the default is "Ctrl+Enter".
+- [ ] Change the dropdown to "Ctrl+Shift+Enter".
+- [ ] Open the popup and press `Ctrl+Shift+Enter`.
+- [ ] Verify the workspace opens.
+- [ ] Change the dropdown to "Alt+Enter".
+- [ ] Open the popup and press `Alt+Enter`.
+- [ ] Verify the workspace opens.
+- [ ] Verify the keyboard hint badge in the popup footer updates to match the selected shortcut.
 
 ### General settings
 
