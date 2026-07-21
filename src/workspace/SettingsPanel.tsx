@@ -72,14 +72,12 @@ export function SettingsPanel({ settings, onSave, onBack }: SettingsPanelProps) 
               </p>
             </div>
             <div className="setting-control">
-              <a
-                href="chrome://extensions/shortcuts"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
                 className="settings-link"
+                onClick={() => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })}
               >
                 Change <ExternalLink size={14} />
-              </a>
+              </button>
             </div>
           </div>
           <div className="setting-row">
