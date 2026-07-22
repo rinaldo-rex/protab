@@ -1,4 +1,5 @@
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedStateV1, PersistedState } from '../domain/types'
+import { migrateV1ToV2 } from '../domain/migration'
 
 export class StorageDataError extends Error {
   constructor(
@@ -18,17 +19,10 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
-export function parsePersistedState(raw: unknown): PersistedStateV1 {
-  if (!isRecord(raw)) throw new StorageDataError('Stored Protab data is not a valid object.', 'invalid')
-  if (raw.schemaVersion !== 1) {
-    if (typeof raw.schemaVersion === 'number') {
-      throw new StorageDataError(`Protab data uses unsupported schema version ${raw.schemaVersion}.`, 'unsupported-version')
-    }
-    throw new StorageDataError('Stored Protab data has no valid schema version.', 'invalid')
-  }
-  if (!Array.isArray(raw.projects)) throw new StorageDataError('Stored projects are invalid.', 'invalid')
+function validateProjects(projects: unknown): void {
+  if (!Array.isArray(projects)) throw new StorageDataError('Stored projects are invalid.', 'invalid')
   const projectIds = new Set<string>()
-  for (const project of raw.projects) {
+  for (const project of projects) {
     if (!isRecord(project) || typeof project.id !== 'string' || !project.id || typeof project.name !== 'string' || project.name.trim() !== project.name || !project.name || project.name.length > 80 || !Array.isArray(project.savedUrls)) {
       throw new StorageDataError('A stored project is invalid.', 'invalid')
     }
@@ -62,5 +56,20 @@ export function parsePersistedState(raw: unknown): PersistedStateV1 {
       }
     }
   }
-  return structuredClone(raw) as unknown as PersistedStateV1
+}
+
+export function parsePersistedState(raw: unknown): PersistedState {
+  if (!isRecord(raw)) throw new StorageDataError('Stored Protab data is not a valid object.', 'invalid')
+  if (raw.schemaVersion === 2) {
+    validateProjects(raw.projects)
+    return structuredClone(raw) as unknown as PersistedState
+  }
+  if (raw.schemaVersion === 1) {
+    validateProjects(raw.projects)
+    return migrateV1ToV2(structuredClone(raw) as unknown as PersistedStateV1)
+  }
+  if (typeof raw.schemaVersion === 'number') {
+    throw new StorageDataError(`Protab data uses unsupported schema version ${raw.schemaVersion}.`, 'unsupported-version')
+  }
+  throw new StorageDataError('Stored Protab data has no valid schema version.', 'invalid')
 }

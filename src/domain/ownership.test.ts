@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { PersistedStateV1 } from './types'
+import type { PersistedState } from './types'
 import type { LiveTabView } from './liveTabs'
 import { groupLiveTabs, instanceCounts, reconcileOwnership } from './ownership'
 
-const state: PersistedStateV1 = { schemaVersion: 1, projects: [
-  { id: 'p1', name: 'First', savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'Same', titleSource: 'automatic', tags: [], notes: '' }] },
-  { id: 'p2', name: 'Second', savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Same copy', titleSource: 'automatic', tags: [], notes: '' }] },
+const state: PersistedState = { schemaVersion: 2, projects: [
+  { id: 'p1', name: 'First', savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'Same', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
+  { id: 'p2', name: 'Second', savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Same copy', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
 ] }
 const tab = (tabId: number, index: number, url = 'https://same.test/'): LiveTabView => ({ tabId, windowId: 1, index, active: false, title: `Tab ${tabId}`, url, urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [] })
 
@@ -28,7 +28,7 @@ describe('runtime ownership', () => {
   })
 
   it('reconciles unique matches but leaves ambiguous matches unassigned', () => {
-    const uniqueState: PersistedStateV1 = { schemaVersion: 1, projects: [{ id: 'p1', name: 'First', savedUrls: [{ id: 'u1', url: 'https://unique.test/', title: 'Unique', titleSource: 'automatic', tags: [], notes: '' }] }] }
+    const uniqueState: PersistedState = { schemaVersion: 2, projects: [{ id: 'p1', name: 'First', savedUrls: [{ id: 'u1', url: 'https://unique.test/', title: 'Unique', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] }] }
     const unique = reconcileOwnership(uniqueState, [tab(5, 0, 'https://unique.test/')], [])
     expect(unique.tabs[0].ownership).toMatchObject({ projectId: 'p1', savedUrlId: 'u1' })
     expect(unique).toMatchObject({ matched: 1, ambiguous: 0 })
@@ -48,7 +48,7 @@ describe('runtime ownership', () => {
     expect(instanceCounts([drifted])).toEqual({ 'p1:u1': 1 })
   })
 
-  it('groups in project order and tabs in strip order with Unassigned last', () => {
+  it('groups with Unassigned first then project order and tabs in strip order', () => {
     const tabs = [
       { ...tab(1, 4), ownership: { projectId: 'p2', savedUrlId: 'u2', establishedUrl: 'https://same.test/', drifted: false } },
       { ...tab(2, 3), ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://same.test/', drifted: false } },
@@ -56,8 +56,8 @@ describe('runtime ownership', () => {
       tab(4, 0),
     ]
     const groups = groupLiveTabs(state, tabs)
-    expect(groups.map((group) => group.label)).toEqual(['First', 'Second', 'Unassigned'])
-    expect(groups[0].tabs.map((item) => item.tabId)).toEqual([3, 2])
+    expect(groups.map((group) => group.label)).toEqual(['Unassigned', 'First', 'Second'])
+    expect(groups[1].tabs.map((item) => item.tabId)).toEqual([3, 2])
     expect(instanceCounts(tabs)).toEqual({ 'p1:u1': 2, 'p2:u2': 1 })
   })
 })

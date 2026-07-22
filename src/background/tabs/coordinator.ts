@@ -1,4 +1,4 @@
-import type { PersistedStateV1 } from '../../domain/types'
+import type { PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
@@ -7,12 +7,15 @@ import { queryOrdinaryTabs, type ChromeTabsApi } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
 import type { CloseTrackerStore } from './closeTracker'
 import type { FilingOrchestrator } from './filing'
+import type { ActiveProjectStore } from './activeProjectStore'
 
 interface ClientSubscription {
   workspaceTabId: number
   windowId: number
   port: chrome.runtime.Port
   lastInventory?: LiveTabInventory
+  selectedProjectId?: string
+  activeProjectId?: string
 }
 
 export class LiveTabsCoordinator {
@@ -24,20 +27,22 @@ export class LiveTabsCoordinator {
   constructor(
     private readonly api: ChromeTabsApi,
     private readonly ownership?: OwnershipStore,
-    private readonly readState: () => Promise<PersistedStateV1> = async () => ({ schemaVersion: 1, projects: [] }),
+    private readonly readState: () => Promise<PersistedState> = async () => ({ schemaVersion: 2, projects: [] }),
     private readonly durableQueue?: CommandQueue,
     private readonly closeTracker?: CloseTrackerStore,
     private readonly filingOrchestrator?: FilingOrchestrator,
+    private readonly activeProjectStore?: ActiveProjectStore,
   ) {}
 
-  connect(port: chrome.runtime.Port): void {
+  async connect(port: chrome.runtime.Port): Promise<void> {
     if (port.name !== LIVE_TAB_PORT) return
     const senderTab = port.sender?.tab
     if (senderTab?.id === undefined || senderTab.windowId === undefined || senderTab.url !== this.api.workspaceUrl()) {
       port.disconnect()
       return
     }
-    const client: ClientSubscription = { workspaceTabId: senderTab.id, windowId: senderTab.windowId, port }
+    const activeProjectId = this.activeProjectStore ? await this.activeProjectStore.getActiveProject(senderTab.windowId) : undefined
+    const client: ClientSubscription = { workspaceTabId: senderTab.id, windowId: senderTab.windowId, port, activeProjectId }
     this.clients.set(senderTab.id, client)
     port.onMessage.addListener((message: unknown) => void this.onMessage(client, message))
     port.onDisconnect.addListener(() => this.clients.delete(client.workspaceTabId))
@@ -139,6 +144,56 @@ export class LiveTabsCoordinator {
     }
     if (message.kind === 'CONFIRM_FILE_ALL_UNASSIGNED' && typeof message.operationId === 'string') {
       this.enqueueWindow(client.windowId, () => this.confirmBulkFile(client, message.operationId!, message.projectId!))
+      return
+    }
+    // Phase 4: Activate project
+    if (message.kind === 'PREPARE_ACTIVATE_PROJECT' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.prepareActivateProject(client, message.projectId!))
+      return
+    }
+    if (message.kind === 'CONFIRM_ACTIVATE_PROJECT' && typeof message.operationId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.confirmActivateProject(client, message.operationId!))
+      return
+    }
+    if (message.kind === 'CANCEL_ACTIVATE_PROJECT' && typeof message.operationId === 'string') {
+      // Clean up prepared operation, no side effects
+      return
+    }
+    // Phase 4: Open all
+    if (message.kind === 'OPEN_ALL_PROJECT_URLS' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.openAllProjectUrls(client, message.projectId!))
+      return
+    }
+    // Phase 4: Close all
+    if (message.kind === 'PREPARE_CLOSE_ALL_PROJECT_TABS' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.prepareCloseAllProjectTabs(client, message.projectId!))
+      return
+    }
+    if (message.kind === 'CONFIRM_CLOSE_ALL_PROJECT_TABS' && typeof message.operationId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.confirmCloseAllProjectTabs(client, message.operationId!))
+      return
+    }
+    if (message.kind === 'CANCEL_CLOSE_ALL_PROJECT_TABS' && typeof message.operationId === 'string') {
+      // Clean up prepared operation, no side effects
+      return
+    }
+    // Phase 4A: Archive
+    if (message.kind === 'ARCHIVE_SAVED_URL' && typeof message.projectId === 'string' && typeof message.savedUrlId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.archiveSavedUrl(client, message.projectId!, message.savedUrlId!))
+      return
+    }
+    if (message.kind === 'UNARCHIVE_SAVED_URL' && typeof message.projectId === 'string' && typeof message.savedUrlId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.unarchiveSavedUrl(client, message.projectId!, message.savedUrlId!))
+      return
+    }
+    // Phase 4B: Quick capture
+    if (message.kind === 'QUICK_CAPTURE_TAB' && typeof message.projectId === 'string' && Array.isArray(message.tags)) {
+      this.enqueueWindow(client.windowId, () => this.quickCaptureTab(client, message.projectId!, message.note ?? '', message.tags!))
+      return
+    }
+    // Phase 4B: Silent file
+    if (message.kind === 'SILENT_FILE_TAB' && typeof message.tabId === 'number' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.silentFileTab(client, message.tabId!, message.projectId!))
       return
     }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
@@ -323,6 +378,41 @@ export class LiveTabsCoordinator {
     }
   }
 
+  async restoreActiveState(): Promise<void> {
+    if (!this.activeProjectStore) return
+    const restored = await this.activeProjectStore.restoreActiveState(
+      async (windowId) => {
+        try {
+          await this.api.focusWindow(windowId)
+          return true
+        } catch {
+          return false
+        }
+      },
+      (projectId) => {
+        const state = this.cachedState
+        return state ? state.projects.some((p) => p.id === projectId) : false
+      },
+    )
+    for (const client of this.clients.values()) {
+      const activeProjectId = restored.get(client.windowId)
+      if (activeProjectId) {
+        client.activeProjectId = activeProjectId
+      }
+    }
+  }
+
+  private cachedState?: PersistedState
+
+  async initialize(state: PersistedState): Promise<void> {
+    this.cachedState = state
+    await this.restoreActiveState()
+  }
+
+  updateCachedState(state: PersistedState): void {
+    this.cachedState = state
+  }
+
   private enqueueWindow(windowId: number, operation: () => Promise<void>): void {
     const previous = this.operationTails.get(windowId) ?? Promise.resolve()
     const next = previous.then(operation, operation)
@@ -344,6 +434,580 @@ export class LiveTabsCoordinator {
     } catch (reason) {
       this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', tabId, message: reason instanceof Error ? reason.message : 'Protab could not assign that tab.' })
       this.scheduleWindow(client.windowId)
+    }
+  }
+
+  // Phase 4: Prepare activate project
+  private async prepareActivateProject(client: ClientSubscription, projectId: string): Promise<void> {
+    try {
+      const [state, rawTabs, entries] = await Promise.all([
+        this.readState(),
+        queryOrdinaryTabs(this.api, client.windowId),
+        this.ownership?.read() ?? Promise.resolve([]),
+      ])
+
+      const project = state.projects.find((p) => p.id === projectId)
+      if (!project) {
+        throw new Error('That project no longer exists.')
+      }
+
+      const reconciled = reconcileOwnership(state, rawTabs, entries)
+      const tabs = reconciled.tabs
+
+      // Find tabs owned by other projects
+      const otherProjectTabs = tabs.filter(
+        (tab) => tab.ownership && tab.ownership.projectId !== projectId && !tab.ownership.drifted
+      )
+
+      // Find drifted tabs with provenance pointing to other projects
+      const driftedTabs = tabs
+        .filter((tab) => {
+          if (!tab.ownership?.drifted) return false
+          // Check if the ownership entry points to another project
+          const entry = entries.find((e) => e.tabId === tab.tabId)
+          return entry && entry.projectId !== projectId
+        })
+        .map((tab) => {
+          const entry = entries.find((e) => e.tabId === tab.tabId)
+          return {
+            tabId: tab.tabId,
+            savedUrl: entry?.establishedUrl ?? '',
+            currentUrl: tab.url ?? '',
+          }
+        })
+
+      // Count unassigned tabs
+      const unassignedCount = tabs.filter((tab) => !tab.ownership || tab.ownership.drifted).length
+
+      const operationId = crypto.randomUUID()
+      const operation = {
+        operationId,
+        projectId,
+        projectName: project.name,
+        otherProjectTabs: otherProjectTabs.length,
+        driftedTabs,
+        unassignedCount,
+      }
+
+      // Store the prepared operation
+      this.preparedActivateOperations.set(operationId, { ...operation, otherProjectTabIds: otherProjectTabs.map((t) => t.tabId) })
+
+      this.post(client, { kind: 'ACTIVATION_PREPARED', operation })
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        message: reason instanceof Error ? reason.message : 'Could not prepare activation.',
+      })
+    }
+  }
+
+  private preparedActivateOperations = new Map<string, { operationId: string; projectId: string; projectName: string; otherProjectTabIds: number[]; unassignedCount: number }>()
+
+  // Phase 4: Confirm activate project
+  private async confirmActivateProject(client: ClientSubscription, operationId: string): Promise<void> {
+    const prepared = this.preparedActivateOperations.get(operationId)
+    if (!prepared) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: 'This operation is no longer valid. Please try again.' })
+      return
+    }
+
+    this.preparedActivateOperations.delete(operationId)
+    // Update cached state
+    this.cachedState = await this.readState()
+    const { projectId, otherProjectTabIds, unassignedCount } = prepared
+
+    const summary = {
+      projectId,
+      total: otherProjectTabIds.length,
+      closed: 0,
+      requested: 0,
+      kept: 0,
+      surviving: 0,
+      skipped: [] as Array<{ tabId: number; reason: string }>,
+      failed: [] as Array<{ tabId: number; message: string }>,
+      unassignedCount,
+    }
+
+    // Process each tab
+    for (const tabId of otherProjectTabIds) {
+      try {
+        // Re-read tab
+        const tab = await this.api.get(tabId).catch(() => null)
+        if (!tab) {
+          summary.skipped.push({ tabId, reason: 'Tab disappeared.' })
+          continue
+        }
+
+        if (tab.windowId !== client.windowId) {
+          summary.skipped.push({ tabId, reason: 'Tab moved to another window.' })
+          continue
+        }
+
+        // URL recheck
+        const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
+        const currentTab = rawTabs.find((t) => t.tabId === tabId)
+        if (!currentTab) {
+          summary.skipped.push({ tabId, reason: 'Tab no longer available.' })
+          continue
+        }
+
+        // Register close tracking
+        if (this.closeTracker) {
+          await this.closeTracker.set({
+            operationId: crypto.randomUUID(),
+            tabId,
+            windowId: client.windowId,
+            projectId,
+            savedUrlId: '',
+            persistedUrl: currentTab.url ?? '',
+            requestedAt: Date.now(),
+            state: 'requested',
+          })
+        }
+
+        // Issue close
+        try {
+          await this.api.remove(tabId)
+          summary.requested++
+        } catch (error) {
+          summary.failed.push({
+            tabId,
+            message: error instanceof Error ? error.message : 'Chrome rejected the close request.',
+          })
+        }
+      } catch (error) {
+        summary.failed.push({
+          tabId,
+          message: error instanceof Error ? error.message : 'Unknown error.',
+        })
+      }
+    }
+
+    // Set active project
+    if (this.activeProjectStore) {
+      await this.activeProjectStore.setActiveProject(client.windowId, projectId)
+    }
+    client.activeProjectId = projectId
+
+    // Open saved URLs that aren't already open (no duplicates)
+    const state = await this.readState()
+    const project = state.projects.find((p) => p.id === projectId)
+    if (project) {
+      const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
+      const entries = this.ownership ? await this.ownership.read() : []
+      const reconciled = reconcileOwnership(state, rawTabs, entries)
+
+      for (const record of project.savedUrls.filter((url) => !url.archivedAt)) {
+        // Check if already open and owned by this project
+        const alreadyOpen = reconciled.tabs.some(
+          (tab) =>
+            tab.ownership?.projectId === projectId &&
+            tab.ownership.savedUrlId === record.id &&
+            !tab.ownership.drifted &&
+            tab.url === record.url
+        )
+        if (alreadyOpen) continue
+
+        // Create new tab
+        try {
+          const created = await this.api.create(client.windowId, record.url)
+          if (created.id === undefined) continue
+
+          // Establish ownership
+          if (this.ownership) {
+            await this.ownership.update((current) => [
+              ...current.filter((entry) => entry.tabId !== created.id),
+              {
+                tabId: created.id!,
+                windowId: client.windowId,
+                projectId,
+                savedUrlId: record.id,
+                establishedUrl: record.url,
+              },
+            ])
+          }
+        } catch {
+          // Continue after individual failures
+        }
+      }
+    }
+
+    // Refocus the workspace tab so the user stays on the extension page
+    try {
+      await this.api.focusWindow(client.windowId)
+      await this.api.activate(client.workspaceTabId)
+    } catch {
+      // Workspace tab may have closed; continue anyway
+    }
+
+    // Post summary
+    this.post(client, { kind: 'ACTIVATION_SUMMARY', summary })
+
+    // Refresh inventory
+    await this.refreshWindow(client.windowId)
+  }
+
+  // Phase 4: Open all project URLs
+  private async openAllProjectUrls(client: ClientSubscription, projectId: string): Promise<void> {
+    const summary = {
+      total: 0,
+      focused: 0,
+      created: 0,
+      failed: [] as Array<{ savedUrlId: string; message: string }>,
+    }
+
+    try {
+      const state = await this.readState()
+      const project = state.projects.find((p) => p.id === projectId)
+      if (!project) {
+        throw new Error('That project no longer exists.')
+      }
+
+      const activeUrls = project.savedUrls.filter((url) => !url.archivedAt)
+      summary.total = activeUrls.length
+
+      for (const record of activeUrls) {
+        try {
+          // Check if already open and owned
+          const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
+          const entries = this.ownership ? await this.ownership.read() : []
+          const reconciled = reconcileOwnership(state, rawTabs, entries)
+          const rawById = new Map((await this.api.query(client.windowId)).map((tab) => [tab.id, tab]))
+
+          const owned = reconciled.tabs.filter(
+            (tab) =>
+              tab.ownership?.projectId === projectId &&
+              tab.ownership.savedUrlId === record.id &&
+              !tab.ownership.drifted &&
+              tab.url === record.url
+          )
+
+          if (owned.length > 0) {
+            // Focus most recently accessed
+            const selected = owned.sort((left, right) => {
+              const leftAccessed = rawById.get(left.tabId)?.lastAccessed ?? -1
+              const rightAccessed = rawById.get(right.tabId)?.lastAccessed ?? -1
+              return rightAccessed - leftAccessed || right.tabId - left.tabId
+            })[0]
+            await this.api.focusWindow(client.windowId)
+            await this.api.activate(selected.tabId)
+            summary.focused++
+            continue
+          }
+
+          // Create new tab
+          const created = await this.api.create(client.windowId, record.url)
+          if (created.id === undefined) {
+            throw new Error('Chrome opened the page without returning a tab identity.')
+          }
+
+          // Establish ownership
+          if (this.ownership) {
+            await this.ownership.update((current) => [
+              ...current.filter((entry) => entry.tabId !== created.id),
+              {
+                tabId: created.id!,
+                windowId: client.windowId,
+                projectId,
+                savedUrlId: record.id,
+                establishedUrl: record.url,
+              },
+            ])
+          }
+
+          summary.created++
+        } catch (error) {
+          summary.failed.push({
+            savedUrlId: record.id,
+            message: error instanceof Error ? error.message : 'Could not open this URL.',
+          })
+        }
+      }
+
+      this.post(client, { kind: 'OPEN_ALL_SUMMARY', summary })
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        message: reason instanceof Error ? reason.message : 'Could not open all URLs.',
+      })
+    }
+  }
+
+  private preparedCloseAllOperations = new Map<string, { operationId: string; projectId: string; projectName: string; targetTabIds: number[] }>()
+
+  // Phase 4: Prepare close all project tabs
+  private async prepareCloseAllProjectTabs(client: ClientSubscription, projectId: string): Promise<void> {
+    try {
+      const [state, rawTabs, entries] = await Promise.all([
+        this.readState(),
+        queryOrdinaryTabs(this.api, client.windowId),
+        this.ownership?.read() ?? Promise.resolve([]),
+      ])
+
+      const project = state.projects.find((p) => p.id === projectId)
+      if (!project) {
+        throw new Error('That project no longer exists.')
+      }
+
+      const reconciled = reconcileOwnership(state, rawTabs, entries)
+      const tabs = reconciled.tabs
+
+      // Find tabs owned by this project
+      const ownedTabs = tabs.filter(
+        (tab) => tab.ownership && tab.ownership.projectId === projectId && !tab.ownership.drifted
+      )
+
+      // Find drifted tabs with provenance pointing to this project
+      const driftedTabs = tabs
+        .filter((tab) => {
+          if (!tab.ownership?.drifted) return false
+          const entry = entries.find((e) => e.tabId === tab.tabId)
+          return entry && entry.projectId === projectId
+        })
+        .map((tab) => {
+          const entry = entries.find((e) => e.tabId === tab.tabId)
+          return {
+            tabId: tab.tabId,
+            savedUrl: entry?.establishedUrl ?? '',
+            currentUrl: tab.url ?? '',
+          }
+        })
+
+      const operationId = crypto.randomUUID()
+      this.preparedCloseAllOperations.set(operationId, {
+        operationId,
+        projectId,
+        projectName: project.name,
+        targetTabIds: ownedTabs.map((t) => t.tabId),
+      })
+
+      this.post(client, {
+        kind: 'CLOSE_ALL_PREPARED',
+        operationId,
+        projectName: project.name,
+        total: ownedTabs.length,
+        driftedTabs,
+      })
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        message: reason instanceof Error ? reason.message : 'Could not prepare close all.',
+      })
+    }
+  }
+
+  // Phase 4: Confirm close all project tabs
+  private async confirmCloseAllProjectTabs(client: ClientSubscription, operationId: string): Promise<void> {
+    const prepared = this.preparedCloseAllOperations.get(operationId)
+    if (!prepared) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: 'This operation is no longer valid. Please try again.' })
+      return
+    }
+
+    this.preparedCloseAllOperations.delete(operationId)
+    const { projectId, targetTabIds } = prepared
+
+    const summary = {
+      total: targetTabIds.length,
+      closed: 0,
+      requested: 0,
+      kept: 0,
+      surviving: 0,
+      skipped: [] as Array<{ tabId: number; reason: string }>,
+      failed: [] as Array<{ tabId: number; message: string }>,
+    }
+
+    for (const tabId of targetTabIds) {
+      try {
+        const tab = await this.api.get(tabId).catch(() => null)
+        if (!tab) {
+          summary.skipped.push({ tabId, reason: 'Tab disappeared.' })
+          continue
+        }
+
+        if (tab.windowId !== client.windowId) {
+          summary.skipped.push({ tabId, reason: 'Tab moved to another window.' })
+          continue
+        }
+
+        // URL recheck
+        const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
+        const currentTab = rawTabs.find((t) => t.tabId === tabId)
+        if (!currentTab) {
+          summary.skipped.push({ tabId, reason: 'Tab no longer available.' })
+          continue
+        }
+
+        // Register close tracking
+        if (this.closeTracker) {
+          await this.closeTracker.set({
+            operationId: crypto.randomUUID(),
+            tabId,
+            windowId: client.windowId,
+            projectId,
+            savedUrlId: '',
+            persistedUrl: currentTab.url ?? '',
+            requestedAt: Date.now(),
+            state: 'requested',
+          })
+        }
+
+        // Issue close
+        try {
+          await this.api.remove(tabId)
+          summary.requested++
+        } catch (error) {
+          summary.failed.push({
+            tabId,
+            message: error instanceof Error ? error.message : 'Chrome rejected the close request.',
+          })
+        }
+      } catch (error) {
+        summary.failed.push({
+          tabId,
+          message: error instanceof Error ? error.message : 'Unknown error.',
+        })
+      }
+    }
+
+    // Refocus the workspace tab so the user stays on the extension page
+    try {
+      await this.api.focusWindow(client.windowId)
+      await this.api.activate(client.workspaceTabId)
+    } catch {
+      // Workspace tab may have closed; continue anyway
+    }
+
+    this.post(client, { kind: 'CLOSE_ALL_SUMMARY', summary })
+    await this.refreshWindow(client.windowId)
+  }
+
+  // Phase 4B: Quick capture tab
+  private async quickCaptureTab(client: ClientSubscription, projectId: string, note: string, tags: string[]): Promise<void> {
+    if (!this.durableQueue) {
+      this.post(client, { kind: 'QUICK_CAPTURE_RESULT', success: false, projectName: '', error: 'Storage not available.' })
+      return
+    }
+
+    try {
+      const state = await this.readState()
+      const project = state.projects.find((p) => p.id === projectId)
+      if (!project) {
+        this.post(client, { kind: 'QUICK_CAPTURE_RESULT', success: false, projectName: '', error: 'Project not found.' })
+        return
+      }
+
+      // Get current tab from the sender's window
+      const [tab] = await this.api.query(client.windowId)
+      if (!tab || !tab.url) {
+        this.post(client, { kind: 'QUICK_CAPTURE_RESULT', success: false, projectName: project.name, error: 'Could not access current tab.' })
+        return
+      }
+
+      // Check if URL already exists
+      const existing = project.savedUrls.find((u) => u.url === tab.url)
+      if (existing) {
+        // Update existing record
+        const newTags = [...new Set([...existing.tags, ...tags])]
+        const newNotes = note
+          ? existing.notes
+            ? `${existing.notes}\n---\n${note}`
+            : note
+          : existing.notes
+
+        await this.durableQueue.execute({
+          type: 'UPDATE_SAVED_URL',
+          projectId,
+          savedUrlId: existing.id,
+          changes: { tags: newTags, notes: newNotes },
+        })
+
+        this.post(client, {
+          kind: 'QUICK_CAPTURE_RESULT',
+          success: true,
+          projectName: project.name,
+        })
+      } else {
+        // Create new record
+        await this.durableQueue.execute({
+          type: 'CREATE_SAVED_URL',
+          projectId,
+          url: tab.url,
+          title: tab.title,
+          tags,
+          notes: note,
+        })
+
+        this.post(client, {
+          kind: 'QUICK_CAPTURE_RESULT',
+          success: true,
+          projectName: project.name,
+        })
+      }
+
+      // Notify workspace of state change
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'QUICK_CAPTURE_RESULT',
+        success: false,
+        projectName: '',
+        error: reason instanceof Error ? reason.message : 'Could not capture tab.',
+      })
+    }
+  }
+
+  // Phase 4B: Silent file tab (no confirmation)
+  private async silentFileTab(client: ClientSubscription, tabId: number, projectId: string): Promise<void> {
+    if (!this.filingOrchestrator) return
+
+    try {
+      // Prepare filing
+      const operation = await this.filingOrchestrator.prepare(tabId, projectId, client.windowId)
+
+      // Execute immediately without confirmation
+      const result = await this.filingOrchestrator.executeFiling(operation.operationId, client.windowId)
+
+      // Post result
+      this.post(client, { kind: 'FILING_RESULT', result })
+
+      // Notify workspace of state change
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+
+      // Refresh inventory
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        tabId,
+        message: reason instanceof Error ? reason.message : 'Could not file tab.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  // Phase 4A: Archive a saved URL
+  private async archiveSavedUrl(client: ClientSubscription, projectId: string, savedUrlId: string): Promise<void> {
+    if (!this.durableQueue) return
+    try {
+      await this.durableQueue.execute({ type: 'ARCHIVE_SAVED_URL', projectId, savedUrlId, archived: true })
+      this.post(client, { kind: 'ARCHIVE_RESULT', projectId, savedUrlId, archived: true })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not archive this URL.' })
+    }
+  }
+
+  // Phase 4A: Unarchive a saved URL
+  private async unarchiveSavedUrl(client: ClientSubscription, projectId: string, savedUrlId: string): Promise<void> {
+    if (!this.durableQueue) return
+    try {
+      await this.durableQueue.execute({ type: 'ARCHIVE_SAVED_URL', projectId, savedUrlId, archived: false })
+      this.post(client, { kind: 'ARCHIVE_RESULT', projectId, savedUrlId, archived: false })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not unarchive this URL.' })
     }
   }
 

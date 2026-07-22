@@ -14,6 +14,7 @@ export type Command =
   | { type: 'COPY_SAVED_URL'; sourceProjectId: string; savedUrlId: string; targetProjectId: string }
   | { type: 'DELETE_SAVED_URL'; projectId: string; savedUrlId: string }
   | { type: 'FILE_LIVE_TAB'; projectId: string; url: string; capturedTitle?: string; suggestedTags: string[] }
+  | { type: 'ARCHIVE_SAVED_URL'; projectId: string; savedUrlId: string; archived: boolean }
 
 export interface CommandResultMeta {
   affectedProjectId?: string

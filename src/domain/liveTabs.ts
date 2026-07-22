@@ -30,6 +30,7 @@ export interface LiveTabGroup {
   projectId?: string
   label: string
   tabs: LiveTabView[]
+  preCollapsed?: boolean
 }
 
 export interface LiveTabInventory {

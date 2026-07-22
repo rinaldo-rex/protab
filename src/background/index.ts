@@ -9,6 +9,7 @@ import { LiveTabsCoordinator } from './tabs/coordinator'
 import { ChromeSessionStorageAdapter, OwnershipStore } from './tabs/ownershipStore'
 import { CloseTrackerStore, ChromeSessionStorageAdapter as CloseTrackerSessionAdapter } from './tabs/closeTracker'
 import { FilingOrchestrator } from './tabs/filing'
+import { ActiveProjectStore, ChromeSessionStorageAdapter as ActiveProjectSessionAdapter } from './tabs/activeProjectStore'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
 const ownership = new OwnershipStore(new ChromeSessionStorageAdapter())
@@ -16,6 +17,9 @@ void ownership.initialize().catch((error: unknown) => console.error('Protab coul
 
 const closeTracker = new CloseTrackerStore(new CloseTrackerSessionAdapter())
 void closeTracker.initialize().catch((error: unknown) => console.error('Protab could not restrict close tracker storage access.', error))
+
+const activeProjectStore = new ActiveProjectStore(new ActiveProjectSessionAdapter())
+void activeProjectStore.initialize().catch((error: unknown) => console.error('Protab could not restrict active project storage access.', error))
 
 const tabsApi = new ChromeTabsAdapter()
 
@@ -29,10 +33,46 @@ const filingOrchestrator = new FilingOrchestrator(
   () => liveTabs.scheduleAll(),
 )
 
-const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator)
+const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore)
 
-chrome.action.onClicked.addListener(serializedToolbarHandler(new ChromeToolbarAdapter()))
+// Initialize coordinator and restore active state
+void queue.read().then((state) => liveTabs.initialize(state)).catch((error: unknown) => console.error('Protab could not initialize live tabs coordinator.', error))
+
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
+
+// Handle quick-capture command - opens the popup programmatically
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'quick-capture') {
+    // openPopup() is not supported in all Chromium browsers (e.g. Vivaldi, Edge).
+    // Fall back to opening popup.html in a small centered window.
+    void chrome.action.openPopup().catch(() => {
+      const width = 480
+      const height = 360
+      void chrome.windows.create({
+        url: chrome.runtime.getURL('popup.html'),
+        type: 'popup',
+        width,
+        height,
+        focused: true,
+      })
+    })
+  }
+})
+
+// Context menu for extension icon - workspace shortcut
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: 'open-workspace',
+    title: 'Open workspace in new tab',
+    contexts: ['action'],
+  })
+})
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'open-workspace') {
+    serializedToolbarHandler(new ChromeToolbarAdapter())(tab!)
+  }
+})
 
 chrome.tabs.onCreated.addListener((tab) => liveTabs.scheduleWindow(tab.windowId))
 chrome.tabs.onUpdated.addListener((_tabId, _changeInfo, tab) => liveTabs.scheduleWindow(tab.windowId))
@@ -46,6 +86,11 @@ chrome.tabs.onRemoved.addListener((tabId, { windowId }) => {
 })
 chrome.tabs.onReplaced.addListener(() => liveTabs.scheduleAll())
 chrome.windows.onRemoved.addListener(() => liveTabs.scheduleAll())
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+    liveTabs.scheduleWindow(windowId)
+  }
+})
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse: (response: BackgroundResponse) => void) => {
   const request = message as Partial<ClientMessage>

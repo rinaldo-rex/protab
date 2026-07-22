@@ -1,4 +1,4 @@
-import type { PersistedStateV1, Project, SavedUrl } from './types'
+import type { PersistedState, Project, SavedUrl } from './types'
 
 export class DomainError extends Error {
   constructor(
@@ -71,7 +71,7 @@ export function automaticTitle(url: string): string {
   return parseHttpUrl(url).hostname
 }
 
-export function findProject(state: PersistedStateV1, projectId: string): Project {
+export function findProject(state: PersistedState, projectId: string): Project {
   const project = state.projects.find((item) => item.id === projectId)
   if (!project) throw new DomainError('That project no longer exists.', 'PROJECT_NOT_FOUND')
   return project
@@ -100,6 +100,6 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
   return next
 }
 
-export function cloneState(state: PersistedStateV1): PersistedStateV1 {
+export function cloneState(state: PersistedState): PersistedState {
   return structuredClone(state)
 }

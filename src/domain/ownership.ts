@@ -1,4 +1,4 @@
-import type { PersistedStateV1 } from './types'
+import type { PersistedState } from './types'
 import type { LiveTabGroup, LiveTabView, OwnershipCandidate } from './liveTabs'
 
 export interface OwnershipEntry {
@@ -16,20 +16,20 @@ export interface ReconciliationResult {
   ambiguous: number
 }
 
-function recordFor(state: PersistedStateV1, entry: OwnershipEntry) {
+function recordFor(state: PersistedState, entry: OwnershipEntry) {
   const project = state.projects.find((candidate) => candidate.id === entry.projectId)
   const record = project?.savedUrls.find((candidate) => candidate.id === entry.savedUrlId)
   return project && record ? { project, record } : undefined
 }
 
-export function candidatesForUrl(state: PersistedStateV1, url: string | undefined): OwnershipCandidate[] {
+export function candidatesForUrl(state: PersistedState, url: string | undefined): OwnershipCandidate[] {
   if (!url) return []
   return state.projects.flatMap((project) => project.savedUrls
     .filter((record) => record.url === url)
     .map((record) => ({ projectId: project.id, savedUrlId: record.id })))
 }
 
-export function reconcileOwnership(state: PersistedStateV1, tabs: LiveTabView[], entries: OwnershipEntry[]): ReconciliationResult {
+export function reconcileOwnership(state: PersistedState, tabs: LiveTabView[], entries: OwnershipEntry[]): ReconciliationResult {
   const byTabId = new Map(entries.map((entry) => [entry.tabId, entry]))
   const ownership: OwnershipEntry[] = []
   let matched = 0
@@ -56,13 +56,18 @@ export function reconcileOwnership(state: PersistedStateV1, tabs: LiveTabView[],
   return { tabs: reconciled, ownership, matched, ambiguous }
 }
 
-export function groupLiveTabs(state: PersistedStateV1, tabs: LiveTabView[]): LiveTabGroup[] {
-  const groups: LiveTabGroup[] = state.projects.flatMap((project) => {
+export function groupLiveTabs(state: PersistedState, tabs: LiveTabView[]): LiveTabGroup[] {
+  const unowned = tabs.filter((tab) => !tab.ownership || tab.ownership.drifted)
+  const unassigned = unowned.filter((tab) => tab.supported).sort((a, b) => a.index - b.index)
+  const unsupported = unowned.filter((tab) => !tab.supported).sort((a, b) => a.index - b.index)
+  const projectGroups: LiveTabGroup[] = state.projects.flatMap((project) => {
     const owned = tabs.filter((tab) => tab.ownership?.projectId === project.id && !tab.ownership.drifted).sort((a, b) => a.index - b.index)
     return owned.length ? [{ id: `project:${project.id}`, projectId: project.id, label: project.name, tabs: owned }] : []
   })
-  const unassigned = tabs.filter((tab) => !tab.ownership || tab.ownership.drifted).sort((a, b) => a.index - b.index)
+  const groups: LiveTabGroup[] = []
   if (unassigned.length) groups.push({ id: 'unassigned', label: 'Unassigned', tabs: unassigned })
+  groups.push(...projectGroups)
+  if (unsupported.length) groups.push({ id: 'unsupported', label: 'Unsupported', tabs: unsupported, preCollapsed: true })
   return groups
 }
 

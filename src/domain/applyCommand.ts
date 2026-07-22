@@ -1,5 +1,5 @@
 import type { Command, CommandResultMeta } from './commands'
-import type { PersistedStateV1, SavedUrl } from './types'
+import type { PersistedState, SavedUrl } from './types'
 import {
   assertUniqueUrl,
   automaticTitle,
@@ -16,12 +16,12 @@ import {
 } from './validation'
 
 export interface ApplyResult {
-  state: PersistedStateV1
+  state: PersistedState
   meta: CommandResultMeta
 }
 
 export function applyCommand(
-  current: PersistedStateV1,
+  current: PersistedState,
   command: Command,
   createId: () => string = () => crypto.randomUUID(),
 ): ApplyResult {
@@ -63,6 +63,7 @@ export function applyCommand(
         titleSource: suppliedTitle ? 'custom' : 'automatic',
         tags: normalizeTags(command.tags ?? []),
         notes: validateNotes(command.notes ?? ''),
+        archivedAt: null,
       }
       project.savedUrls.push(record)
       return { state, meta: { didWrite: true, affectedProjectId: project.id, affectedSavedUrlId: savedUrlId } }
@@ -116,6 +117,12 @@ export function applyCommand(
       project.savedUrls.splice(index, 1)
       return { state, meta: { didWrite: true, affectedProjectId: project.id } }
     }
+    case 'ARCHIVE_SAVED_URL': {
+      const project = findProject(state, command.projectId)
+      const record = findSavedUrl(project, command.savedUrlId)
+      record.archivedAt = command.archived ? Date.now() : null
+      return { state, meta: { didWrite: true, affectedProjectId: project.id, affectedSavedUrlId: record.id } }
+    }
     case 'FILE_LIVE_TAB': {
       const project = findProject(state, command.projectId)
       const url = serializeHttpUrl(command.url)
@@ -141,6 +148,7 @@ export function applyCommand(
         titleSource: 'automatic',
         tags: normalizeTags(command.suggestedTags),
         notes: '',
+        archivedAt: null,
       }
       project.savedUrls.push(record)
       return {

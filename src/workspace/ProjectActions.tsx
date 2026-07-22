@@ -1,9 +1,11 @@
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, Play, FolderOpen, FolderInput, Download } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Project } from '../domain/types'
 import type { WorkspaceModel } from './useWorkspace'
 import { ActionMenu } from './ActionMenu'
 import { ConfirmDialog } from './ConfirmDialog'
+import { generateExportHtml } from './export/generateHtml'
+import { downloadFile, sanitizeFilename } from './export/downloadFile'
 
 interface ProjectActionsProps {
   project: Project
@@ -15,7 +17,7 @@ interface ProjectActionsProps {
   onDeleted: (deletedIndex: number) => void
 }
 
-export function ProjectActions({ project, projectIndex, projectCount, model, liveTabs, ownedLiveCount, onDeleted }: ProjectActionsProps) {
+export function ProjectActions({ project, projectIndex, model, liveTabs, ownedLiveCount, onDeleted }: ProjectActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [mode, setMode] = useState<'rename' | 'delete'>()
   const [name, setName] = useState(project.name)
@@ -52,11 +54,6 @@ export function ProjectActions({ project, projectIndex, projectCount, model, liv
     liveTabs.deleteProject(project.id)
   }
 
-  async function move(toIndex: number) {
-    await model.execute({ type: 'REORDER_PROJECT', projectId: project.id, toIndex })
-    closeMenu()
-  }
-
   useEffect(() => {
     if (liveTabs.deletedProject?.projectId === project.id && mode === 'delete') {
       setMode(undefined)
@@ -64,13 +61,28 @@ export function ProjectActions({ project, projectIndex, projectCount, model, liv
     }
   }, [liveTabs.deletedProject, mode, onDeleted, project.id, projectIndex])
 
+  const isActive = liveTabs.activeProjectId === project.id
+
   return (
     <div className="project-actions">
       <button ref={triggerRef} className="icon-button" aria-label={`Project actions for ${project.name}`} aria-haspopup="menu" aria-expanded={menuOpen} title="Project actions" onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={20} /></button>
       <ActionMenu label={`Actions for ${project.name}`} open={menuOpen} onClose={closeMenu}>
         <button role="menuitem" onClick={() => { setName(project.name); setMenuOpen(false); setMode('rename') }}>Rename</button>
-        <button role="menuitem" disabled={projectIndex === 0} onClick={() => void move(projectIndex - 1)}>Move up</button>
-        <button role="menuitem" disabled={projectIndex === projectCount - 1} onClick={() => void move(projectIndex + 1)}>Move down</button>
+        <div role="separator" className="menu-separator" />
+        <button role="menuitem" onClick={() => { closeMenu(); liveTabs.prepareActivateProject(project.id) }}>
+          <Play size={14} /> {isActive ? 'Reactivate' : 'Activate'}
+        </button>
+        <button role="menuitem" onClick={() => { closeMenu(); liveTabs.openAllProjectUrls(project.id) }}>
+          <FolderOpen size={14} /> Open all active
+        </button>
+        <button role="menuitem" onClick={() => { closeMenu(); liveTabs.prepareCloseAllProjectTabs(project.id) }}>
+          <FolderInput size={14} /> Close all
+        </button>
+        <div role="separator" className="menu-separator" />
+        <button role="menuitem" onClick={() => { closeMenu(); const html = generateExportHtml(project); downloadFile(`protab-${sanitizeFilename(project.name)}.html`, new Blob([html], { type: 'text/html' })) }}>
+          <Download size={14} /> Export
+        </button>
+        <div role="separator" className="menu-separator" />
         <button role="menuitem" className="danger-text" onClick={() => { setMenuOpen(false); setMode('delete') }}>Delete project</button>
       </ActionMenu>
       {mode === 'rename' && (

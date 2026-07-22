@@ -2,7 +2,7 @@
 
 Protab is a local-first Chrome extension for turning temporary browser tabs into durable, project-based URL collections.
 
-> **Status:** Phase 2 is implemented. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, and saved-URL opening. Phase 3 is specified and ready for implementation using persist-first, explicitly confirmed programmatic close. Recorded Chrome acceptance is partial; remaining checks are listed in the Phase 2 evidence.
+> **Status:** Phase 4B is complete. The extension provides persistent projects, live current-window inventory, runtime ownership, assignment, saved-URL opening, project activation with programmatic close, open all, close all, project export/import, URL archiving, quick-capture popup, hover shortcuts, drag-to-rearrange, and minimal settings.
 
 ## Core workflow
 
@@ -22,8 +22,15 @@ Projects, URLs, titles, tags, and notes persist locally across browser restarts.
 - Individual and bulk open/close actions
 - Safe warnings for tabs that could not be closed or whose URL changed
 - Local persistence and non-destructive startup recovery
+- Project export as self-contained HTML files
+- Project import from HTML and ZIP files via drag-and-drop
+- URL archiving with context menu and keyboard shortcuts
+- Quick-capture popup for zero-friction tab capture
+- Hover shortcut 'Add (A)' for keyboard filing
+- Drag-to-rearrange saved URLs and projects
+- Minimal settings (shortcut, close behavior, toast duration, configurable popup workspace shortcut)
 
-Pinning, settings UI, archive/history, statuses, search, import/export, and cloud sync are deferred.
+Pinning, cloud sync, and Chrome Web Store publishing are deferred.
 
 ## Develop and test
 
@@ -46,17 +53,23 @@ npm run build
 4. Choose **Load unpacked** and select this repository's `dist/` directory.
 5. Pin Protab if desired, then click its toolbar action to open the full-page workspace.
 
-The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. Phase 2 requests only the `storage` and `tabs` permissions. It inventories and focuses ordinary tabs, opens saved URLs, and tracks runtime ownership; no Phase 2 path closes an ordinary tab. Phase 3 will use the existing `tabs` permission for explicitly confirmed programmatic close after durable persistence and a final URL recheck.
+The production build is entirely local: fonts, icons, scripts, and styles are bundled into `dist/`. The extension requests `storage`, `tabs`, `activeTab`, and `contextMenus` permissions. It inventories and focuses ordinary tabs, opens saved URLs, tracks runtime ownership, closes tabs with explicit confirmation, exports projects as self-contained HTML, archives URLs, and provides a quick-capture popup.
 
-## Phase 2 manual checks
+### Extension icon behavior
 
-See [`docs/phase-2-testing.md`](docs/phase-2-testing.md) for the recorded two-window, ownership, keyboard, console, and Network checks, including the still-pending restart/failure evidence. See [`docs/phase-2-completion.md`](docs/phase-2-completion.md) for implementation evidence and the Phase 3 handoff.
+- **Click**: Opens a quick-capture popup anchored to the icon (tooltip style)
+- **Right-click**: Shows context menu with "Open workspace in new tab" option
+- **Ctrl+Shift+X**: Opens the same quick-capture popup from any tab
+- **Popup footer**: Contains an "Open workspace" link with a keyboard shortcut hint (default: `Ctrl+↵`) to access the full workspace
 
-## Phase 1 records
+## Testing
 
-Phase 1 implementation and reported manual acceptance results are recorded in [`docs/phase-1-completion.md`](docs/phase-1-completion.md). The production extension is built into `dist/`.
-
-The remaining V0 workflow is filing with programmatic close, followed by deliberate activation and project-wide actions. Settings remain post-V0. A future automatic-close preference may default to enabled and offer a manual user-close handoff, but its scope across filing and project-wide close actions is deliberately undecided.
+- [Phase 4B testing](docs/phase-4b-testing.md) — quick-capture, hover shortcuts, drag-to-rearrange, settings
+- [Phase 4A testing](docs/phase-4a-testing.md) — export, import, archive, keyboard shortcuts
+- [Phase 4 testing](docs/phase-4-testing.md) — activation, open all, close all
+- [Phase 3 testing](docs/phase-3-testing.md) — programmatic close with confirmation
+- [Phase 2 testing](docs/phase-2-testing.md) — filing, ownership, two-window isolation
+- [Phase 1 testing](docs/phase-1-testing.md) — basic project and URL management
 
 ## Documentation
 

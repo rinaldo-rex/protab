@@ -136,6 +136,77 @@ The V0 programmatic-close policy and initial domain-to-tag mapping are recorded.
 - Repeat with a project-owned tab navigated away from its saved URL and verify confirmation appears before closing.
 - Activate different projects in two windows and verify each window remains independent.
 
+## Phase 4A — Export and archive
+
+**Outcome:** Users can export projects as self-contained HTML files and archive saved URLs to separate active work from reference material.
+
+### Atomic commits
+
+1. Add V1→V2 schema migration with `archivedAt` field on saved URLs.
+2. Add archive/unarchive commands and handlers in the domain and background layers.
+3. Add archived section UI with collapsible display below active URLs.
+4. Add archive context menu, keyboard shortcuts (`R` to archive/unarchive, `N` to focus notes), and shortcut hints on hover.
+5. Add single project HTML export with inlined CSS, fonts, and icons.
+6. Add export all projects as ZIP using `fflate`.
+7. Add import via drag-and-drop or file picker for HTML and ZIP files, with conflict resolution.
+
+### Definition of done
+
+- Archived URLs appear in a separate collapsible section and are excluded from activation and Open all.
+- Export produces self-contained HTML files that work offline with clickable links.
+- Import recreates projects from exported HTML or ZIP files, with merge or create-new options for conflicts.
+- Keyboard shortcuts work when hovering over any accordion (collapsed or expanded) via a global listener scoped by hover state.
+- Schema migration preserves all existing data.
+
+### Tests
+
+- Run all automated checks; cover schema migration, archive/unarchive commands, export HTML generation, ZIP creation, and import parsing.
+- Export a single project and verify offline HTML with all URLs, tags, and notes.
+- Export all projects and verify ZIP contains one HTML per project.
+- Archive a URL via context menu, keyboard shortcut, and the `⋯` menu; verify it moves to the Archived section.
+- Unarchive a URL and verify it returns to Active.
+- Verify archived URLs are not opened during activation or Open all.
+- Import an HTML file with no conflict and verify project is created.
+- Import an HTML file with a conflict and verify merge/create-new dialog.
+- Import a ZIP and verify all projects are imported.
+- Verify shortcuts `R` and `N` work on hover, including on collapsed accordions.
+
+## Phase 4B — Zero-friction capture and drag-to-rearrange
+
+**Outcome:** Users can capture tabs from anywhere via a quick-capture popup, file tabs from the Current Tabs pane with a single keystroke, and reorder saved URLs and projects by dragging.
+
+### Atomic commits
+
+1. Add capture text parser and autocomplete logic.
+2. Add quick-capture popup with background handler.
+3. Add hover shortcut 'A' with silent filing and toast feedback.
+4. Add drag-to-rearrange saved URLs with hover-only drag handle.
+5. Add drag-to-rearrange projects with whole-row draggable.
+6. Add minimal settings panel for shortcut, close behavior, and toast duration.
+7. Add Phase 4B loading and test instructions.
+
+### Definition of done
+
+- A customizable keyboard shortcut opens a quick-capture popup for the current tab.
+- The popup parses `#tag` and `@Project` with inline autocomplete.
+- Duplicate URLs update existing records without creating duplicates.
+- Pressing 'A' while hovering over a tab row files it to the selected project with a toast.
+- Saved URL accordions have a hover-only drag handle for reordering.
+- Project rows are draggable for reordering; click-to-select still works.
+- A settings gear icon opens an inline panel with shortcut, close behavior, and toast duration settings.
+
+### Tests
+
+- Run all automated checks; cover text parsing, autocomplete, quick-capture, hover shortcut, drag-to-reorder, and settings.
+- Quick-capture with various input formats and verify correct parsing.
+- Test autocomplete for tags and projects, including fuzzy matching.
+- Test error handling (missing project, storage failure).
+- Test hover 'A' shortcut with toast appearance and auto-dismiss.
+- Test drag-to-reorder URLs and verify new order persists.
+- Test drag-to-reorder projects and verify click-to-select still works.
+- Test settings persistence across sessions.
+- Verify keyboard-only completion of all new interactions.
+
 ## Phase 5 — V0 recovery and release hardening
 
 **Outcome:** The complete V0 workflow is resilient across restarts, failures, upgrades, keyboard use, and realistic multi-window sessions.
@@ -165,4 +236,4 @@ The V0 programmatic-close policy and initial domain-to-tag mapping are recorded.
 
 ## Out of scope for these phases
 
-Settings UI remains post-V0. A future automatic-close preference may default on and offer user-close handoff, but its scope across filing, activation, and Close all requires a later product decision. Pinning, archive/history, statuses, advanced search/filtering, nested projects, import/export, cloud sync, and Chrome split-view management also remain post-V0 work.
+Settings UI remains post-V0. A future automatic-close preference may default on and offer user-close handoff, but its scope across filing, activation, and Close all requires a later product decision. Pinning, task statuses, advanced search/filtering, nested projects, cloud sync, and Chrome Web Store publishing also remain post-V0 work.

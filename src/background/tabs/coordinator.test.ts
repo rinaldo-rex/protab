@@ -46,7 +46,7 @@ function createOwnershipStore() {
   }
 }
 
-const projectState = { schemaVersion: 1 as const, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://1.test/', title: 'One', titleSource: 'automatic' as const, tags: [], notes: '' }] }] }
+const projectState = { schemaVersion: 2 as const, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://1.test/', title: 'One', titleSource: 'automatic' as const, tags: [], notes: '', archivedAt: null }] }] }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 

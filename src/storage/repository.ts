@@ -1,11 +1,11 @@
-import { emptyState, type PersistedStateV1 } from '../domain/types'
+import { emptyState, type PersistedState } from '../domain/types'
 import { parsePersistedState } from './schema'
 
 export const STORAGE_KEY = 'protab.state'
 
 export interface StorageAdapter {
   get(): Promise<unknown | undefined>
-  set(state: PersistedStateV1): Promise<void>
+  set(state: PersistedState): Promise<void>
   subscribe?(listener: (value: unknown) => void): () => void
 }
 
@@ -15,7 +15,7 @@ export class ChromeStorageAdapter implements StorageAdapter {
     return result[STORAGE_KEY]
   }
 
-  async set(state: PersistedStateV1): Promise<void> {
+  async set(state: PersistedState): Promise<void> {
     await chrome.storage.local.set({ [STORAGE_KEY]: state })
   }
 
@@ -28,7 +28,7 @@ export class ChromeStorageAdapter implements StorageAdapter {
   }
 }
 
-export async function loadState(storage: StorageAdapter): Promise<PersistedStateV1> {
+export async function loadState(storage: StorageAdapter): Promise<PersistedState> {
   const raw = await storage.get()
   return raw === undefined ? emptyState() : parsePersistedState(raw)
 }

@@ -3,6 +3,7 @@ import type { LiveTabInventory } from '../domain/liveTabs'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../background/messages'
 import type { PreparedFilingOperation, FilingResult, FilingSummary } from '../background/tabs/filing'
 import type { CloseAttempt } from '../background/tabs/closeTracker'
+import type { PreparedActivationOperation, ActivationSummary, CloseAllSummary, OpenAllSummary } from '../background/messages'
 
 export interface LiveTabsClient {
   subscribe(listener: (message: LiveTabMessage) => void): () => void
@@ -11,16 +12,48 @@ export interface LiveTabsClient {
 
 export class ChromeLiveTabsClient implements LiveTabsClient {
   private port?: chrome.runtime.Port
+  private listener?: (message: LiveTabMessage) => void
+  private reconnectTimer?: ReturnType<typeof setTimeout>
 
   subscribe(listener: (message: LiveTabMessage) => void): () => void {
-    const port = chrome.runtime.connect({ name: LIVE_TAB_PORT })
-    this.port = port
-    const onMessage = (message: unknown) => listener(message as LiveTabMessage)
-    port.onMessage.addListener(onMessage)
+    this.listener = listener
+    this.connect()
     return () => {
-      port.onMessage.removeListener(onMessage)
-      if (this.port === port) this.port = undefined
-      port.disconnect()
+      this.listener = undefined
+      this.disconnect()
+    }
+  }
+
+  private connect(): void {
+    this.disconnect()
+    try {
+      const port = chrome.runtime.connect({ name: LIVE_TAB_PORT })
+      this.port = port
+      const onMessage = (message: unknown) => this.listener?.(message as LiveTabMessage)
+      port.onMessage.addListener(onMessage)
+      port.onDisconnect.addListener(() => {
+        this.port = undefined
+        // Auto-reconnect after a short delay if we still have a listener
+        if (this.listener) {
+          this.reconnectTimer = setTimeout(() => this.connect(), 1000)
+        }
+      })
+    } catch {
+      // Connection failed, retry
+      if (this.listener) {
+        this.reconnectTimer = setTimeout(() => this.connect(), 1000)
+      }
+    }
+  }
+
+  private disconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = undefined
+    }
+    if (this.port) {
+      this.port.disconnect()
+      this.port = undefined
     }
   }
 
@@ -39,7 +72,7 @@ export interface LiveTabsModel {
   open: (projectId: string, savedUrlId: string) => void
   openCopy: (projectId: string, savedUrlId: string) => void
   deleteProject: (projectId: string) => void
-  deletedProject?: { projectId: string; state: import('../domain/types').PersistedStateV1 }
+  deletedProject?: { projectId: string; state: import('../domain/types').PersistedState }
   dismissActionError: () => void
   // Filing operations
   prepareFileTab: (tabId: number, projectId: string) => void
@@ -61,6 +94,35 @@ export interface LiveTabsModel {
   attentionItems: CloseAttempt[]
   dismissAttention: (operationId: string) => void
   dismissAttentionBanner: () => void
+  // Phase 4: Active project
+  activeProjectId?: string
+  setActiveProject: (projectId: string) => void
+  // Phase 4: Activation
+  prepareActivateProject: (projectId: string) => void
+  confirmActivateProject: (operationId: string) => void
+  cancelActivateProject: (operationId: string) => void
+  activationPrepared?: PreparedActivationOperation
+  activationSummary?: ActivationSummary
+  activationPending: boolean
+  dismissActivationSummary: () => void
+  // Phase 4: Open all
+  openAllProjectUrls: (projectId: string) => void
+  openAllSummary?: OpenAllSummary
+  openAllPending: boolean
+  dismissOpenAllSummary: () => void
+  // Phase 4: Close all
+  prepareCloseAllProjectTabs: (projectId: string) => void
+  confirmCloseAllProjectTabs: (operationId: string) => void
+  cancelCloseAllProjectTabs: (operationId: string) => void
+  closeAllPrepared?: { operationId: string; projectName: string; total: number; driftedTabs: Array<{ tabId: number; savedUrl: string; currentUrl: string }> }
+  closeAllSummary?: CloseAllSummary
+  closeAllPending: boolean
+  dismissCloseAllSummary: () => void
+  // Phase 4A: Archive
+  archive: (projectId: string, savedUrlId: string) => void
+  unarchive: (projectId: string, savedUrlId: string) => void
+  // Phase 4B: Silent file
+  silentFileTab: (tabId: number, projectId: string) => void
 }
 
 export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
@@ -76,11 +138,25 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
   const [bulkPending, setBulkPending] = useState(false)
   const [attentionItems, setAttentionItems] = useState<CloseAttempt[]>([])
   const [attentionDismissed, setAttentionDismissed] = useState(false)
+  // Phase 4 state
+  const [activeProjectId, setActiveProjectId] = useState<string>()
+  const [activationPrepared, setActivationPrepared] = useState<PreparedActivationOperation>()
+  const [activationSummary, setActivationSummary] = useState<ActivationSummary>()
+  const [activationPending, setActivationPending] = useState(false)
+  const [openAllSummary, setOpenAllSummary] = useState<OpenAllSummary>()
+  const [openAllPending, setOpenAllPending] = useState(false)
+  const [closeAllPrepared, setCloseAllPrepared] = useState<LiveTabsModel['closeAllPrepared']>()
+  const [closeAllSummary, setCloseAllSummary] = useState<CloseAllSummary>()
+  const [closeAllPending, setCloseAllPending] = useState(false)
 
   useEffect(() => client.subscribe((message) => {
     switch (message.kind) {
       case 'LIVE_TAB_INVENTORY':
         setInventory(message.inventory)
+        // Update active project from inventory if available
+        if ('activeProjectId' in message.inventory) {
+          setActiveProjectId((message.inventory as { activeProjectId?: string }).activeProjectId)
+        }
         break
       case 'PROJECT_DELETED':
         setDeletedProject({ projectId: message.projectId, state: message.state })
@@ -106,8 +182,59 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setBulkPending(false)
         setBulkPrepared(undefined)
         break
+      // Phase 4: Activation
+      case 'ACTIVATION_PREPARED':
+        setActivationPrepared(message.operation)
+        setActivationPending(false)
+        break
+      case 'ACTIVATION_SUMMARY':
+        setActivationSummary(message.summary)
+        setActivationPending(false)
+        setActivationPrepared(undefined)
+        // Update active project ID
+        setActiveProjectId(message.summary.projectId)
+        break
+      // Phase 4: Open all
+      case 'OPEN_ALL_SUMMARY':
+        setOpenAllSummary(message.summary)
+        setOpenAllPending(false)
+        break
+      // Phase 4: Close all
+      case 'CLOSE_ALL_PREPARED':
+        setCloseAllPrepared({ operationId: message.operationId, projectName: message.projectName, total: message.total, driftedTabs: message.driftedTabs })
+        setCloseAllPending(false)
+        break
+      case 'CLOSE_ALL_SUMMARY':
+        setCloseAllSummary(message.summary)
+        setCloseAllPending(false)
+        setCloseAllPrepared(undefined)
+        break
+      case 'ARCHIVE_RESULT':
+        // Archive/unarchive result is handled via STATE_COMMITTED
+        break
     }
   }), [client])
+
+  // Refresh inventory when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        client.send({ kind: 'RETRY_TAB_INVENTORY' })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [client])
+
+  // Periodic refresh every 30 seconds to catch any missed events
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        client.send({ kind: 'RETRY_TAB_INVENTORY' })
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [client])
 
   // Track attention items from filing results
   useEffect(() => {
@@ -183,5 +310,66 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
       setAttentionItems((prev) => prev.filter((i) => i.operationId !== operationId))
     },
     dismissAttentionBanner: () => setAttentionDismissed(true),
+    // Phase 4: Active project
+    activeProjectId,
+    setActiveProject: (projectId) => {
+      setActiveProjectId(projectId)
+      // Also notify background
+      client.send({ kind: 'SET_ACTIVE_PROJECT', projectId } as unknown as LiveTabRequest)
+    },
+    // Phase 4: Activation
+    prepareActivateProject: (projectId) => {
+      setActivationPending(true)
+      setActivationSummary(undefined)
+      setActivationPrepared(undefined)
+      client.send({ kind: 'PREPARE_ACTIVATE_PROJECT', projectId })
+    },
+    confirmActivateProject: (operationId) => {
+      setActivationPending(true)
+      client.send({ kind: 'CONFIRM_ACTIVATE_PROJECT', operationId })
+    },
+    cancelActivateProject: (operationId) => {
+      setActivationPrepared(undefined)
+      client.send({ kind: 'CANCEL_ACTIVATE_PROJECT', operationId })
+    },
+    activationPrepared,
+    activationSummary,
+    activationPending,
+    dismissActivationSummary: () => setActivationSummary(undefined),
+    // Phase 4: Open all
+    openAllProjectUrls: (projectId) => {
+      setOpenAllPending(true)
+      setOpenAllSummary(undefined)
+      client.send({ kind: 'OPEN_ALL_PROJECT_URLS', projectId })
+    },
+    openAllSummary,
+    openAllPending,
+    dismissOpenAllSummary: () => setOpenAllSummary(undefined),
+    // Phase 4: Close all
+    prepareCloseAllProjectTabs: (projectId) => {
+      setCloseAllPending(true)
+      setCloseAllSummary(undefined)
+      client.send({ kind: 'PREPARE_CLOSE_ALL_PROJECT_TABS', projectId })
+    },
+    confirmCloseAllProjectTabs: (operationId) => {
+      setCloseAllPending(true)
+      client.send({ kind: 'CONFIRM_CLOSE_ALL_PROJECT_TABS', operationId })
+    },
+    cancelCloseAllProjectTabs: (operationId) => {
+      setCloseAllPrepared(undefined)
+      client.send({ kind: 'CANCEL_CLOSE_ALL_PROJECT_TABS', operationId })
+    },
+    closeAllPrepared,
+    closeAllSummary,
+    closeAllPending,
+    dismissCloseAllSummary: () => setCloseAllSummary(undefined),
+    // Phase 4A: Archive
+    archive: (projectId, savedUrlId) => client.send({ kind: 'ARCHIVE_SAVED_URL', projectId, savedUrlId }),
+    unarchive: (projectId, savedUrlId) => client.send({ kind: 'UNARCHIVE_SAVED_URL', projectId, savedUrlId }),
+    // Phase 4B: Silent file
+    silentFileTab: (tabId, projectId) => {
+      setFilingResult(undefined)
+      client.send({ kind: 'SILENT_FILE_TAB', tabId, projectId })
+    },
   }
 }

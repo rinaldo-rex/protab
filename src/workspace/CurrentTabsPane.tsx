@@ -1,26 +1,78 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 import type { LiveTabsModel } from './useLiveTabs'
 import { LiveTabFileActions } from './LiveTabFileActions'
 import { FilingResult } from './FilingResult'
 import type { LiveTabView } from '../domain/liveTabs'
+import { Toast } from './Toast'
 
 export interface DragPayload {
   tabId: number
   tabTitle: string
 }
 
-export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { model: LiveTabsModel; state: PersistedStateV1; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void }) {
+export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selectedProjectId, toastDuration }: { model: LiveTabsModel; state: PersistedState; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void; selectedProjectId?: string; toastDuration?: number }) {
   const inventory = model.inventory
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    const initial = new Set<string>()
+    for (const group of groups) {
+      if (group.preCollapsed) initial.add(group.id)
+    }
+    return initial
+  })
+
+  // Keep pre-collapsed groups collapsed when inventory updates
+  useEffect(() => {
+    setCollapsed((current) => {
+      const next = new Set(current)
+      let changed = false
+      for (const group of groups) {
+        if (group.preCollapsed && !next.has(group.id)) {
+          next.add(group.id)
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [groups])
   const [assigningTabId, setAssigningTabId] = useState<number>()
   const [reconciliationDismissed, setReconciliationDismissed] = useState(false)
   const [draggingTabId, setDraggingTabId] = useState<number>()
+  const [hoveredTabId, setHoveredTabId] = useState<number | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const assignmentTrigger = useRef<HTMLButtonElement>(null)
+
+  // Handle hover 'A' shortcut
+  const handleSilentFile = useCallback((tabId: number) => {
+    if (!selectedProjectId) {
+      setToast({ message: 'Select a project first.', type: 'error' })
+      return
+    }
+    // Use silent filing (no confirmation)
+    model.silentFileTab(tabId, selectedProjectId)
+    setToast({ message: 'Saved to project.', type: 'success' })
+  }, [selectedProjectId, model])
+
+  // Keyboard listener for 'A' shortcut
+  useEffect(() => {
+    if (!hoveredTabId) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'a' || event.key === 'A') {
+        const target = event.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        event.preventDefault()
+        handleSilentFile(hoveredTabId!)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [hoveredTabId, handleSilentFile])
 
   const handleDragStart = (tab: LiveTabView, event: React.DragEvent) => {
     const payload: DragPayload = { tabId: tab.tabId, tabTitle: tab.title }
@@ -54,7 +106,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { mode
         <div className={inventory.stale ? 'live-tab-groups stale' : 'live-tab-groups'}>
           {groups.map((group) => {
             const isCollapsed = collapsed.has(group.id)
-            return <section className="live-tab-group" key={group.id} aria-labelledby={`live-group-${group.id}`}>
+            return <section className={`live-tab-group${group.id === 'unsupported' ? ' unsupported' : ''}`} key={group.id} aria-labelledby={`live-group-${group.id}`}>
               <button id={`live-group-${group.id}`} className="live-group-heading" aria-expanded={!isCollapsed} aria-controls={`live-group-list-${group.id}`} onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(group.id)) next.delete(group.id); else next.add(group.id); return next })}>
                 <span>{group.label}</span><span>{group.tabs.length}</span><ChevronDown size={14} className={isCollapsed ? 'group-chevron collapsed' : 'group-chevron'} />
               </button>
@@ -62,9 +114,14 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { mode
                 {group.tabs.map((tab) => {
                   const isFileable = group.id === 'unassigned' && tab.supported && tab.url && isSupportedTabUrl(tab.url) && (!tab.ownership || tab.ownership.drifted)
                   const isDragging = draggingTabId === tab.tabId
+                  const isHovered = hoveredTabId === tab.tabId
                   return (
                     <li key={tab.tabId}>
-                      <div className={`live-tab-row-container ${isDragging ? 'dragging' : ''}`}>
+                      <div
+                        className={`live-tab-row-container ${isDragging ? 'dragging' : ''} ${isHovered ? 'hovered' : ''}`}
+                        onMouseEnter={() => setHoveredTabId(tab.tabId)}
+                        onMouseLeave={() => setHoveredTabId(null)}
+                      >
                         <button
                           className="live-tab-row"
                           aria-current={tab.active ? 'page' : undefined}
@@ -74,6 +131,9 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { mode
                           onDragStart={isFileable ? (e) => handleDragStart(tab, e) : undefined}
                           onDragEnd={isFileable ? handleDragEnd : undefined}
                         >
+                          {isFileable && isHovered && (
+                            <span className="hover-hint" aria-hidden="true">Add (A)</span>
+                          )}
                           {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
                           <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
                         </button>
@@ -117,6 +177,14 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd }: { mode
           <button className="button secondary" autoFocus onClick={() => { setAssigningTabId(undefined); queueMicrotask(() => assignmentTrigger.current?.focus()) }}>Cancel</button>
         </section></div>
       })()}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={toastDuration ?? 3000}
+          onDismiss={() => setToast(null)}
+        />
+      )}
     </aside>
   )
 }

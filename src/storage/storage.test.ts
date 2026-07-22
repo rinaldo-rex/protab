@@ -4,14 +4,14 @@ import { MemoryStorageAdapter } from './memoryStorage'
 import { loadState } from './repository'
 
 const valid = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   projects: [{ id: 'p1', name: 'Research', savedUrls: [] }],
 }
 
 describe('versioned storage', () => {
   it('initializes absent storage without writing', async () => {
     const storage = new MemoryStorageAdapter()
-    await expect(loadState(storage)).resolves.toEqual({ schemaVersion: 1, projects: [] })
+    await expect(loadState(storage)).resolves.toEqual({ schemaVersion: 2, projects: [] })
     expect(storage.writes).toBe(0)
   })
 
@@ -22,6 +22,17 @@ describe('versioned storage', () => {
     expect(loaded).not.toBe(valid)
   })
 
+  it('migrates V1 data to V2 on load', async () => {
+    const v1Data = {
+      schemaVersion: 1 as const,
+      projects: [{ id: 'p1', name: 'Research', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic' as const, tags: [], notes: '' }] }],
+    }
+    const storage = new MemoryStorageAdapter(v1Data)
+    const loaded = await loadState(storage)
+    expect(loaded.schemaVersion).toBe(2)
+    expect(loaded.projects[0].savedUrls[0]).toMatchObject({ id: 'u1', archivedAt: null })
+  })
+
   it('rejects invalid and unsupported values without touching raw storage', async () => {
     const invalid = { schemaVersion: 1, projects: [{ id: 'p1' }] }
     const invalidStorage = new MemoryStorageAdapter(invalid)
@@ -29,7 +40,7 @@ describe('versioned storage', () => {
     expect(invalidStorage.value).toEqual(invalid)
     expect(invalidStorage.writes).toBe(0)
 
-    const future = { schemaVersion: 2, projects: [] }
+    const future = { schemaVersion: 3, projects: [] }
     const futureStorage = new MemoryStorageAdapter(future)
     await expect(loadState(futureStorage)).rejects.toMatchObject({ kind: 'unsupported-version' })
     expect(futureStorage.value).toEqual(future)

@@ -1,4 +1,4 @@
-import type { PersistedStateV1 } from '../domain/types'
+import type { PersistedState } from '../domain/types'
 import type { StorageAdapter } from './repository'
 
 export class MemoryStorageAdapter implements StorageAdapter {
@@ -15,7 +15,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
     return this.value === undefined ? undefined : structuredClone(this.value)
   }
 
-  async set(state: PersistedStateV1): Promise<void> {
+  async set(state: PersistedState): Promise<void> {
     if (this.failNextWrite) {
       const error = this.failNextWrite
       this.failNextWrite = undefined
