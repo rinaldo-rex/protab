@@ -252,6 +252,23 @@ export function SettingsPanel({
           </div>
           <div className="setting-row">
             <div className="setting-info">
+              <label htmlFor="show-sidebar-quotes">Show sidebar quotes</label>
+              <p>Display a daily inspiration quote in the project sidebar.</p>
+            </div>
+            <div className="setting-control">
+              <button
+                id="show-sidebar-quotes"
+                role="switch"
+                aria-checked={settings.showSidebarQuotes}
+                className={`toggle ${settings.showSidebarQuotes ? 'active' : ''}`}
+                onClick={() => onSave({ showSidebarQuotes: !settings.showSidebarQuotes })}
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
               <label htmlFor="projects-pane-position">Projects pane position</label>
               <p>Choose which side of the workspace the projects list appears on.</p>
             </div>

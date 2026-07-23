@@ -35,6 +35,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .brand small { color: rgba(255,255,255,.38); font-size: 9px; font-weight: 600; letter-spacing: .14em; }
 .sidebar-heading { display: flex; justify-content: space-between; padding: 0 8px 8px; color: rgba(255,255,255,.45); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .project-list { flex: 1; display: flex; flex-direction: column; gap: 2px; margin: 0 -16px; overflow-y: auto; }
+.sidebar-quote { flex-shrink: 0; padding: 20px 8px; margin-top: 24px; margin-bottom: 16px; border-top: 1px solid rgba(255,255,255,.06); }
+.sidebar-quote-text { margin: 0; color: rgba(255,255,255,.25); font-size: 12px; font-style: italic; line-height: 1.5; }
+.sidebar-quote-author { display: block; margin-top: 6px; color: rgba(255,255,255,.18); font-size: 11px; font-style: italic; }
 .project-row { position: relative; display: flex; width: 100%; }
 .project-row::before { content: ''; position: absolute; z-index: 1; inset: 0 auto 0 0; width: 2px; background: transparent; }
 .project-row:hover { background: rgba(255,255,255,.05); }

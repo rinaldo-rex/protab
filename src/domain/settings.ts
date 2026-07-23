@@ -19,6 +19,7 @@ export interface ProtabSettings {
   showTabCounts: boolean // Show tab counts next to project names (default: true)
   projectsPanePosition: ProjectsPanePosition // Where the projects pane appears (default: 'right')
   focusThresholds: FocusThresholds // Tab count thresholds for focus heatmap coloring
+  showSidebarQuotes: boolean // Show daily inspiration quotes in the sidebar (default: true)
 }
 
 export const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: ProtabSettings = {
   showTabCounts: true,
   projectsPanePosition: 'right',
   focusThresholds: DEFAULT_FOCUS_THRESHOLDS,
+  showSidebarQuotes: true,
 }
 
 export function parseSettings(raw: unknown): ProtabSettings {
@@ -66,6 +68,7 @@ export function parseSettings(raw: unknown): ProtabSettings {
       ? obj.projectsPanePosition
       : DEFAULT_SETTINGS.projectsPanePosition,
     focusThresholds,
+    showSidebarQuotes: typeof obj.showSidebarQuotes === 'boolean' ? obj.showSidebarQuotes : DEFAULT_SETTINGS.showSidebarQuotes,
   }
 }
 

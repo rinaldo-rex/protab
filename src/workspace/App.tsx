@@ -28,6 +28,7 @@ import { SettingsPanel } from './SettingsPanel'
 import { AnalyticsPanel } from './AnalyticsPanel'
 import { useSettings } from './useSettings'
 import { useAnalytics } from './useAnalytics'
+import { getDailyQuote } from '../domain/quotes'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -656,6 +657,15 @@ export function App({ client, liveTabsClient }: AppProps) {
             )
           })}
         </nav>
+        {settings.showSidebarQuotes && (() => {
+          const quote = getDailyQuote()
+          return (
+            <div className="sidebar-quote" aria-hidden="true">
+              <p className="sidebar-quote-text">"{quote.text}"</p>
+              <span className="sidebar-quote-author">— {quote.author}</span>
+            </div>
+          )
+        })()}
         {creating ? (
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
             <label htmlFor="new-project-name">Project name</label>
