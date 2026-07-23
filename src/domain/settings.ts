@@ -9,7 +9,7 @@ export const WORKSPACE_SHORTCUTS: { value: WorkspaceShortcut; label: string }[] 
 
 export interface ProtabSettings {
   schemaVersion: 1
-  pageCloseBehavior: boolean // Extension page: close tab after filing (default: true)
+  pageCloseBehavior: boolean // Workspace page: close tab after filing (default: true)
   popupCloseBehavior: boolean // Extension popup: close tab after capture (default: false)
   popupWorkspaceShortcut: WorkspaceShortcut // Shortcut to open workspace from popup (default: 'ctrl+enter')
   toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)

@@ -71,7 +71,7 @@ export function App({ client, liveTabsClient }: AppProps) {
     }
   }, [liveTabs.legacyDataStatus, viewMode])
 
-  // Project drag handlers
+  
   const handleProjectDragStart = useCallback((projectId: string, event: React.DragEvent) => {
     // Only start drag if mouse moved > 5px
     if (!dragStartPos.current) {

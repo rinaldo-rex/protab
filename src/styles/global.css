@@ -657,6 +657,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   border-left: 3px solid #90caf9;
 }
 
+
+
 /* Legacy data import section */
 .legacy-data-section {
   border: 2px solid var(--primary);

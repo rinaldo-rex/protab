@@ -269,7 +269,7 @@ export function SettingsPanel({
         </section>
 
         <section className="settings-section">
-          <h3>Extension Page</h3>
+          <h3>Workspace Page</h3>
           <p className="settings-section-desc">Behavior when filing tabs from the Current Tabs pane.</p>
           <div className="setting-row">
             <div className="setting-info">

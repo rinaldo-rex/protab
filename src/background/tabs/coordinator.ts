@@ -262,6 +262,7 @@ export class LiveTabsCoordinator {
       await this.handleDismissLegacyData()
       return
     }
+
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
