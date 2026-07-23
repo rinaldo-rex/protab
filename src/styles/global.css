@@ -523,6 +523,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   background: var(--error-container);
   color: var(--error);
 }
+.settings-notice.warning {
+  background: #fff3e0;
+  color: #e65100;
+}
 .settings-notice button {
   padding: 0;
   border: 0;
@@ -599,4 +603,79 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .live-tab-row.protected {
   border-left: 3px solid #90caf9;
+}
+
+/* Legacy data import section */
+.legacy-data-section {
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--surface-lowest);
+}
+.legacy-data-section h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.legacy-project-list {
+  margin: 12px 0;
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.legacy-project-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background .1s ease;
+}
+.legacy-project-row:hover {
+  background: var(--surface-low);
+}
+.legacy-project-row + .legacy-project-row {
+  border-top: 1px solid var(--outline-variant);
+}
+.legacy-project-header {
+  background: var(--surface-low);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--on-surface-variant);
+}
+.legacy-project-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+}
+.legacy-project-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+.legacy-project-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.legacy-project-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--on-surface);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.legacy-project-meta {
+  font-size: 11px;
+  color: var(--on-surface-variant);
+}
+.legacy-project-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
 }

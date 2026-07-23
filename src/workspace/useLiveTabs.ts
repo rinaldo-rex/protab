@@ -62,6 +62,13 @@ export class ChromeLiveTabsClient implements LiveTabsClient {
   }
 }
 
+export interface LegacyDataStatus {
+  available: boolean
+  schemaVersion?: number
+  projectCount?: number
+  projects?: Array<{ name: string; urlCount: number; archivedCount: number }>
+}
+
 export interface LiveTabsModel {
   status: 'loading' | 'ready'
   inventory?: LiveTabInventory
@@ -136,6 +143,13 @@ export interface LiveTabsModel {
   clearExportedBackupJson: () => void
   // Phase 4D: Protected tabs
   toggleTabPin: (tabId: number) => void
+  // Phase 4D: Legacy data
+  legacyDataStatus?: LegacyDataStatus
+  legacyImportResult?: { success: boolean; importedCount?: number; error?: string }
+  checkLegacyData: () => void
+  importLegacyProjects: (projectNames: string[]) => void
+  dismissLegacyData: () => void
+  dismissLegacyImportResult: () => void
 }
 
 export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
@@ -166,6 +180,9 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
   const [migrationBackupExportedJson, setMigrationBackupExportedJson] = useState<string>()
   const [migrationRestoreResult, setMigrationRestoreResult] = useState<LiveTabsModel['migrationRestoreResult']>()
   const [migrationNotice, setMigrationNotice] = useState<LiveTabsModel['migrationNotice']>()
+  // Phase 4D: Legacy data state
+  const [legacyDataStatus, setLegacyDataStatus] = useState<LegacyDataStatus>()
+  const [legacyImportResult, setLegacyImportResult] = useState<LiveTabsModel['legacyImportResult']>()
 
   useEffect(() => client.subscribe((message) => {
     switch (message.kind) {
@@ -247,6 +264,19 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         break
       case 'MIGRATION_COMPLETED':
         setMigrationNotice({ fromSchemaVersion: message.fromSchemaVersion, toSchemaVersion: message.toSchemaVersion })
+        break
+      // Phase 4D: Legacy data
+      case 'LEGACY_DATA_STATUS':
+        setLegacyDataStatus({
+          available: message.available,
+          schemaVersion: message.schemaVersion,
+          projectCount: message.projectCount,
+          projects: message.projects,
+        })
+        break
+      case 'LEGACY_DATA_IMPORTED':
+        setLegacyImportResult({ success: message.success, importedCount: message.importedCount, error: message.error })
+        if (message.success) setLegacyDataStatus(undefined)
         break
     }
   }), [client])
@@ -420,5 +450,15 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     clearExportedBackupJson: () => setMigrationBackupExportedJson(undefined),
     // Phase 4D: Protected tabs
     toggleTabPin: (tabId: number) => client.send({ kind: 'TOGGLE_LIVE_TAB_PIN', tabId }),
+    // Phase 4D: Legacy data
+    legacyDataStatus,
+    legacyImportResult,
+    checkLegacyData: () => client.send({ kind: 'CHECK_LEGACY_DATA' }),
+    importLegacyProjects: (projectNames: string[]) => client.send({ kind: 'IMPORT_LEGACY_PROJECTS', projectNames }),
+    dismissLegacyData: () => {
+      setLegacyDataStatus(undefined)
+      client.send({ kind: 'DISMISS_LEGACY_DATA' })
+    },
+    dismissLegacyImportResult: () => setLegacyImportResult(undefined),
   }
 }

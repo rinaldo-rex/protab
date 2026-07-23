@@ -28,12 +28,19 @@ describe('versioned storage', () => {
     expect(loaded).not.toBe(valid)
   })
 
-  it('migrates V1 data to V2 on load', async () => {
+  it('stores V1 data as legacy instead of auto-migrating', async () => {
     const storage = new MemoryStorageAdapter(validV1)
     const migrationStorage = new MemoryMigrationStorageAdapter()
     const result = await loadStateWithMetadata(storage, migrationStorage)
+    // Should return empty state with legacy data info
     expect(result.state.schemaVersion).toBe(2)
-    expect(result.state.projects[0].savedUrls[0]).toMatchObject({ id: 'u1', archivedAt: null })
+    expect(result.state.projects).toEqual([])
+    expect(result.legacyData).toBeDefined()
+    expect(result.legacyData!.available).toBe(true)
+    expect(result.legacyData!.schemaVersion).toBe(1)
+    expect(result.legacyData!.projectCount).toBe(1)
+    expect(result.legacyData!.projects[0].name).toBe('Research')
+    expect(result.legacyData!.projects[0].urlCount).toBe(1)
   })
 
   it('rejects invalid and unsupported values without touching raw storage', async () => {
@@ -100,22 +107,24 @@ describe('parsePersistedStateWithMetadata', () => {
 })
 
 describe('write-through migration', () => {
-  it('writes migrated state back and creates backup', async () => {
+  it('stores V1 data as legacy and creates backup', async () => {
     const storage = new MemoryStorageAdapter(validV1)
     const migrationStorage = new MemoryMigrationStorageAdapter()
 
     const result = await loadStateWithMetadata(storage, migrationStorage)
 
+    // Returns empty state with legacy data info
     expect(result.state.schemaVersion).toBe(2)
-    expect(result.migration).toBeDefined()
-    expect(result.migration!.fromSchemaVersion).toBe(1)
-    expect(result.migration!.toSchemaVersion).toBe(2)
-    expect(result.migration!.backupAvailable).toBe(true)
+    expect(result.state.projects).toEqual([])
+    expect(result.legacyData).toBeDefined()
+    expect(result.legacyData!.available).toBe(true)
+    expect(result.legacyData!.schemaVersion).toBe(1)
+    expect(result.migration).toBeUndefined()
 
-    // State was written back
-    expect(storage.writes).toBe(1)
+    // State was NOT auto-migrated (empty state returned)
+    expect(storage.writes).toBe(0)
 
-    // Backup was created
+    // Backup was created for later import
     expect(migrationStorage.backupWrites).toBe(1)
     expect(migrationStorage.backup).toBeDefined()
     expect(migrationStorage.backup!.rawState).toEqual(validV1)
@@ -123,7 +132,7 @@ describe('write-through migration', () => {
     expect(migrationStorage.backup!.toSchemaVersion).toBe(2)
   })
 
-  it('does not write state when backup write fails', async () => {
+  it('does not store legacy data when backup write fails', async () => {
     const storage = new MemoryStorageAdapter(validV1)
     const migrationStorage = new MemoryMigrationStorageAdapter()
     migrationStorage.failNextBackupWrite = new Error('Storage quota exceeded')
@@ -176,10 +185,10 @@ describe('write-through migration', () => {
     expect(migrationStorage.backupWrites).toBe(0)
   })
 
-  it('throws when migration storage is not provided for migration', async () => {
+  it('throws when migration storage is not provided for legacy data', async () => {
     const storage = new MemoryStorageAdapter(validV1)
 
-    await expect(loadStateWithMetadata(storage)).rejects.toThrow('Migration required but no migration storage adapter provided.')
+    await expect(loadStateWithMetadata(storage)).rejects.toThrow('Legacy data detected but no migration storage adapter provided.')
   })
 })
 
@@ -283,5 +292,95 @@ describe('migration backup recovery', () => {
 
     await expect(restoreMigrationBackup(storage, migrationStorage)).rejects.toMatchObject({ kind: 'unsupported-version' })
     expect(storage.writes).toBe(0)
+  })
+})
+
+describe('legacy data extraction and import', () => {
+  it('extracts legacy data info from V1 raw state', async () => {
+    const { extractLegacyDataInfo } = await import('./repository')
+    const info = extractLegacyDataInfo(validV1)
+    expect(info.available).toBe(true)
+    expect(info.schemaVersion).toBe(1)
+    expect(info.projectCount).toBe(1)
+    expect(info.projects[0].name).toBe('Research')
+    expect(info.projects[0].urlCount).toBe(1)
+    expect(info.projects[0].archivedCount).toBe(0)
+  })
+
+  it('returns unavailable for invalid raw state', async () => {
+    const { extractLegacyDataInfo } = await import('./repository')
+    const info = extractLegacyDataInfo(null)
+    expect(info.available).toBe(false)
+  })
+
+  it('imports selected legacy projects from backup', async () => {
+    const { importLegacyProjects } = await import('./repository')
+    const storage = new MemoryStorageAdapter()
+    const backup = {
+      schemaVersion: 1 as const,
+      createdAt: Date.now(),
+      fromSchemaVersion: 1,
+      toSchemaVersion: 2,
+      rawState: validV1,
+    }
+    const migrationStorage = new MemoryMigrationStorageAdapter(backup)
+
+    // Import
+    const result = await importLegacyProjects(storage, migrationStorage, ['Research'])
+    expect(result.schemaVersion).toBe(2)
+    expect(result.projects.length).toBe(1)
+    expect(result.projects[0].name).toBe('Research')
+    expect(result.projects[0].savedUrls[0].archivedAt).toBe(null)
+  })
+
+  it('skips projects with duplicate names', async () => {
+    const { importLegacyProjects } = await import('./repository')
+    const existingState = {
+      schemaVersion: 2 as const,
+      projects: [{ id: 'p1', name: 'Research', savedUrls: [] }],
+    }
+    const storage = new MemoryStorageAdapter(existingState)
+    const backup = {
+      schemaVersion: 1 as const,
+      createdAt: Date.now(),
+      fromSchemaVersion: 1,
+      toSchemaVersion: 2,
+      rawState: validV1,
+    }
+    const migrationStorage = new MemoryMigrationStorageAdapter(backup)
+
+    const result = await importLegacyProjects(storage, migrationStorage, ['Research'])
+    expect(result.projects.length).toBe(1)
+    expect(result.projects[0].savedUrls).toEqual([]) // Existing empty project, not replaced
+  })
+
+  it('merges with existing projects', async () => {
+    const { importLegacyProjects } = await import('./repository')
+    const existingState = {
+      schemaVersion: 2 as const,
+      projects: [{ id: 'p1', name: 'Existing', savedUrls: [] }],
+    }
+    const storage = new MemoryStorageAdapter(existingState)
+    const backup = {
+      schemaVersion: 1 as const,
+      createdAt: Date.now(),
+      fromSchemaVersion: 1,
+      toSchemaVersion: 2,
+      rawState: validV1,
+    }
+    const migrationStorage = new MemoryMigrationStorageAdapter(backup)
+
+    const result = await importLegacyProjects(storage, migrationStorage, ['Research'])
+    expect(result.projects.length).toBe(2)
+    expect(result.projects[0].name).toBe('Existing')
+    expect(result.projects[1].name).toBe('Research')
+  })
+
+  it('throws when no legacy data is available', async () => {
+    const { importLegacyProjects } = await import('./repository')
+    const storage = new MemoryStorageAdapter()
+    const migrationStorage = new MemoryMigrationStorageAdapter()
+
+    await expect(importLegacyProjects(storage, migrationStorage, ['Research'])).rejects.toThrow('No legacy data available.')
   })
 })

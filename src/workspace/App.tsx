@@ -64,6 +64,13 @@ export function App({ client, liveTabsClient }: AppProps) {
   const archiveActionRegistry = useRef<Map<string, () => void>>(new Map())
   const activeProjectId = liveTabs.activeProjectId
 
+  // Auto-open Settings when legacy data is detected
+  useEffect(() => {
+    if (liveTabs.legacyDataStatus?.available && viewMode !== 'settings') {
+      setViewMode('settings')
+    }
+  }, [liveTabs.legacyDataStatus, viewMode])
+
   // Project drag handlers
   const handleProjectDragStart = useCallback((projectId: string, event: React.DragEvent) => {
     // Only start drag if mouse moved > 5px
@@ -661,6 +668,12 @@ export function App({ client, liveTabsClient }: AppProps) {
               onRestoreMigrationBackup={liveTabs.restoreMigrationBackup}
               onDismissRestoreResult={liveTabs.dismissMigrationRestoreResult}
               onClearExportedBackupJson={liveTabs.clearExportedBackupJson}
+              legacyDataStatus={liveTabs.legacyDataStatus}
+              legacyImportResult={liveTabs.legacyImportResult}
+              onCheckLegacyData={liveTabs.checkLegacyData}
+              onImportLegacyProjects={liveTabs.importLegacyProjects}
+              onDismissLegacyData={liveTabs.dismissLegacyData}
+              onDismissLegacyImportResult={liveTabs.dismissLegacyImportResult}
             />
           ) : (
           <section

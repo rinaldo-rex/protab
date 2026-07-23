@@ -47,13 +47,15 @@ const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(),
 void loadStateWithMetadata(chromeStorageAdapter, migrationStorage)
   .then(async (loaded) => {
     await liveTabs.initialize(loaded.state)
-    if (loaded.migration) {
-      // Notify connected workspaces about migration
+    if (loaded.legacyData) {
+      // Notify connected workspaces about legacy data
       await chrome.runtime.sendMessage({
         channel: 'protab',
-        kind: 'MIGRATION_COMPLETED',
-        fromSchemaVersion: loaded.migration.fromSchemaVersion,
-        toSchemaVersion: loaded.migration.toSchemaVersion,
+        kind: 'LEGACY_DATA_STATUS',
+        available: loaded.legacyData.available,
+        schemaVersion: loaded.legacyData.schemaVersion,
+        projectCount: loaded.legacyData.projectCount,
+        projects: loaded.legacyData.projects,
       }).catch(() => undefined)
     }
   })

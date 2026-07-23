@@ -104,6 +104,10 @@ export type LiveTabRequest =
   | { kind: 'RESTORE_MIGRATION_BACKUP' }
   // Phase 4D: Protected tabs
   | { kind: 'TOGGLE_LIVE_TAB_PIN'; tabId: number }
+  // Phase 4D: Legacy data import
+  | { kind: 'CHECK_LEGACY_DATA' }
+  | { kind: 'IMPORT_LEGACY_PROJECTS'; projectNames: string[] }
+  | { kind: 'DISMISS_LEGACY_DATA' }
 
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
@@ -130,3 +134,6 @@ export type LiveTabMessage =
   | { kind: 'MIGRATION_BACKUP_EXPORTED'; json: string }
   | { kind: 'MIGRATION_BACKUP_RESTORED'; success: boolean; error?: string }
   | { kind: 'MIGRATION_COMPLETED'; fromSchemaVersion: number; toSchemaVersion: number }
+  // Phase 4D: Legacy data
+  | { kind: 'LEGACY_DATA_STATUS'; available: boolean; schemaVersion?: number; projectCount?: number; projects?: Array<{ name: string; urlCount: number; archivedCount: number }> }
+  | { kind: 'LEGACY_DATA_IMPORTED'; success: boolean; importedCount?: number; error?: string }

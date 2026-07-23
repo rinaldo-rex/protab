@@ -67,10 +67,24 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
       setToast({ message: 'Select a project first.', type: 'error' })
       return
     }
-    // Use silent filing (no confirmation)
+    // Find the next fileable tab at the same position before filing
+    let nextTabId: number | null = null
+    for (const group of groups) {
+      if (group.id !== 'unassigned') continue
+      const fileableTabs = group.tabs.filter((t) => t.supported && t.url && isSupportedTabUrl(t.url) && (!t.ownership || t.ownership.drifted))
+      const idx = fileableTabs.findIndex((t) => t.tabId === tabId)
+      if (idx !== -1) {
+        // Pick the tab that will take this slot after removal
+        const remaining = [...fileableTabs.slice(0, idx), ...fileableTabs.slice(idx + 1)]
+        nextTabId = remaining.length > 0 ? remaining[Math.min(idx, remaining.length - 1)].tabId : null
+        break
+      }
+    }
+
     model.silentFileTab(tabId, selectedProjectId)
+    setHoveredTabId(nextTabId)
     setToast({ message: 'Saved to project.', type: 'success' })
-  }, [selectedProjectId, model])
+  }, [selectedProjectId, model, groups])
 
   // Keyboard listener for 'A' shortcut
   useEffect(() => {

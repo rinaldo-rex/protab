@@ -1,7 +1,7 @@
 import type { PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
 import type { StorageAdapter } from '../../storage/repository'
-import { restoreMigrationBackup, exportMigrationBackup, readMigrationBackup } from '../../storage/repository'
+import { restoreMigrationBackup, exportMigrationBackup, readMigrationBackup, readLegacyData, extractLegacyDataInfo, importLegacyProjects } from '../../storage/repository'
 import type { MigrationStorageAdapter } from '../../storage/repository'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
@@ -242,6 +242,19 @@ export class LiveTabsCoordinator {
     // Phase 4D: Protected tabs
     if (message.kind === 'TOGGLE_LIVE_TAB_PIN' && typeof message.tabId === 'number') {
       await this.handleToggleTabPin(client, message.tabId)
+      return
+    }
+    // Phase 4D: Legacy data
+    if (message.kind === 'CHECK_LEGACY_DATA') {
+      await this.handleCheckLegacyData(client)
+      return
+    }
+    if (message.kind === 'IMPORT_LEGACY_PROJECTS' && Array.isArray(message.projectNames)) {
+      await this.handleImportLegacyProjects(client, message.projectNames!)
+      return
+    }
+    if (message.kind === 'DISMISS_LEGACY_DATA') {
+      await this.handleDismissLegacyData()
       return
     }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
@@ -1162,6 +1175,56 @@ export class LiveTabsCoordinator {
         error: reason instanceof Error ? reason.message : 'Could not restore migration backup.',
       })
     }
+  }
+
+  // Phase 4D: Legacy data handlers
+  private async handleCheckLegacyData(client: ClientSubscription): Promise<void> {
+    try {
+      if (!this.migrationStorage) {
+        this.post(client, { kind: 'LEGACY_DATA_STATUS', available: false })
+        return
+      }
+      const raw = await readLegacyData(this.migrationStorage)
+      if (!raw) {
+        this.post(client, { kind: 'LEGACY_DATA_STATUS', available: false })
+        return
+      }
+      const info = extractLegacyDataInfo(raw)
+      this.post(client, {
+        kind: 'LEGACY_DATA_STATUS',
+        available: info.available,
+        schemaVersion: info.schemaVersion,
+        projectCount: info.projectCount,
+        projects: info.projects,
+      })
+    } catch {
+      this.post(client, { kind: 'LEGACY_DATA_STATUS', available: false })
+    }
+  }
+
+  private async handleImportLegacyProjects(client: ClientSubscription, projectNames: string[]): Promise<void> {
+    if (!this.storageAdapter || !this.durableQueue || !this.migrationStorage) {
+      this.post(client, { kind: 'LEGACY_DATA_IMPORTED', success: false, error: 'Storage not available.' })
+      return
+    }
+    try {
+      const newState = await importLegacyProjects(this.storageAdapter, this.migrationStorage, projectNames)
+      // Broadcast new state
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: newState }).catch(() => undefined)
+      this.post(client, { kind: 'LEGACY_DATA_IMPORTED', success: true, importedCount: projectNames.length })
+      this.scheduleAll()
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LEGACY_DATA_IMPORTED',
+        success: false,
+        error: reason instanceof Error ? reason.message : 'Could not import legacy data.',
+      })
+    }
+  }
+
+  private async handleDismissLegacyData(): Promise<void> {
+    // Nothing to do - the user dismissed the prompt but legacy data remains available
+    // They can re-check via Settings if needed
   }
 
   private post(client: ClientSubscription, message: LiveTabMessage): void {

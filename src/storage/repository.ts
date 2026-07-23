@@ -11,6 +11,14 @@ export interface LoadedState {
     toSchemaVersion: number
     backupAvailable: boolean
   }
+  legacyData?: LegacyDataInfo
+}
+
+export interface LegacyDataInfo {
+  available: boolean
+  schemaVersion: number
+  projectCount: number
+  projects: Array<{ name: string; urlCount: number; archivedCount: number }>
 }
 
 export interface StorageAdapter {
@@ -74,33 +82,26 @@ export async function loadStateWithMetadata(
     return { state: parsed.state }
   }
 
-  // Migration needed — write-through with backup
+  // Old schema detected — store as legacy data instead of auto-migrating
+  const legacyInfo = extractLegacyDataInfo(raw)
+
   if (!migrationStorage) {
-    throw new Error('Migration required but no migration storage adapter provided.')
+    throw new Error('Legacy data detected but no migration storage adapter provided.')
   }
 
-  // Step 1: Create backup of pre-migration raw data
-  const backup: MigrationBackup = {
+  // Store legacy raw data for later selective import
+  await migrationStorage.setMigrationBackup({
     schemaVersion: 1,
     createdAt: Date.now(),
     fromSchemaVersion: parsed.originalSchemaVersion,
     toSchemaVersion: parsed.currentSchemaVersion,
     rawState: raw,
-  }
+  })
 
-  // Step 2: Write backup first — if this fails, don't replace state
-  await migrationStorage.setMigrationBackup(backup)
-
-  // Step 3: Write migrated state
-  await storage.set(parsed.state)
-
+  // Return empty state — the user will import selectively
   return {
-    state: parsed.state,
-    migration: {
-      fromSchemaVersion: parsed.originalSchemaVersion,
-      toSchemaVersion: parsed.currentSchemaVersion,
-      backupAvailable: true,
-    },
+    state: emptyState(),
+    legacyData: legacyInfo,
   }
 }
 
@@ -153,4 +154,75 @@ export async function restoreMigrationBackup(
         }
       : undefined,
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function extractLegacyDataInfo(raw: unknown): LegacyDataInfo {
+  if (!isRecord(raw) || !Array.isArray(raw.projects)) {
+    return { available: false, schemaVersion: 0, projectCount: 0, projects: [] }
+  }
+  const projects = raw.projects.map((p: unknown) => {
+    if (!isRecord(p)) return { name: 'Unknown', urlCount: 0, archivedCount: 0 }
+    const savedUrls = Array.isArray(p.savedUrls) ? p.savedUrls : []
+    return {
+      name: typeof p.name === 'string' ? p.name : 'Unknown',
+      urlCount: savedUrls.length,
+      archivedCount: savedUrls.filter((u: unknown) => isRecord(u) && u.archivedAt != null).length,
+    }
+  })
+  return {
+    available: true,
+    schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 0,
+    projectCount: projects.length,
+    projects,
+  }
+}
+
+export async function readLegacyData(
+  migrationStorage: MigrationStorageAdapter,
+): Promise<unknown | undefined> {
+  const backup = await migrationStorage.getMigrationBackup()
+  return backup ? (backup as MigrationBackup).rawState : undefined
+}
+
+export async function importLegacyProjects(
+  storage: StorageAdapter,
+  migrationStorage: MigrationStorageAdapter,
+  selectedProjectNames: string[],
+): Promise<PersistedState> {
+  const backup = await migrationStorage.getMigrationBackup()
+  if (!backup) throw new Error('No legacy data available.')
+  const raw = (backup as MigrationBackup).rawState
+
+  // Migrate the raw data through the pipeline
+  const parsed = parsePersistedStateWithMetadata(raw)
+  const migratedState = parsed.state
+
+  // Filter to selected projects only
+  const selectedProjects = migratedState.projects.filter((p) =>
+    selectedProjectNames.includes(p.name),
+  )
+
+  // Read current state and merge
+  const currentRaw = await storage.get()
+  let currentState: PersistedState
+  if (currentRaw === undefined) {
+    currentState = emptyState()
+  } else {
+    currentState = parsePersistedStateWithMetadata(currentRaw).state
+  }
+
+  // Merge: add selected projects, skip duplicates by name
+  const existingNames = new Set(currentState.projects.map((p) => p.name))
+  for (const project of selectedProjects) {
+    if (!existingNames.has(project.name)) {
+      currentState.projects.push(project)
+    }
+  }
+
+  await storage.set(currentState)
+  return currentState
 }
