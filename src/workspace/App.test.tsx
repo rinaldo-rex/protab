@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { applyCommand } from '../domain/applyCommand'
@@ -142,8 +142,9 @@ describe('project workspace shell', () => {
     await user.tab()
     expect(client.state.projects[0].savedUrls[0].title).toBe('Updated')
 
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for Updated' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Delete URL' }))
+    const accordion = document.querySelector('[data-record-id]')!
+    fireEvent.contextMenu(accordion)
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete URL' }))
     await user.click(screen.getByRole('button', { name: 'Delete URL' }))
     expect(await screen.findByText('No saved URLs yet')).toBeInTheDocument()
     expect(client.state.projects[0].savedUrls).toHaveLength(0)
@@ -170,11 +171,11 @@ describe('project workspace shell', () => {
     await user.click(screen.getByRole('button', { name: 'GlobalTag' }))
     expect(client.state.projects[0].savedUrls[0].tags).toEqual(['GlobalTag'])
 
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for Two URL' }))
-    // Move up/down removed in Phase 4B (drag-to-reorder)
+    // Context menu available via right-click (tested below)
 
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for One URL' }))
-    await user.click(screen.getByRole('menuitem', { name: /Copy to project/ }))
+    const oneAccordion = document.querySelector('[data-record-id="u1"]')!
+    fireEvent.contextMenu(oneAccordion)
+    await user.click(await screen.findByRole('menuitem', { name: /Copy to project/ }))
     await user.click(screen.getByRole('button', { name: 'Copy URL' }))
     expect(await screen.findByRole('heading', { name: 'Two' })).toBeInTheDocument()
     expect(client.state.projects[1].savedUrls[0]).toMatchObject({ url: 'https://one.test/', title: 'One URL', tags: ['GlobalTag'], notes: 'Source' })
@@ -217,10 +218,12 @@ describe('project workspace shell', () => {
       { tabId: 15, windowId: 3, index: 0, active: false, title: 'One URL', url: 'https://one.test/', urlSummary: 'one.test', hostname: 'one.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://one.test/', drifted: false }, chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByLabelText('1 open instance')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Open' }))
+    const accordion = document.querySelector('[data-record-id="u1"]')!
+    fireEvent.contextMenu(accordion)
+    await user.click(await screen.findByRole('menuitem', { name: 'Open' }))
     expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for One URL' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Open another copy' }))
+    fireEvent.contextMenu(accordion)
+    await user.click(await screen.findByRole('menuitem', { name: 'Open another copy' }))
     expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL_COPY', projectId: 'p1', savedUrlId: 'u1' })
   })
 

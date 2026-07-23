@@ -95,17 +95,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .url-accordion:focus { outline: 2px solid #a8907f; outline-offset: -2px; }
 .url-accordion:focus:not(:focus-visible) { outline: none; }
 .accordion-header { display: flex; min-height: 48px; align-items: stretch; }
+.accordion-header:hover { background: var(--surface-low); }
 .accordion-toggle { display: flex; flex: 1; min-width: 0; align-items: center; gap: 12px; padding: 10px 12px; border: 0; background: transparent; color: var(--on-surface-variant); text-align: left; }
-.accordion-toggle:hover { background: var(--surface-low); }
 .record-summary { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .record-summary strong { overflow: hidden; color: var(--on-surface); font-size: 13px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .tag-summary { color: #756d66; font-size: 10px; }
 .chevron { transition: transform .15s ease; }
 .chevron.expanded { transform: rotate(180deg); }
-.record-actions { position: relative; display: flex; align-items: center; gap: 5px; padding-right: 8px; }
-.instance-count { color: #756d66; font-size: 9px; font-weight: 600; white-space: nowrap; }
-.open-url-button { padding: 5px 8px; border: 1px solid var(--outline-variant); border-radius: 4px; background: var(--surface-low); color: var(--on-surface); font-size: 11px; font-weight: 600; }
-.open-url-button:hover { background: var(--surface-high); }
+.shortcut-hints { display: none; gap: 6px; align-items: center; margin-left: auto; }
+.url-accordion:hover .shortcut-hints { display: flex; }
+.shortcut-hint { padding: 2px 5px; border: 1px solid var(--outline-variant); border-radius: 3px; color: var(--on-surface-variant); font-size: 9px; font-weight: 600; background: var(--surface-low); white-space: nowrap; }
 .accordion-body { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 16px; border-top: 1px solid var(--outline-variant); background: var(--surface-lowest); }
 .accordion-body label:first-child, .accordion-body label:nth-of-type(3), .accordion-body .autosave-note { grid-column: 1 / -1; }
 .accordion-body label small { color: var(--error); font-weight: 400; }
@@ -394,9 +393,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .url-accordion.archived-badge::after { content: 'Archived'; position: absolute; top: 4px; right: 4px; padding: 2px 6px; border-radius: 3px; background: var(--surface-container); color: var(--on-surface-variant); font-size: 9px; font-weight: 600; }
 
 /* Shortcut hints */
-.shortcut-hints { display: none; gap: 6px; align-items: center; }
-.url-accordion:hover .shortcut-hints { display: flex; }
-.shortcut-hint { padding: 2px 5px; border: 1px solid var(--outline-variant); border-radius: 3px; color: var(--on-surface-variant); font-size: 9px; font-weight: 600; background: var(--surface-low); white-space: nowrap; }
+.instance-count { color: #756d66; font-size: 9px; font-weight: 600; white-space: nowrap; }
 
 /* Sidebar export button */
 .sidebar-heading-actions { display: flex; align-items: center; gap: 6px; }
