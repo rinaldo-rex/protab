@@ -84,7 +84,7 @@ describe('project workspace shell', () => {
     expect(screen.getByLabelText('Project name')).toBeInTheDocument()
   })
 
-  it('renames, reorders, and confirms project deletion', async () => {
+  it('renames, reorders, and confirms project deletion via context menu', async () => {
     const user = userEvent.setup()
     const client = new TestClient({
       schemaVersion: 2,
@@ -97,22 +97,26 @@ describe('project workspace shell', () => {
     await user.click(await screen.findByRole('button', { name: /Two/ }))
     // Move up/down removed in Phase 4B (drag-to-reorder)
 
-    await user.click(screen.getByRole('button', { name: 'Project actions for Two' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    // Right-click on the Two project row to open context menu
+    const twoButton = screen.getByRole('button', { name: /Two/ })
+    fireEvent.contextMenu(twoButton)
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }))
     const input = screen.getByLabelText('Project name')
     await user.clear(input)
     await user.type(input, 'Renamed')
     await user.click(screen.getByRole('button', { name: 'Rename' }))
     expect(await screen.findByRole('heading', { name: 'Renamed' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Project actions for Renamed' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+    // Right-click on the Renamed project row for delete
+    const renamedButton = screen.getByRole('button', { name: /Renamed/ })
+    fireEvent.contextMenu(renamedButton)
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete project' }))
     expect(screen.getByText(/its 1 saved URL/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.getByRole('button', { name: 'Project actions for Renamed' })).toHaveFocus()
+    expect(screen.getByRole('heading', { name: 'Renamed' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Project actions for Renamed' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+    fireEvent.contextMenu(renamedButton)
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete project' }))
     await user.click(screen.getByRole('button', { name: 'Delete project' }))
     expect(await screen.findByRole('heading', { name: 'One' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Renamed/ })).not.toBeInTheDocument()

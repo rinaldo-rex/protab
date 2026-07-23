@@ -8,6 +8,7 @@ interface ContextMenuItem {
   danger?: boolean
   submenu?: ContextMenuItem[]
   shortcut?: string
+  separator?: boolean
 }
 
 interface ContextMenuProps {
@@ -109,7 +110,9 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         style={{ left: x, top: y }}
       >
         {items.map((item, index) => (
-          item.submenu ? (
+          item.separator ? (
+            <div key={index} role="separator" className="context-menu-separator" />
+          ) : item.submenu ? (
             <button
               key={index}
               role="menuitem"

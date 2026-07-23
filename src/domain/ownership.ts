@@ -62,7 +62,7 @@ export function groupLiveTabs(state: PersistedState, tabs: LiveTabView[]): LiveT
   const unsupported = unowned.filter((tab) => !tab.supported).sort((a, b) => a.index - b.index)
   const projectGroups: LiveTabGroup[] = state.projects.flatMap((project) => {
     const owned = tabs.filter((tab) => tab.ownership?.projectId === project.id && !tab.ownership.drifted).sort((a, b) => a.index - b.index)
-    return owned.length ? [{ id: `project:${project.id}`, projectId: project.id, label: project.name, tabs: owned }] : []
+    return owned.length ? [{ id: `project:${project.id}`, projectId: project.id, label: project.name, tabs: owned, preCollapsed: true }] : []
   })
   const groups: LiveTabGroup[] = []
   if (unassigned.length) groups.push({ id: 'unassigned', label: 'Unassigned', tabs: unassigned })

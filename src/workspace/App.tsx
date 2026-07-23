@@ -1,9 +1,11 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download, Upload, Settings } from 'lucide-react'
-import { ProjectActions } from './ProjectActions'
+import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2 } from 'lucide-react'
 import type { WorkspaceClient } from './client'
+import { ConfirmDialog } from './ConfirmDialog'
+import { generateExportHtml } from './export/generateHtml'
+import { downloadFile, sanitizeFilename } from './export/downloadFile'
 import { ChromeWorkspaceClient } from './client'
 import { CurrentTabsPane, type DragPayload } from './CurrentTabsPane'
 import type { LiveTabsClient } from './useLiveTabs'
@@ -13,7 +15,6 @@ import { useWorkspace } from './useWorkspace'
 import { FileTabsDialog } from './FileTabsDialog'
 import { FilingSummary } from './FilingSummary'
 import { AttentionBanner } from './AttentionBanner'
-import { FolderInput } from 'lucide-react'
 import { DriftReviewDialog } from './DriftReviewDialog'
 import { ActivationSummary } from './ActivationSummary'
 import { OpenAllSummary } from './OpenAllSummary'
@@ -21,7 +22,6 @@ import { CloseAllSummary } from './CloseAllSummary'
 import { tinykeys } from 'tinykeys'
 import { ContextMenu } from './ContextMenu'
 import { createExportZip, getExportZipFilename } from './export/createZip'
-import { downloadFile } from './export/downloadFile'
 import { parseImportFile, type ImportResult } from './export/parseImport'
 import { ConfirmImportDialog } from './ConfirmImportDialog'
 import { SettingsPanel } from './SettingsPanel'
@@ -57,6 +57,11 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'workspace' | 'settings'>('workspace')
+  const [renameDialogProjectId, setRenameDialogProjectId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState<string>()
+  const [deleteDialogProjectId, setDeleteDialogProjectId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string>()
   const [settings, updateSettings] = useSettings()
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
   const isDraggingProject = useRef(false)
@@ -144,6 +149,25 @@ export function App({ client, liveTabsClient }: AppProps) {
     dragStartPos.current = null
     isDraggingProject.current = false
   }, [model])
+
+  // Handle project deletion: select successor and close dialog
+  useEffect(() => {
+    if (!liveTabs.deletedProject || !deleteDialogProjectId) return
+    if (liveTabs.deletedProject.projectId !== deleteDialogProjectId) return
+    const currentState = model.state!
+    const deletedIndex = currentState.projects.findIndex((p) => p.id === deleteDialogProjectId)
+    const currentProjectIds = currentState.projects.map((p) => p.id)
+    const remainingIds = currentProjectIds.filter((id) => id !== deleteDialogProjectId)
+    const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
+    setDeleteDialogProjectId(null)
+    if (successorId) {
+      model.selectProject(successorId)
+      setFocusProjectId(successorId)
+    } else {
+      setCreating(false)
+      queueMicrotask(() => document.querySelector<HTMLButtonElement>('.new-project-button')?.focus())
+    }
+  }, [liveTabs.deletedProject, deleteDialogProjectId, model])
 
   // Global keyboard shortcuts (R for archive, N for notes, O for open) - scoped to hovered accordion
   useEffect(() => {
@@ -427,7 +451,6 @@ export function App({ client, liveTabsClient }: AppProps) {
   }
 
   const state = model.state!
-  const projectIds = state.projects.map((project) => project.id)
   const selected = state.projects.find((project) => project.id === model.selectedProjectId)
   const tagSuggestions = Array.from(new Map(state.projects.flatMap((project) => project.savedUrls.flatMap((record) => record.tags)).map((tag) => [tag.toLocaleLowerCase(), tag])).values()).sort((a, b) => a.localeCompare(b))
 
@@ -723,17 +746,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                       <span>Add all current tabs ({eligibleBulkCount})</span>
                     </button>
                   )}
-                  <AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} liveTabs={liveTabs} ownedLiveCount={projectLiveCounts[selected.id] ?? 0} onDeleted={(deletedIndex) => {
-                  const remainingIds = projectIds.filter((id) => id !== selected.id)
-                  const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
-                  if (successorId) {
-                    model.selectProject(successorId)
-                    setFocusProjectId(successorId)
-                  } else {
-                    setCreating(false)
-                    queueMicrotask(() => document.querySelector<HTMLButtonElement>('.new-project-button')?.focus())
-                  }
-                }} /></div></div>
+                  <AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /></div></div>
                 {selected.savedUrls.length === 0 ? (
                   <div className="empty-project">
                     <FolderOpen size={30} />
@@ -857,26 +870,114 @@ export function App({ client, liveTabsClient }: AppProps) {
           </section>
         </div>
       )}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={[
-            {
-              label: state.projects.find((p) => p.id === contextMenu.projectId)?.id === activeProjectId ? 'Reactivate' : 'Activate',
-              icon: <Play size={14} />,
-              onClick: () => liveTabs.prepareActivateProject(contextMenu.projectId),
-            },
-            {
-              label: 'Deactivate (close tabs)',
-              icon: <StopCircle size={14} />,
-              onClick: () => liveTabs.prepareCloseAllProjectTabs(contextMenu.projectId),
-              disabled: state.projects.find((p) => p.id === contextMenu.projectId)?.id !== activeProjectId,
-            },
-          ]}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+      {renameDialogProjectId && (() => {
+        const renameProject = state.projects.find((p) => p.id === renameDialogProjectId)
+        if (!renameProject) return null
+        return (
+          <dialog open className="dialog" aria-labelledby="rename-project-title">
+            <form onSubmit={async (event) => {
+              event.preventDefault()
+              setRenameError(undefined)
+              try {
+                await model.execute({ type: 'RENAME_PROJECT', projectId: renameDialogProjectId, name: renameValue })
+                setRenameDialogProjectId(null)
+              } catch (reason) {
+                setRenameError(reason instanceof Error ? reason.message : 'Could not rename this project.')
+              }
+            }}>
+              <div className="dialog-header"><h2 id="rename-project-title">Rename project</h2></div>
+              <div className="dialog-body">
+                <label htmlFor="rename-project-name">Project name</label>
+                <input id="rename-project-name" autoFocus value={renameValue} maxLength={80} onChange={(event) => setRenameValue(event.target.value)} />
+                {renameError && <p role="alert" className="field-error dark-error">{renameError}</p>}
+              </div>
+              <div className="dialog-actions">
+                <button type="button" className="button secondary" onClick={() => setRenameDialogProjectId(null)}>Cancel</button>
+                <button type="submit" className="button primary" disabled={model.commandPending}>Rename</button>
+              </div>
+            </form>
+          </dialog>
+        )
+      })()}
+      {deleteDialogProjectId && (() => {
+        const deleteProject = state.projects.find((p) => p.id === deleteDialogProjectId)
+        if (!deleteProject) return null
+        const deleteOwnedLiveCount = projectLiveCounts[deleteDialogProjectId] ?? 0
+        return (
+          <ConfirmDialog
+            title={`Delete \u201c${deleteProject.name}\u201d?`}
+            confirmLabel="Delete project"
+            destructive
+            pending={model.commandPending}
+            onCancel={() => setDeleteDialogProjectId(null)}
+            onConfirm={async () => {
+              setDeleteError(undefined)
+              liveTabs.deleteProject(deleteDialogProjectId)
+            }}
+          >
+            <p>This permanently deletes the project and {deleteProject.savedUrls.length === 1 ? 'its 1 saved URL' : `its ${deleteProject.savedUrls.length} saved URLs`}. {deleteOwnedLiveCount === 1 ? 'Its 1 owned live tab will remain open and become Unassigned.' : `Its ${deleteOwnedLiveCount} owned live tabs will remain open and become Unassigned.`} Saved data deletion cannot be undone.</p>
+            {deleteError && <p role="alert" className="field-error dark-error">{deleteError}</p>}
+          </ConfirmDialog>
+        )
+      })()}
+      {contextMenu && (() => {
+        const contextProject = state.projects.find((p) => p.id === contextMenu.projectId)
+        if (!contextProject) return null
+        const isActive = contextProject.id === activeProjectId
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={[
+              {
+                label: isActive ? 'Reactivate' : 'Activate',
+                icon: <Play size={14} />,
+                onClick: () => liveTabs.prepareActivateProject(contextMenu.projectId),
+              },
+              {
+                label: 'Open all active',
+                icon: <FolderOpen size={14} />,
+                onClick: () => liveTabs.openAllProjectUrls(contextMenu.projectId),
+              },
+              {
+                label: 'Close all',
+                icon: <FolderInput size={14} />,
+                onClick: () => liveTabs.prepareCloseAllProjectTabs(contextMenu.projectId),
+                disabled: !isActive,
+              },
+              { separator: true, label: '' },
+              {
+                label: 'Rename',
+                icon: <Edit3 size={14} />,
+                onClick: () => {
+                  setRenameValue(contextProject.name)
+                  setRenameError(undefined)
+                  setRenameDialogProjectId(contextMenu.projectId)
+                },
+              },
+              {
+                label: 'Export',
+                icon: <Download size={14} />,
+                onClick: () => {
+                  const html = generateExportHtml(contextProject)
+                  downloadFile(`protab-${sanitizeFilename(contextProject.name)}.html`, new Blob([html], { type: 'text/html' }))
+                },
+              },
+              { separator: true, label: '' },
+              {
+                label: 'Delete project',
+                icon: <Trash2 size={14} />,
+                danger: true,
+                onClick: () => {
+                  setDeleteError(undefined)
+                  setDeleteDialogProjectId(contextMenu.projectId)
+                },
+              },
+            ]}
+            onClose={() => setContextMenu(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

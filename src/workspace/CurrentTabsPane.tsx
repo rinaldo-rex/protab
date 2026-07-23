@@ -234,9 +234,6 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                               <span>Drag into a project</span>
                             </span>
                           ) : (<>
-                          {isFileable && isHovered && (
-                            <span className="hover-hint" aria-hidden="true">Add (A)</span>
-                          )}
                           {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
                           <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
                           </>)}
@@ -244,6 +241,9 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                         <div className="live-tab-actions">
                           <ProtectionBadges reasons={tab.protectionReasons} />
                         </div>
+                        {isFileable && isHovered && (
+                          <span className="hover-hint" aria-hidden="true">Add (A)</span>
+                        )}
                         {!tab.ownership && tab.candidates.length > 0 && <button ref={assigningTabId === tab.tabId ? assignmentTrigger : undefined} className="assign-button" aria-haspopup="dialog" onClick={() => setAssigningTabId(tab.tabId)}>Assign to…</button>}
                       </div>
                       {model.filingResult && model.filingResult.tabId === tab.tabId && (
