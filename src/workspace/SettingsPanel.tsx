@@ -1,14 +1,87 @@
-import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, ExternalLink, Download, RotateCcw } from 'lucide-react'
 import type { ProtabSettings } from '../domain/settings'
 import { WORKSPACE_SHORTCUTS } from '../domain/settings'
+
+interface MigrationBackupStatus {
+  available: boolean
+  fromSchemaVersion?: number
+  toSchemaVersion?: number
+  createdAt?: number
+}
+
+interface MigrationRestoreResult {
+  success: boolean
+  error?: string
+}
 
 interface SettingsPanelProps {
   settings: ProtabSettings
   onSave: (settings: Partial<ProtabSettings>) => void
   onBack: () => void
+  migrationBackupStatus?: MigrationBackupStatus
+  migrationRestoreResult?: MigrationRestoreResult
+  migrationBackupExportedJson?: string
+  onCheckMigrationBackup: () => void
+  onExportMigrationBackup: () => void
+  onRestoreMigrationBackup: () => void
+  onDismissRestoreResult: () => void
+  onClearExportedBackupJson: () => void
 }
 
-export function SettingsPanel({ settings, onSave, onBack }: SettingsPanelProps) {
+export function SettingsPanel({
+  settings,
+  onSave,
+  onBack,
+  migrationBackupStatus,
+  migrationRestoreResult,
+  onCheckMigrationBackup,
+  onExportMigrationBackup,
+  onRestoreMigrationBackup,
+  onDismissRestoreResult,
+  migrationBackupExportedJson,
+  onClearExportedBackupJson,
+}: SettingsPanelProps) {
+  const [confirmRestore, setConfirmRestore] = useState(false)
+
+  // Check for migration backup on mount
+  useEffect(() => {
+    onCheckMigrationBackup()
+  }, [onCheckMigrationBackup])
+
+  const handleExportBackup = () => {
+    onExportMigrationBackup()
+  }
+
+  // Auto-download when exported JSON arrives
+  useEffect(() => {
+    if (migrationBackupExportedJson) {
+      const blob = new Blob([migrationBackupExportedJson], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'protab-migration-backup.json'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      onClearExportedBackupJson()
+    }
+  }, [migrationBackupExportedJson, onClearExportedBackupJson])
+
+  const handleRestoreClick = () => {
+    setConfirmRestore(true)
+  }
+
+  const handleConfirmRestore = () => {
+    setConfirmRestore(false)
+    onRestoreMigrationBackup()
+  }
+
+  const handleCancelRestore = () => {
+    setConfirmRestore(false)
+  }
+
   return (
     <div className="settings-panel">
       <div className="settings-header">
@@ -117,7 +190,80 @@ export function SettingsPanel({ settings, onSave, onBack }: SettingsPanelProps) 
             </div>
           </div>
         </section>
+
+        {migrationBackupStatus?.available && (
+          <section className="settings-section">
+            <h3>Data Recovery</h3>
+            <p className="settings-section-desc">
+              A migration backup was created when Protab updated your saved data format
+              (schema v{migrationBackupStatus.fromSchemaVersion} → v{migrationBackupStatus.toSchemaVersion}
+              {migrationBackupStatus.createdAt
+                ? ` on ${new Date(migrationBackupStatus.createdAt).toLocaleDateString()}`
+                : ''}
+              ).
+            </p>
+            <div className="setting-row">
+              <div className="setting-info">
+                <label>Export migration backup</label>
+                <p>Download the pre-migration data as JSON for manual safekeeping.</p>
+              </div>
+              <div className="setting-control">
+                <button className="small-button" onClick={handleExportBackup}>
+                  <Download size={14} /> Export
+                </button>
+              </div>
+            </div>
+            <div className="setting-row">
+              <div className="setting-info">
+                <label>Restore migration backup</label>
+                <p>Replace current project data with the backed-up state. This cannot be undone.</p>
+              </div>
+              <div className="setting-control">
+                <button className="small-button" onClick={handleRestoreClick}>
+                  <RotateCcw size={14} /> Restore
+                </button>
+              </div>
+            </div>
+            {migrationRestoreResult && (
+              <div className={`settings-notice ${migrationRestoreResult.success ? 'success' : 'error'}`} role="status">
+                <span>
+                  {migrationRestoreResult.success
+                    ? 'Migration backup restored successfully.'
+                    : `Restore failed: ${migrationRestoreResult.error}`}
+                </span>
+                <button onClick={onDismissRestoreResult}>Dismiss</button>
+              </div>
+            )}
+          </section>
+        )}
       </div>
+
+      {confirmRestore && (
+        <div className="dialog-backdrop" role="presentation">
+          <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="restore-confirm-title">
+            <div className="dialog-header">
+              <h2 id="restore-confirm-title">Restore migration backup?</h2>
+            </div>
+            <div className="dialog-body">
+              <p>
+                This will replace your current project data with the backed-up state
+                from before Protab updated your data format
+                {migrationBackupStatus?.fromSchemaVersion !== undefined
+                  ? ` (schema v${migrationBackupStatus.fromSchemaVersion} → v${migrationBackupStatus.toSchemaVersion})`
+                  : ''}
+                .
+              </p>
+              <p style={{ marginTop: 8 }}>
+                Your current projects and saved URLs will be replaced. This action cannot be undone.
+              </p>
+            </div>
+            <div className="dialog-actions">
+              <button className="button secondary" onClick={handleCancelRestore}>Cancel</button>
+              <button className="button danger" onClick={handleConfirmRestore}>Restore backup</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

@@ -123,6 +123,17 @@ export interface LiveTabsModel {
   unarchive: (projectId: string, savedUrlId: string) => void
   // Phase 4B: Silent file
   silentFileTab: (tabId: number, projectId: string) => void
+  // Phase 4D: Migration backup
+  migrationBackupStatus?: { available: boolean; fromSchemaVersion?: number; toSchemaVersion?: number; createdAt?: number }
+  migrationBackupExportedJson?: string
+  migrationRestoreResult?: { success: boolean; error?: string }
+  migrationNotice?: { fromSchemaVersion: number; toSchemaVersion: number }
+  checkMigrationBackup: () => void
+  exportMigrationBackup: () => void
+  restoreMigrationBackup: () => void
+  dismissMigrationNotice: () => void
+  dismissMigrationRestoreResult: () => void
+  clearExportedBackupJson: () => void
 }
 
 export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
@@ -148,6 +159,11 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
   const [closeAllPrepared, setCloseAllPrepared] = useState<LiveTabsModel['closeAllPrepared']>()
   const [closeAllSummary, setCloseAllSummary] = useState<CloseAllSummary>()
   const [closeAllPending, setCloseAllPending] = useState(false)
+  // Phase 4D state
+  const [migrationBackupStatus, setMigrationBackupStatus] = useState<LiveTabsModel['migrationBackupStatus']>()
+  const [migrationBackupExportedJson, setMigrationBackupExportedJson] = useState<string>()
+  const [migrationRestoreResult, setMigrationRestoreResult] = useState<LiveTabsModel['migrationRestoreResult']>()
+  const [migrationNotice, setMigrationNotice] = useState<LiveTabsModel['migrationNotice']>()
 
   useEffect(() => client.subscribe((message) => {
     switch (message.kind) {
@@ -211,6 +227,24 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         break
       case 'ARCHIVE_RESULT':
         // Archive/unarchive result is handled via STATE_COMMITTED
+        break
+      // Phase 4D: Migration backup
+      case 'MIGRATION_BACKUP_STATUS':
+        setMigrationBackupStatus({
+          available: message.available,
+          fromSchemaVersion: message.fromSchemaVersion,
+          toSchemaVersion: message.toSchemaVersion,
+          createdAt: message.createdAt,
+        })
+        break
+      case 'MIGRATION_BACKUP_EXPORTED':
+        setMigrationBackupExportedJson(message.json)
+        break
+      case 'MIGRATION_BACKUP_RESTORED':
+        setMigrationRestoreResult({ success: message.success, error: message.error })
+        break
+      case 'MIGRATION_COMPLETED':
+        setMigrationNotice({ fromSchemaVersion: message.fromSchemaVersion, toSchemaVersion: message.toSchemaVersion })
         break
     }
   }), [client])
@@ -371,5 +405,16 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
       setFilingResult(undefined)
       client.send({ kind: 'SILENT_FILE_TAB', tabId, projectId })
     },
+    // Phase 4D: Migration backup
+    migrationBackupStatus,
+    migrationBackupExportedJson,
+    migrationRestoreResult,
+    migrationNotice,
+    checkMigrationBackup: () => client.send({ kind: 'CHECK_MIGRATION_BACKUP' }),
+    exportMigrationBackup: () => client.send({ kind: 'EXPORT_MIGRATION_BACKUP' }),
+    restoreMigrationBackup: () => client.send({ kind: 'RESTORE_MIGRATION_BACKUP' }),
+    dismissMigrationNotice: () => setMigrationNotice(undefined),
+    dismissMigrationRestoreResult: () => setMigrationRestoreResult(undefined),
+    clearExportedBackupJson: () => setMigrationBackupExportedJson(undefined),
   }
 }

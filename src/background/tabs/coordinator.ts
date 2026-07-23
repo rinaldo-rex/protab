@@ -1,5 +1,7 @@
 import type { PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
+import type { MigrationStorageAdapter, StorageAdapter } from '../../storage/repository'
+import { restoreMigrationBackup, exportMigrationBackup, readMigrationBackup } from '../../storage/repository'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../messages'
@@ -32,6 +34,8 @@ export class LiveTabsCoordinator {
     private readonly closeTracker?: CloseTrackerStore,
     private readonly filingOrchestrator?: FilingOrchestrator,
     private readonly activeProjectStore?: ActiveProjectStore,
+    private readonly storageAdapter?: StorageAdapter,
+    private readonly migrationStorage?: MigrationStorageAdapter,
   ) {}
 
   async connect(port: chrome.runtime.Port): Promise<void> {
@@ -194,6 +198,19 @@ export class LiveTabsCoordinator {
     // Phase 4B: Silent file
     if (message.kind === 'SILENT_FILE_TAB' && typeof message.tabId === 'number' && typeof message.projectId === 'string') {
       this.enqueueWindow(client.windowId, () => this.silentFileTab(client, message.tabId!, message.projectId!))
+      return
+    }
+    // Phase 4D: Migration backup
+    if (message.kind === 'CHECK_MIGRATION_BACKUP') {
+      await this.handleCheckMigrationBackup(client)
+      return
+    }
+    if (message.kind === 'EXPORT_MIGRATION_BACKUP') {
+      await this.handleExportMigrationBackup(client)
+      return
+    }
+    if (message.kind === 'RESTORE_MIGRATION_BACKUP') {
+      await this.handleRestoreMigrationBackup(client)
       return
     }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
@@ -1008,6 +1025,66 @@ export class LiveTabsCoordinator {
       await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
     } catch (reason) {
       this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not unarchive this URL.' })
+    }
+  }
+
+  // Phase 4D: Migration backup handlers
+  private async handleCheckMigrationBackup(client: ClientSubscription): Promise<void> {
+    if (!this.migrationStorage) {
+      this.post(client, { kind: 'MIGRATION_BACKUP_STATUS', available: false })
+      return
+    }
+    try {
+      const backup = await readMigrationBackup(this.migrationStorage)
+      if (backup) {
+        this.post(client, {
+          kind: 'MIGRATION_BACKUP_STATUS',
+          available: true,
+          fromSchemaVersion: backup.fromSchemaVersion,
+          toSchemaVersion: backup.toSchemaVersion,
+          createdAt: backup.createdAt,
+        })
+      } else {
+        this.post(client, { kind: 'MIGRATION_BACKUP_STATUS', available: false })
+      }
+    } catch {
+      this.post(client, { kind: 'MIGRATION_BACKUP_STATUS', available: false })
+    }
+  }
+
+  private async handleExportMigrationBackup(client: ClientSubscription): Promise<void> {
+    if (!this.migrationStorage) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: 'Migration storage not available.' })
+      return
+    }
+    try {
+      const json = await exportMigrationBackup(this.migrationStorage)
+      this.post(client, { kind: 'MIGRATION_BACKUP_EXPORTED', json })
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not export migration backup.' })
+    }
+  }
+
+  private async handleRestoreMigrationBackup(client: ClientSubscription): Promise<void> {
+    if (!this.storageAdapter || !this.migrationStorage) {
+      this.post(client, { kind: 'MIGRATION_BACKUP_RESTORED', success: false, error: 'Storage not available.' })
+      return
+    }
+    try {
+      const result = await restoreMigrationBackup(this.storageAdapter, this.migrationStorage)
+      this.post(client, {
+        kind: 'MIGRATION_BACKUP_RESTORED',
+        success: true,
+      })
+      // Broadcast new state to all workspaces
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: result.state }).catch(() => undefined)
+      this.scheduleAll()
+    } catch (reason) {
+      this.post(client, {
+        kind: 'MIGRATION_BACKUP_RESTORED',
+        success: false,
+        error: reason instanceof Error ? reason.message : 'Could not restore migration backup.',
+      })
     }
   }
 

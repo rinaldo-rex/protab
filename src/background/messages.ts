@@ -98,6 +98,10 @@ export type LiveTabRequest =
   | { kind: 'QUICK_CAPTURE_TAB'; projectId: string; note: string; tags: string[] }
   // Phase 4B: Silent file (no confirmation)
   | { kind: 'SILENT_FILE_TAB'; tabId: number; projectId: string }
+  // Phase 4D: Migration backup
+  | { kind: 'CHECK_MIGRATION_BACKUP' }
+  | { kind: 'EXPORT_MIGRATION_BACKUP' }
+  | { kind: 'RESTORE_MIGRATION_BACKUP' }
 
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
@@ -119,3 +123,8 @@ export type LiveTabMessage =
   | { kind: 'ARCHIVE_RESULT'; projectId: string; savedUrlId: string; archived: boolean }
   // Phase 4B: Quick capture
   | { kind: 'QUICK_CAPTURE_RESULT'; success: boolean; projectName: string; error?: string }
+  // Phase 4D: Migration backup
+  | { kind: 'MIGRATION_BACKUP_STATUS'; available: boolean; fromSchemaVersion?: number; toSchemaVersion?: number; createdAt?: number }
+  | { kind: 'MIGRATION_BACKUP_EXPORTED'; json: string }
+  | { kind: 'MIGRATION_BACKUP_RESTORED'; success: boolean; error?: string }
+  | { kind: 'MIGRATION_COMPLETED'; fromSchemaVersion: number; toSchemaVersion: number }

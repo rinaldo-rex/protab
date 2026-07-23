@@ -653,6 +653,14 @@ export function App({ client, liveTabsClient }: AppProps) {
               settings={settings}
               onSave={updateSettings}
               onBack={() => setViewMode('workspace')}
+              migrationBackupStatus={liveTabs.migrationBackupStatus}
+              migrationRestoreResult={liveTabs.migrationRestoreResult}
+              migrationBackupExportedJson={liveTabs.migrationBackupExportedJson}
+              onCheckMigrationBackup={liveTabs.checkMigrationBackup}
+              onExportMigrationBackup={liveTabs.exportMigrationBackup}
+              onRestoreMigrationBackup={liveTabs.restoreMigrationBackup}
+              onDismissRestoreResult={liveTabs.dismissMigrationRestoreResult}
+              onClearExportedBackupJson={liveTabs.clearExportedBackupJson}
             />
           ) : (
           <section

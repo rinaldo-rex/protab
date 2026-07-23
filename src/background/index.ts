@@ -1,6 +1,6 @@
 import { DomainError } from '../domain/validation'
 import { StorageDataError } from '../storage/schema'
-import { ChromeStorageAdapter } from '../storage/repository'
+import { ChromeStorageAdapter, ChromeMigrationStorageAdapter, loadStateWithMetadata } from '../storage/repository'
 import { CommandQueue } from '../storage/commandQueue'
 import { MESSAGE_CHANNEL, STATE_COMMITTED, type BackgroundResponse, type ClientMessage, type StateCommittedMessage } from './messages'
 import { ChromeToolbarAdapter, serializedToolbarHandler } from './toolbar'
@@ -12,6 +12,8 @@ import { FilingOrchestrator } from './tabs/filing'
 import { ActiveProjectStore, ChromeSessionStorageAdapter as ActiveProjectSessionAdapter } from './tabs/activeProjectStore'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
+const chromeStorageAdapter = new ChromeStorageAdapter()
+const migrationStorage = new ChromeMigrationStorageAdapter()
 const ownership = new OwnershipStore(new ChromeSessionStorageAdapter())
 void ownership.initialize().catch((error: unknown) => console.error('Protab could not restrict live ownership storage access.', error))
 
@@ -33,10 +35,23 @@ const filingOrchestrator = new FilingOrchestrator(
   () => liveTabs.scheduleAll(),
 )
 
-const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore)
+const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore, chromeStorageAdapter, migrationStorage)
 
-// Initialize coordinator and restore active state
-void queue.read().then((state) => liveTabs.initialize(state)).catch((error: unknown) => console.error('Protab could not initialize live tabs coordinator.', error))
+// Initialize coordinator with write-through migration
+void loadStateWithMetadata(chromeStorageAdapter, migrationStorage)
+  .then(async (loaded) => {
+    await liveTabs.initialize(loaded.state)
+    if (loaded.migration) {
+      // Notify connected workspaces about migration
+      await chrome.runtime.sendMessage({
+        channel: 'protab',
+        kind: 'MIGRATION_COMPLETED',
+        fromSchemaVersion: loaded.migration.fromSchemaVersion,
+        toSchemaVersion: loaded.migration.toSchemaVersion,
+      }).catch(() => undefined)
+    }
+  })
+  .catch((error: unknown) => console.error('Protab could not initialize live tabs coordinator.', error))
 
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
 
