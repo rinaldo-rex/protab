@@ -75,6 +75,7 @@ export function summarizeTabUrl(value: string | undefined): { summary: string; h
 export function normalizeChromeTab(tab: chrome.tabs.Tab): LiveTabView | undefined {
   if (tab.id === undefined || tab.windowId === undefined) return undefined
   const { summary, hostname } = summarizeTabUrl(tab.url)
+  const favIconUrl = tab.favIconUrl || (hostname ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=32` : undefined)
   return {
     tabId: tab.id,
     windowId: tab.windowId,
@@ -84,7 +85,7 @@ export function normalizeChromeTab(tab: chrome.tabs.Tab): LiveTabView | undefine
     url: tab.url,
     urlSummary: summary,
     hostname,
-    favIconUrl: tab.favIconUrl,
+    favIconUrl,
     supported: isSupportedTabUrl(tab.url),
     candidates: [],
     chromePinned: Boolean(tab.pinned),
