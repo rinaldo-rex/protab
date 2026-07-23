@@ -561,6 +561,8 @@ export function App({ client, liveTabsClient }: AppProps) {
             const isSelected = project.id === selected?.id
             const isDragging = draggingProjectId === project.id
             const isDragOver = dragOverProjectIdForReorder === project.id
+            const activeCount = project.savedUrls.filter((u) => !u.archivedAt).length
+            const archivedCount = project.savedUrls.filter((u) => u.archivedAt).length
             return (
               <div
                 key={project.id}
@@ -597,6 +599,11 @@ export function App({ client, liveTabsClient }: AppProps) {
                 >
                   {isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span className="project-name">{project.name}</span>
+                  {settings.showTabCounts && project.savedUrls.length > 0 && (
+                    <span className="project-count">
+                      ({activeCount}{archivedCount > 0 && <span className="project-count-archived"> + {archivedCount}</span>})
+                    </span>
+                  )}
                   {isActive && <span className="active-indicator" title="Active in this window" aria-label="Active in this window">●</span>}
                 </button>
               </div>

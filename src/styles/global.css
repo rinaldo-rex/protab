@@ -43,6 +43,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .project-row.active.selected { background: rgba(255,255,255,.10); }
 .project-item .active-indicator { margin-left: auto; color: #7cb342; font-size: 14px; line-height: 1; }
 .project-item .project-name { flex: 1; min-width: 0; }
+.project-count {
+  font-size: 11px;
+  color: rgba(255,255,255,.45);
+  white-space: nowrap;
+  margin-left: auto;
+}
+.project-count-archived {
+  color: rgba(255,255,255,.25);
+}
 .project-item { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; min-height: 40px; padding: 8px 16px; border: 0; color: rgba(255,255,255,.62); background: transparent; text-align: left; font-size: 13px; }
 .project-item:hover, .project-row.selected .project-item { color: #fff; }
 .project-row.selected .project-item { font-weight: 600; }

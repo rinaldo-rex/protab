@@ -12,6 +12,7 @@ export interface ProtabSettings {
   popupCloseBehavior: boolean // Extension popup: close tab after capture (default: false)
   popupWorkspaceShortcut: WorkspaceShortcut // Shortcut to open workspace from popup (default: 'ctrl+enter')
   toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)
+  showTabCounts: boolean // Show tab counts next to project names (default: true)
 }
 
 export const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: ProtabSettings = {
   popupCloseBehavior: false,
   popupWorkspaceShortcut: 'ctrl+enter',
   toastDuration: 3000,
+  showTabCounts: true,
 }
 
 export function parseSettings(raw: unknown): ProtabSettings {
@@ -44,6 +46,7 @@ export function parseSettings(raw: unknown): ProtabSettings {
     toastDuration: typeof obj.toastDuration === 'number' && [2000, 3000, 5000, 0].includes(obj.toastDuration)
       ? obj.toastDuration
       : DEFAULT_SETTINGS.toastDuration,
+    showTabCounts: typeof obj.showTabCounts === 'boolean' ? obj.showTabCounts : DEFAULT_SETTINGS.showTabCounts,
   }
 }
 

@@ -231,6 +231,28 @@ export function SettingsPanel({
         )}
 
         <section className="settings-section">
+          <h3>Projects</h3>
+          <p className="settings-section-desc">Display options for the project sidebar.</p>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="show-tab-counts">Show tab counts</label>
+              <p>Display the number of saved URLs next to each project name.</p>
+            </div>
+            <div className="setting-control">
+              <button
+                id="show-tab-counts"
+                role="switch"
+                aria-checked={settings.showTabCounts}
+                className={`toggle ${settings.showTabCounts ? 'active' : ''}`}
+                onClick={() => onSave({ showTabCounts: !settings.showTabCounts })}
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="settings-section">
           <h3>Extension Page</h3>
           <p className="settings-section-desc">Behavior when filing tabs from the Current Tabs pane.</p>
           <div className="setting-row">
