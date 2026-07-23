@@ -47,3 +47,18 @@ export const emptyState = (): PersistedState => ({
   schemaVersion: 2,
   projects: [],
 })
+
+export interface MigrationBackup {
+  schemaVersion: 1
+  createdAt: number
+  fromSchemaVersion: number
+  toSchemaVersion: number
+  rawState: unknown
+}
+
+export interface ParsePersistedStateResult {
+  state: PersistedState
+  migrated: boolean
+  originalSchemaVersion: number
+  currentSchemaVersion: number
+}
