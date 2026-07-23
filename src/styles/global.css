@@ -28,6 +28,7 @@ button { cursor: pointer; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #a8907f; outline-offset: 2px; }
 
 .app-shell { display: flex; height: 100vh; background: var(--surface); }
+.project-sidebar.order-right { order: 1; }
 .project-sidebar { width: 240px; flex: 0 0 240px; display: flex; flex-direction: column; padding: 16px; background: #161613; color: #fff; border-right: 1px solid #312f2b; }
 .brand { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 36px; }
 .brand span { font-size: 20px; line-height: 1.4; font-weight: 700; letter-spacing: -.02em; }

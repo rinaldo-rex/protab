@@ -521,7 +521,7 @@ export function App({ client, liveTabsClient }: AppProps) {
           />
         </div>
       )}
-      <aside className="project-sidebar" aria-label="Project navigation">
+      <aside className={`project-sidebar${settings.projectsPanePosition === 'right' ? ' order-right' : ''}`} aria-label="Project navigation">
         <div className="brand">
           <div className="brand-header">
             <span>Protab</span>

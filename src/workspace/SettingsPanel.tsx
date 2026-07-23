@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ExternalLink, Download, RotateCcw } from 'lucide-react'
-import type { ProtabSettings } from '../domain/settings'
+import type { ProtabSettings, ProjectsPanePosition } from '../domain/settings'
 import { WORKSPACE_SHORTCUTS } from '../domain/settings'
 
 interface MigrationBackupStatus {
@@ -248,6 +248,22 @@ export function SettingsPanel({
               >
                 <span className="toggle-thumb" />
               </button>
+            </div>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="projects-pane-position">Projects pane position</label>
+              <p>Choose which side of the workspace the projects list appears on.</p>
+            </div>
+            <div className="setting-control">
+              <select
+                id="projects-pane-position"
+                value={settings.projectsPanePosition}
+                onChange={(e) => onSave({ projectsPanePosition: e.target.value as ProjectsPanePosition })}
+              >
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
             </div>
           </div>
         </section>

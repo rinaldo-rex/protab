@@ -1,4 +1,5 @@
 export type WorkspaceShortcut = 'ctrl+enter' | 'ctrl+shift+enter' | 'alt+enter'
+export type ProjectsPanePosition = 'left' | 'right'
 
 export const WORKSPACE_SHORTCUTS: { value: WorkspaceShortcut; label: string }[] = [
   { value: 'ctrl+enter', label: 'Ctrl+Enter' },
@@ -13,6 +14,7 @@ export interface ProtabSettings {
   popupWorkspaceShortcut: WorkspaceShortcut // Shortcut to open workspace from popup (default: 'ctrl+enter')
   toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)
   showTabCounts: boolean // Show tab counts next to project names (default: true)
+  projectsPanePosition: ProjectsPanePosition // Where the projects pane appears (default: 'right')
 }
 
 export const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: ProtabSettings = {
   popupWorkspaceShortcut: 'ctrl+enter',
   toastDuration: 3000,
   showTabCounts: true,
+  projectsPanePosition: 'right',
 }
 
 export function parseSettings(raw: unknown): ProtabSettings {
@@ -47,6 +50,9 @@ export function parseSettings(raw: unknown): ProtabSettings {
       ? obj.toastDuration
       : DEFAULT_SETTINGS.toastDuration,
     showTabCounts: typeof obj.showTabCounts === 'boolean' ? obj.showTabCounts : DEFAULT_SETTINGS.showTabCounts,
+    projectsPanePosition: obj.projectsPanePosition === 'left' || obj.projectsPanePosition === 'right'
+      ? obj.projectsPanePosition
+      : DEFAULT_SETTINGS.projectsPanePosition,
   }
 }
 
