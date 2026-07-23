@@ -37,6 +37,8 @@ const filingOrchestrator = new FilingOrchestrator(
   () => queue.read(),
   () => {},
   () => liveTabs.scheduleAll(),
+  undefined,
+  protectedTabsStore,
 )
 
 const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore, chromeStorageAdapter, migrationStorage, protectedTabsStore)

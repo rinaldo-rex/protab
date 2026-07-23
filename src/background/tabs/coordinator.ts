@@ -13,6 +13,7 @@ import type { CloseTrackerStore } from './closeTracker'
 import type { FilingOrchestrator } from './filing'
 import type { ActiveProjectStore } from './activeProjectStore'
 import type { ProtectedTabsStore } from './protectedTabsStore'
+import { checkCloseProtection } from './closeGuard'
 
 interface ClientSubscription {
   workspaceTabId: number
@@ -598,6 +599,15 @@ export class LiveTabsCoordinator {
           continue
         }
 
+        // Check protection before close
+        if (this.protectedTabsStore) {
+          const protection = await checkCloseProtection(tabId, this.api, this.protectedTabsStore)
+          if (protection.protected) {
+            summary.skipped.push({ tabId, reason: `Protected: ${protection.reasons.join(', ')}` })
+            continue
+          }
+        }
+
         // Register close tracking
         if (this.closeTracker) {
           await this.closeTracker.set({
@@ -884,6 +894,15 @@ export class LiveTabsCoordinator {
         if (!currentTab) {
           summary.skipped.push({ tabId, reason: 'Tab no longer available.' })
           continue
+        }
+
+        // Check protection before close
+        if (this.protectedTabsStore) {
+          const protection = await checkCloseProtection(tabId, this.api, this.protectedTabsStore)
+          if (protection.protected) {
+            summary.skipped.push({ tabId, reason: `Protected: ${protection.reasons.join(', ')}` })
+            continue
+          }
         }
 
         // Register close tracking

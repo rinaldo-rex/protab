@@ -8,6 +8,9 @@ import type { ChromeTabsApi } from './chromeTabs'
 import { queryOrdinaryTabs } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
 import type { CloseTrackerStore } from './closeTracker'
+import type { ProtectedTabsStore } from './protectedTabsStore'
+import type { CloseProtectionDecision } from './closeGuard'
+import { checkCloseProtection } from './closeGuard'
 
 export interface PreparedFilingOperation {
   operationId: string
@@ -83,6 +86,7 @@ export class FilingOrchestrator {
     private readonly onEvent: (event: FilingEvent) => void,
     private readonly onInventoryChange: () => void,
     private readonly createId: () => string = () => crypto.randomUUID(),
+    private readonly protectedTabsStore?: ProtectedTabsStore,
   ) {}
 
   async prepare(
@@ -281,6 +285,21 @@ export class FilingOrchestrator {
         requestedAt: Date.now(),
         state: 'requested',
       })
+
+      // Step 11.5: Check protection before close
+      const protection = await this.checkProtection(tabId)
+      if (protection.protected) {
+        this.onInventoryChange()
+        return {
+          operationId,
+          tabId,
+          projectId,
+          savedUrlId,
+          filing,
+          closeState: 'skipped',
+          error: `Protected: ${protection.reasons.join(', ')}. Not closed.`,
+        }
+      }
 
       // Step 12: Issue non-blocking close request
       try {
@@ -493,6 +512,20 @@ export class FilingOrchestrator {
         state: 'requested',
       })
 
+      // Check protection before close
+      const protection = await this.checkProtection(tabId)
+      if (protection.protected) {
+        return {
+          operationId,
+          tabId,
+          projectId,
+          savedUrlId,
+          filing,
+          closeState: 'skipped',
+          error: `Protected: ${protection.reasons.join(', ')}. Not closed.`,
+        }
+      }
+
       // Close request
       try {
         await this.api.remove(tabId)
@@ -574,6 +607,20 @@ export class FilingOrchestrator {
       }
     }
 
+    // Check protection before retry
+    const protection = await this.checkProtection(tabId)
+    if (protection.protected) {
+      return {
+        operationId,
+        tabId,
+        projectId,
+        savedUrlId,
+        filing: 'reused',
+        closeState: 'skipped',
+        error: `Protected: ${protection.reasons.join(', ')}. Not closed.`,
+      }
+    }
+
     // Update tracker state
     await this.closeTracker.updateState(operationId, 'requested')
 
@@ -614,5 +661,10 @@ export class FilingOrchestrator {
 
   getPreparedOperation(operationId: string): PreparedFilingOperation | undefined {
     return this.preparedOperations.get(operationId)
+  }
+
+  async checkProtection(tabId: number): Promise<CloseProtectionDecision> {
+    if (!this.protectedTabsStore) return { protected: false, reasons: [] }
+    return checkCloseProtection(tabId, this.api, this.protectedTabsStore)
   }
 }
