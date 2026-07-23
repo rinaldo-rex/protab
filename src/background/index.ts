@@ -67,14 +67,22 @@ chrome.commands.onCommand.addListener((command) => {
     // openPopup() is not supported in all Chromium browsers (e.g. Vivaldi, Edge).
     // Fall back to opening popup.html in a small centered window.
     void chrome.action.openPopup().catch(() => {
-      const width = 480
-      const height = 360
-      void chrome.windows.create({
-        url: chrome.runtime.getURL('popup.html'),
-        type: 'popup',
-        width,
-        height,
-        focused: true,
+      // Get the active tab in the window that triggered the command
+      // so we can pass it to the fallback popup window.
+      void chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([activeTab]) => {
+        const width = 480
+        const height = 360
+        let popupUrl = chrome.runtime.getURL('popup.html')
+        if (activeTab?.id) {
+          popupUrl += `?tabId=${activeTab.id}`
+        }
+        void chrome.windows.create({
+          url: popupUrl,
+          type: 'popup',
+          width,
+          height,
+          focused: true,
+        })
       })
     })
   }

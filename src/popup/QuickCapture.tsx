@@ -160,8 +160,23 @@ export function QuickCapture() {
     setStatus('loading')
     setErrorMessage(undefined)
 
-    // Get the active tab from the current browser window
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    // Get the tab to capture. When the popup opens as a standalone window
+    // (Vivaldi, Edge, etc.), the background passes the triggering tab's ID
+    // as a URL parameter. In the Chrome popup case, there is no parameter
+    // and we fall back to querying the active tab in the current window.
+    let tab: chrome.tabs.Tab | undefined
+    const params = new URLSearchParams(window.location.search)
+    const tabIdParam = params.get('tabId')
+    if (tabIdParam) {
+      try {
+        tab = await chrome.tabs.get(Number(tabIdParam))
+      } catch {
+        // Tab may have been closed; fall through to query
+      }
+    }
+    if (!tab) {
+      ;[tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    }
     if (!tab || !tab.url) {
       setErrorMessage('Could not access current tab.')
       setStatus('error')
