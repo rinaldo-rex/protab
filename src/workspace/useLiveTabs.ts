@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import type { LiveTabInventory } from '../domain/liveTabs'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../background/messages'
 import type { PreparedFilingOperation, FilingResult, FilingSummary } from '../background/tabs/filing'
 import type { CloseAttempt } from '../background/tabs/closeTracker'
 import type { PreparedActivationOperation, ActivationSummary, CloseAllSummary, OpenAllSummary } from '../background/messages'
+import { recordAnalyticsEvent } from '../storage/repository'
+import { ChromeAnalyticsStorageAdapter } from '../storage/repository'
 
 export interface LiveTabsClient {
   subscribe(listener: (message: LiveTabMessage) => void): () => void
@@ -186,6 +188,14 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
   const [legacyDataStatus, setLegacyDataStatus] = useState<LegacyDataStatus>()
   const [legacyImportResult, setLegacyImportResult] = useState<LiveTabsModel['legacyImportResult']>()
 
+  // Track inventory count for analytics (using ref to avoid re-subscribing on every inventory change)
+  const inventoryCountRef = useRef<number>(0)
+  useEffect(() => {
+    if (inventory?.tabs.length !== undefined) {
+      inventoryCountRef.current = inventory.tabs.length
+    }
+  }, [inventory?.tabs.length])
+
   useEffect(() => client.subscribe((message) => {
     switch (message.kind) {
       case 'LIVE_TAB_INVENTORY':
@@ -193,6 +203,12 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         // Update active project from inventory if available
         if ('activeProjectId' in message.inventory) {
           setActiveProjectId((message.inventory as { activeProjectId?: string }).activeProjectId)
+        }
+        // Record focus sample for analytics
+        if (!message.inventory.stale) {
+          import('../storage/repository').then(({ recordFocusSample }) => {
+            recordFocusSample(new ChromeAnalyticsStorageAdapter(), message.inventory.tabs.length).catch(() => {})
+          }).catch(() => {})
         }
         break
       case 'PROJECT_DELETED':
@@ -209,6 +225,14 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setFilingResult(message.result)
         setFilingPending(false)
         setPreparedFiling(undefined)
+        // Record analytics for successful single tab filing
+        if (message.result.closeState === 'closed' || message.result.closeState === 'requested') {
+          const tabCount = inventoryCountRef.current
+          void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+            tabsFiled: 1,
+            action: { type: 'file', tabsBefore: tabCount + 1, tabsAfter: tabCount, timestamp: Date.now() },
+          }).catch(() => {})
+        }
         break
       case 'BULK_FILING_PREPARED':
         setBulkPrepared({ operationId: message.operationId, eligible: message.eligible, projectName: message.projectName })
@@ -218,6 +242,17 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setBulkSummary(message.summary)
         setBulkPending(false)
         setBulkPrepared(undefined)
+        // Record analytics for bulk filing
+        {
+          const tabsFiled = message.summary.created + message.summary.reused
+          if (tabsFiled > 0) {
+            const tabCount = inventoryCountRef.current
+            void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+              tabsFiled,
+              action: { type: 'bulk-file', tabsBefore: tabCount + tabsFiled, tabsAfter: tabCount, timestamp: Date.now() },
+            }).catch(() => {})
+          }
+        }
         break
       // Phase 4: Activation
       case 'ACTIVATION_PREPARED':
@@ -230,6 +265,17 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setActivationPrepared(undefined)
         // Update active project ID
         setActiveProjectId(message.summary.projectId)
+        // Record analytics for activation
+        {
+          const tabsClosed = message.summary.closed + message.summary.requested
+          if (tabsClosed > 0) {
+            const tabCount = inventoryCountRef.current
+            void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+              tabsFiled: tabsClosed,
+              action: { type: 'activate', tabsBefore: tabCount + tabsClosed, tabsAfter: tabCount, timestamp: Date.now() },
+            }).catch(() => {})
+          }
+        }
         break
       // Phase 4: Open all
       case 'OPEN_ALL_SUMMARY':
@@ -245,9 +291,30 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setCloseAllSummary(message.summary)
         setCloseAllPending(false)
         setCloseAllPrepared(undefined)
+        // Record analytics for close all
+        {
+          const tabsClosed = message.summary.closed + message.summary.requested
+          if (tabsClosed > 0) {
+            const tabCount = inventoryCountRef.current
+            void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+              tabsFiled: tabsClosed,
+              action: { type: 'close-all', tabsBefore: tabCount + tabsClosed, tabsAfter: tabCount, timestamp: Date.now() },
+            }).catch(() => {})
+          }
+        }
         break
       case 'ARCHIVE_RESULT':
         // Archive/unarchive result is handled via STATE_COMMITTED
+        // Record analytics for archive
+        if (message.archived) {
+          void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+            urlsArchived: 1,
+          }).catch(() => {})
+        } else {
+          void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+            urlsArchived: -1,
+          }).catch(() => {})
+        }
         break
       // Phase 4D: Migration backup
       case 'MIGRATION_BACKUP_STATUS':

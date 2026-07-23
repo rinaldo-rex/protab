@@ -269,6 +269,62 @@ export function SettingsPanel({
         </section>
 
         <section className="settings-section">
+          <h3>Focus Tracking</h3>
+          <p className="settings-section-desc">Tab count thresholds for the focus heatmap in Analytics. Darker = fewer tabs = more focused.</p>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="focus-threshold-focused">Focused threshold</label>
+              <p>0 to this count = darkest green (most focused).</p>
+            </div>
+            <div className="setting-control">
+              <input
+                id="focus-threshold-focused"
+                type="number"
+                min={1}
+                max={settings.focusThresholds.normal - 1}
+                value={settings.focusThresholds.focused}
+                onChange={(e) => onSave({ focusThresholds: { ...settings.focusThresholds, focused: Number(e.target.value) } })}
+                className="settings-number-input"
+              />
+            </div>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="focus-threshold-normal">Normal threshold</label>
+              <p>Focused+1 to this count = medium green.</p>
+            </div>
+            <div className="setting-control">
+              <input
+                id="focus-threshold-normal"
+                type="number"
+                min={settings.focusThresholds.focused + 1}
+                max={settings.focusThresholds.distracted - 1}
+                value={settings.focusThresholds.normal}
+                onChange={(e) => onSave({ focusThresholds: { ...settings.focusThresholds, normal: Number(e.target.value) } })}
+                className="settings-number-input"
+              />
+            </div>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="focus-threshold-distracted">Distracted threshold</label>
+              <p>Normal+1 to this count = lightest green. Above this = no color.</p>
+            </div>
+            <div className="setting-control">
+              <input
+                id="focus-threshold-distracted"
+                type="number"
+                min={settings.focusThresholds.normal + 1}
+                max={100}
+                value={settings.focusThresholds.distracted}
+                onChange={(e) => onSave({ focusThresholds: { ...settings.focusThresholds, distracted: Number(e.target.value) } })}
+                className="settings-number-input"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="settings-section">
           <h3>Workspace Page</h3>
           <p className="settings-section-desc">Behavior when filing tabs from the Current Tabs pane.</p>
           <div className="setting-row">

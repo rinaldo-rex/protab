@@ -1,8 +1,11 @@
 import { emptyState, type PersistedState, type MigrationBackup } from '../domain/types'
 import { parsePersistedStateWithMetadata } from './schema'
+import type { ProtabAnalytics } from '../domain/analytics'
+import { emptyAnalytics } from '../domain/analytics'
 
 export const STORAGE_KEY = 'protab.state'
 export const MIGRATION_BACKUP_KEY = 'protab.state.migrationBackup.latest'
+export const ANALYTICS_KEY = 'protab.analytics'
 
 export interface LoadedState {
   state: PersistedState
@@ -32,6 +35,11 @@ export interface MigrationStorageAdapter {
   setMigrationBackup(backup: MigrationBackup): Promise<void>
 }
 
+export interface AnalyticsStorageAdapter {
+  getAnalytics(): Promise<ProtabAnalytics>
+  setAnalytics(analytics: ProtabAnalytics): Promise<void>
+}
+
 export class ChromeStorageAdapter implements StorageAdapter {
   async get(): Promise<unknown | undefined> {
     const result = await chrome.storage.local.get(STORAGE_KEY)
@@ -59,6 +67,29 @@ export class ChromeMigrationStorageAdapter implements MigrationStorageAdapter {
 
   async setMigrationBackup(backup: MigrationBackup): Promise<void> {
     await chrome.storage.local.set({ [MIGRATION_BACKUP_KEY]: backup })
+  }
+}
+
+export class ChromeAnalyticsStorageAdapter implements AnalyticsStorageAdapter {
+  async getAnalytics(): Promise<ProtabAnalytics> {
+    const result = await chrome.storage.local.get(ANALYTICS_KEY)
+    const raw = result[ANALYTICS_KEY]
+    if (!raw || typeof raw !== 'object') return emptyAnalytics()
+    return {
+      totalTabsFiled: typeof raw.totalTabsFiled === 'number' ? raw.totalTabsFiled : 0,
+      totalUrlsArchived: typeof raw.totalUrlsArchived === 'number' ? raw.totalUrlsArchived : 0,
+      lastAction: raw.lastAction && typeof raw.lastAction === 'object' ? {
+        type: raw.lastAction.type,
+        tabsBefore: raw.lastAction.tabsBefore,
+        tabsAfter: raw.lastAction.tabsAfter,
+        timestamp: raw.lastAction.timestamp,
+      } : undefined,
+      dailyFocus: raw.dailyFocus && typeof raw.dailyFocus === 'object' ? raw.dailyFocus : {},
+    }
+  }
+
+  async setAnalytics(analytics: ProtabAnalytics): Promise<void> {
+    await chrome.storage.local.set({ [ANALYTICS_KEY]: analytics })
   }
 }
 
@@ -225,4 +256,34 @@ export async function importLegacyProjects(
 
   await storage.set(currentState)
   return currentState
+}
+
+export async function loadAnalytics(analyticsStorage: AnalyticsStorageAdapter): Promise<ProtabAnalytics> {
+  return analyticsStorage.getAnalytics()
+}
+
+export async function recordAnalyticsEvent(
+  analyticsStorage: AnalyticsStorageAdapter,
+  event: { tabsFiled?: number; urlsArchived?: number; action?: ProtabAnalytics['lastAction'] },
+): Promise<ProtabAnalytics> {
+  const current = await analyticsStorage.getAnalytics()
+  const updated: ProtabAnalytics = {
+    totalTabsFiled: current.totalTabsFiled + (event.tabsFiled ?? 0),
+    totalUrlsArchived: current.totalUrlsArchived + (event.urlsArchived ?? 0),
+    lastAction: event.action ?? current.lastAction,
+    dailyFocus: current.dailyFocus,
+  }
+  await analyticsStorage.setAnalytics(updated)
+  return updated
+}
+
+export async function recordFocusSample(
+  analyticsStorage: AnalyticsStorageAdapter,
+  tabCount: number,
+): Promise<ProtabAnalytics> {
+  const current = await analyticsStorage.getAnalytics()
+  const { recordFocusSample: record } = await import('../domain/analytics')
+  const updated = record(current, tabCount)
+  await analyticsStorage.setAnalytics(updated)
+  return updated
 }

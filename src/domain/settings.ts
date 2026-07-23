@@ -1,3 +1,6 @@
+import type { FocusThresholds } from './analytics'
+import { DEFAULT_FOCUS_THRESHOLDS } from './analytics'
+
 export type WorkspaceShortcut = 'ctrl+enter' | 'ctrl+shift+enter' | 'alt+enter'
 export type ProjectsPanePosition = 'left' | 'right'
 
@@ -15,6 +18,7 @@ export interface ProtabSettings {
   toastDuration: number // milliseconds: 2000, 3000, 5000, or 0 (manual)
   showTabCounts: boolean // Show tab counts next to project names (default: true)
   projectsPanePosition: ProjectsPanePosition // Where the projects pane appears (default: 'right')
+  focusThresholds: FocusThresholds // Tab count thresholds for focus heatmap coloring
 }
 
 export const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
@@ -27,6 +31,7 @@ export const DEFAULT_SETTINGS: ProtabSettings = {
   toastDuration: 3000,
   showTabCounts: true,
   projectsPanePosition: 'right',
+  focusThresholds: DEFAULT_FOCUS_THRESHOLDS,
 }
 
 export function parseSettings(raw: unknown): ProtabSettings {
@@ -38,6 +43,13 @@ export function parseSettings(raw: unknown): ProtabSettings {
 
   const validShortcuts: WorkspaceShortcut[] = ['ctrl+enter', 'ctrl+shift+enter', 'alt+enter']
   const rawShortcut = obj.popupWorkspaceShortcut
+
+  const rawThresholds = obj.focusThresholds as Record<string, unknown> | undefined
+  const focusThresholds: FocusThresholds = {
+    focused: typeof rawThresholds?.focused === 'number' ? rawThresholds.focused : DEFAULT_FOCUS_THRESHOLDS.focused,
+    normal: typeof rawThresholds?.normal === 'number' ? rawThresholds.normal : DEFAULT_FOCUS_THRESHOLDS.normal,
+    distracted: typeof rawThresholds?.distracted === 'number' ? rawThresholds.distracted : DEFAULT_FOCUS_THRESHOLDS.distracted,
+  }
 
   return {
     schemaVersion: 1,
@@ -53,6 +65,7 @@ export function parseSettings(raw: unknown): ProtabSettings {
     projectsPanePosition: obj.projectsPanePosition === 'left' || obj.projectsPanePosition === 'right'
       ? obj.projectsPanePosition
       : DEFAULT_SETTINGS.projectsPanePosition,
+    focusThresholds,
   }
 }
 

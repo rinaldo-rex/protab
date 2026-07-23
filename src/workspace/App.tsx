@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2 } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3 } from 'lucide-react'
 import type { WorkspaceClient } from './client'
 import { ConfirmDialog } from './ConfirmDialog'
 import { generateExportHtml } from './export/generateHtml'
@@ -25,7 +25,9 @@ import { createExportZip, getExportZipFilename } from './export/createZip'
 import { parseImportFile, type ImportResult } from './export/parseImport'
 import { ConfirmImportDialog } from './ConfirmImportDialog'
 import { SettingsPanel } from './SettingsPanel'
+import { AnalyticsPanel } from './AnalyticsPanel'
 import { useSettings } from './useSettings'
+import { useAnalytics } from './useAnalytics'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -56,13 +58,14 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'workspace' | 'settings'>('workspace')
+  const [viewMode, setViewMode] = useState<'workspace' | 'settings' | 'analytics'>('workspace')
   const [renameDialogProjectId, setRenameDialogProjectId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renameError, setRenameError] = useState<string>()
   const [deleteDialogProjectId, setDeleteDialogProjectId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string>()
   const [settings, updateSettings] = useSettings()
+  const analytics = useAnalytics()
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
   const isDraggingProject = useRef(false)
   const focusNotesRegistry = useRef<Map<string, () => void>>(new Map())
@@ -562,6 +565,14 @@ export function App({ client, liveTabsClient }: AppProps) {
             <span>Protab</span>
             <button
               className="icon-button settings-button"
+              onClick={() => setViewMode(viewMode === 'analytics' ? 'workspace' : 'analytics')}
+              aria-label="Analytics"
+              title="Analytics"
+            >
+              <BarChart3 size={16} />
+            </button>
+            <button
+              className="icon-button settings-button"
               onClick={() => setViewMode(viewMode === 'settings' ? 'workspace' : 'settings')}
               aria-label="Settings"
               title="Settings"
@@ -697,7 +708,15 @@ export function App({ client, liveTabsClient }: AppProps) {
         )}
         {model.error && <div className="error-banner" role="alert"><span>{model.error}</span><button onClick={model.dismissError}>Dismiss</button></div>}
         <div className="workspace-body">
-          {viewMode === 'settings' ? (
+          {viewMode === 'analytics' ? (
+            <AnalyticsPanel
+              analytics={analytics}
+              projectCount={state.projects.length}
+              totalSavedUrls={state.projects.reduce((sum, p) => sum + p.savedUrls.length, 0)}
+              focusThresholds={settings.focusThresholds}
+              onBack={() => setViewMode('workspace')}
+            />
+          ) : viewMode === 'settings' ? (
             <SettingsPanel
               settings={settings}
               onSave={updateSettings}
@@ -833,7 +852,7 @@ export function App({ client, liveTabsClient }: AppProps) {
             )}
           </section>
           )}
-          {viewMode !== 'settings' && (
+          {viewMode === 'workspace' && (
           <CurrentTabsPane
             model={liveTabs}
             state={state}
