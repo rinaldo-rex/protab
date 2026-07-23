@@ -194,8 +194,8 @@ describe('project workspace shell', () => {
     renderApp(new TestClient(), liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 12, windowId: 3, index: 0, active: true, title: 'A very useful reference', url: 'https://example.com/reference', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [] },
-      { tabId: 13, windowId: 3, index: 1, active: false, title: 'Chrome Settings', url: 'chrome://settings/', urlSummary: 'chrome:', supported: false, candidates: [] },
+      { tabId: 12, windowId: 3, index: 0, active: true, title: 'A very useful reference', url: 'https://example.com/reference', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
+      { tabId: 13, windowId: 3, index: 1, active: false, title: 'Chrome Settings', url: 'chrome://settings/', urlSummary: 'chrome:', supported: false, candidates: [], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     const row = screen.getByRole('button', { name: /A very useful reference.*Current tab/ })
     expect(row).toHaveAttribute('aria-current', 'page')
@@ -214,7 +214,7 @@ describe('project workspace shell', () => {
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 15, windowId: 3, index: 0, active: false, title: 'One URL', url: 'https://one.test/', urlSummary: 'one.test', hostname: 'one.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://one.test/', drifted: false } },
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'One URL', url: 'https://one.test/', urlSummary: 'one.test', hostname: 'one.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://one.test/', drifted: false }, chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByLabelText('1 open instance')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open' }))
@@ -230,7 +230,7 @@ describe('project workspace shell', () => {
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Different page', url: 'https://different.test/', urlSummary: 'different.test', hostname: 'different.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://saved.test/', drifted: true } },
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Different page', url: 'https://different.test/', urlSummary: 'different.test', hostname: 'different.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://saved.test/', drifted: true }, chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByRole('button', { name: /Different page.*Navigated from saved URL.*Unassigned/ })).toBeInTheDocument()
     expect(document.getElementById('live-group-unassigned')).toHaveAttribute('aria-expanded', 'true')
@@ -247,7 +247,7 @@ describe('project workspace shell', () => {
     renderApp(client, liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Same live page', url: 'https://same.test/', urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [{ projectId: 'p1', savedUrlId: 'u1' }, { projectId: 'p2', savedUrlId: 'u2' }] },
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Same live page', url: 'https://same.test/', urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [{ projectId: 'p1', savedUrlId: 'u1' }, { projectId: 'p2', savedUrlId: 'u2' }], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByText('Matches 2 projects — assignment needed')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Assign to…' }))
@@ -262,7 +262,7 @@ describe('project workspace shell', () => {
     renderApp(new TestClient(), liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: true, error: 'Tabs permission unavailable', tabs: [
-      { tabId: 12, windowId: 3, index: 0, active: false, title: 'Last known tab', url: 'https://example.com/', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [] },
+      { tabId: 12, windowId: 3, index: 0, active: false, title: 'Last known tab', url: 'https://example.com/', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByRole('alert')).toHaveTextContent('Tabs permission unavailable')
     expect(screen.getByText('Last known tab')).toBeInTheDocument()

@@ -2,16 +2,31 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
+import { PROTECTION_LABELS } from '../domain/tabProtection'
 import type { PersistedState } from '../domain/types'
 import type { LiveTabsModel } from './useLiveTabs'
 import { LiveTabFileActions } from './LiveTabFileActions'
 import { FilingResult } from './FilingResult'
 import type { LiveTabView } from '../domain/liveTabs'
+import type { ProtectionReason } from '../domain/liveTabs'
 import { Toast } from './Toast'
 
 export interface DragPayload {
   tabId: number
   tabTitle: string
+}
+
+function ProtectionBadges({ reasons }: { reasons: ProtectionReason[] }) {
+  if (reasons.length === 0) return null
+  return (
+    <span className="protection-badges" aria-label={`Protected: ${reasons.map((r) => PROTECTION_LABELS[r]).join(', ')}`}>
+      {reasons.map((reason) => (
+        <span key={reason} className={`protection-badge protection-badge-${reason}`}>
+          {PROTECTION_LABELS[reason]}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selectedProjectId, toastDuration }: { model: LiveTabsModel; state: PersistedState; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void; selectedProjectId?: string; toastDuration?: number }) {
@@ -115,17 +130,18 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                   const isFileable = group.id === 'unassigned' && tab.supported && tab.url && isSupportedTabUrl(tab.url) && (!tab.ownership || tab.ownership.drifted)
                   const isDragging = draggingTabId === tab.tabId
                   const isHovered = hoveredTabId === tab.tabId
+                  const isManualPin = tab.protectionReasons.includes('manual-pin')
                   return (
                     <li key={tab.tabId}>
                       <div
-                        className={`live-tab-row-container ${isDragging ? 'dragging' : ''} ${isHovered ? 'hovered' : ''}`}
+                        className={`live-tab-row-container ${isDragging ? 'dragging' : ''} ${isHovered ? 'hovered' : ''} ${tab.isProtected ? 'protected' : ''}`}
                         onMouseEnter={() => setHoveredTabId(tab.tabId)}
                         onMouseLeave={() => setHoveredTabId(null)}
                       >
                         <button
-                          className="live-tab-row"
+                          className={`live-tab-row${tab.isProtected ? ' protected' : ''}`}
                           aria-current={tab.active ? 'page' : undefined}
-                          aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.ownership?.drifted ? 'Navigated from saved URL. Unassigned.' : tab.ownership ? `Owned by ${group.label}.` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`}
+                          aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.isProtected ? `Protected: ${tab.protectionReasons.map((r) => PROTECTION_LABELS[r]).join(', ')}. ` : ''}${tab.ownership?.drifted ? 'Navigated from saved URL. Unassigned.' : tab.ownership ? `Owned by ${group.label}.` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`}
                           onClick={() => model.focus(tab.tabId)}
                           draggable={isFileable ? 'true' : undefined}
                           onDragStart={isFileable ? (e) => handleDragStart(tab, e) : undefined}
@@ -137,6 +153,20 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                           {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
                           <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
                         </button>
+                        <div className="live-tab-actions">
+                          {tab.supported && tab.url && (
+                            <button
+                              className={`pin-button${isManualPin ? ' pinned' : ''}`}
+                              onClick={(e) => { e.stopPropagation(); model.toggleTabPin(tab.tabId) }}
+                              aria-label={isManualPin ? `Unpin ${tab.title}` : `Pin ${tab.title}`}
+                              aria-pressed={isManualPin}
+                              title={isManualPin ? 'Unpin tab' : 'Pin tab — pinned tabs are skipped by Protab close actions'}
+                            >
+                              {isManualPin ? 'Unpin' : 'Pin'}
+                            </button>
+                          )}
+                          <ProtectionBadges reasons={tab.protectionReasons} />
+                        </div>
                         {isFileable && model.preparedFiling?.tabId === tab.tabId ? null : isFileable ? (
                           <LiveTabFileActions
                             tab={tab}
@@ -166,7 +196,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
         const tab = inventory?.tabs.find((candidate) => candidate.tabId === assigningTabId)
         if (!tab) return null
         return <div className="assignment-backdrop" role="presentation"><section className="assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="assignment-title">
-          <h3 id="assignment-title">Assign “{tab.title}” to…</h3>
+          <h3 id="assignment-title">Assign "{tab.title}" to…</h3>
           <p>This keeps the browser tab open and does not change saved metadata.</p>
           <div className="assignment-choices">{tab.candidates.map((candidate) => {
             const project = state.projects.find((item) => item.id === candidate.projectId)

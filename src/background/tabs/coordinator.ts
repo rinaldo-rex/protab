@@ -1,15 +1,18 @@
 import type { PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
-import type { MigrationStorageAdapter, StorageAdapter } from '../../storage/repository'
+import type { StorageAdapter } from '../../storage/repository'
 import { restoreMigrationBackup, exportMigrationBackup, readMigrationBackup } from '../../storage/repository'
+import type { MigrationStorageAdapter } from '../../storage/repository'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
+import { computeProtectionReasons } from '../../domain/tabProtection'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../messages'
 import { queryOrdinaryTabs, type ChromeTabsApi } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
 import type { CloseTrackerStore } from './closeTracker'
 import type { FilingOrchestrator } from './filing'
 import type { ActiveProjectStore } from './activeProjectStore'
+import type { ProtectedTabsStore } from './protectedTabsStore'
 
 interface ClientSubscription {
   workspaceTabId: number
@@ -36,6 +39,7 @@ export class LiveTabsCoordinator {
     private readonly activeProjectStore?: ActiveProjectStore,
     private readonly storageAdapter?: StorageAdapter,
     private readonly migrationStorage?: MigrationStorageAdapter,
+    private readonly protectedTabsStore?: ProtectedTabsStore,
   ) {}
 
   async connect(port: chrome.runtime.Port): Promise<void> {
@@ -85,6 +89,27 @@ export class LiveTabsCoordinator {
           if (reconciled.matched || reconciled.ambiguous) reconciliation = { matched: reconciled.matched, ambiguous: reconciled.ambiguous }
         }
       }
+      // Compute protection reasons
+      if (this.protectedTabsStore) {
+        const manualPinned = await this.protectedTabsStore.read()
+        const activeTabIds = new Set(rawTabs.map((t) => t.tabId))
+        // Clean up closed tabs from protected store
+        await this.protectedTabsStore.removeClosedTabs(activeTabIds)
+        tabs = tabs.map((tab) => {
+          const protectionReasons = computeProtectionReasons(
+            tab.chromePinned,
+            tab.chromeAudible,
+            manualPinned,
+            tab.tabId,
+          )
+          return {
+            ...tab,
+            protectionReasons,
+            isProtected: protectionReasons.length > 0,
+          }
+        })
+      }
+
       const inventory: LiveTabInventory = { windowId, tabs, stale: false, reconciliation }
       subscribers.forEach((client) => {
         client.lastInventory = inventory
@@ -211,6 +236,11 @@ export class LiveTabsCoordinator {
     }
     if (message.kind === 'RESTORE_MIGRATION_BACKUP') {
       await this.handleRestoreMigrationBackup(client)
+      return
+    }
+    // Phase 4D: Protected tabs
+    if (message.kind === 'TOGGLE_LIVE_TAB_PIN' && typeof message.tabId === 'number') {
+      await this.handleToggleTabPin(client, message.tabId)
       return
     }
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
@@ -1025,6 +1055,33 @@ export class LiveTabsCoordinator {
       await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
     } catch (reason) {
       this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not unarchive this URL.' })
+    }
+  }
+
+  // Phase 4D: Protected tab pin toggle
+  private async handleToggleTabPin(client: ClientSubscription, tabId: number): Promise<void> {
+    if (!this.protectedTabsStore) return
+    try {
+      // Validate the tab exists and belongs to this window
+      const tab = await this.api.get(tabId)
+      if (tab.windowId !== client.windowId) {
+        this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', tabId, message: 'That tab is in another window.' })
+        return
+      }
+      // Don't allow pinning the workspace tab
+      if (tab.url === this.api.workspaceUrl()) {
+        this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', tabId, message: 'The workspace tab cannot be pinned.' })
+        return
+      }
+      await this.protectedTabsStore.toggle(tabId)
+      // Refresh inventory to reflect new protection state
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        tabId,
+        message: reason instanceof Error ? reason.message : 'Could not toggle pin state.',
+      })
     }
   }
 

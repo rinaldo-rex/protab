@@ -134,6 +134,8 @@ export interface LiveTabsModel {
   dismissMigrationNotice: () => void
   dismissMigrationRestoreResult: () => void
   clearExportedBackupJson: () => void
+  // Phase 4D: Protected tabs
+  toggleTabPin: (tabId: number) => void
 }
 
 export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
@@ -416,5 +418,7 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     dismissMigrationNotice: () => setMigrationNotice(undefined),
     dismissMigrationRestoreResult: () => setMigrationRestoreResult(undefined),
     clearExportedBackupJson: () => setMigrationBackupExportedJson(undefined),
+    // Phase 4D: Protected tabs
+    toggleTabPin: (tabId: number) => client.send({ kind: 'TOGGLE_LIVE_TAB_PIN', tabId }),
   }
 }

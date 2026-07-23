@@ -7,7 +7,7 @@ const state: PersistedState = { schemaVersion: 2, projects: [
   { id: 'p1', name: 'First', savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'Same', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
   { id: 'p2', name: 'Second', savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Same copy', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
 ] }
-const tab = (tabId: number, index: number, url = 'https://same.test/'): LiveTabView => ({ tabId, windowId: 1, index, active: false, title: `Tab ${tabId}`, url, urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [] })
+const tab = (tabId: number, index: number, url = 'https://same.test/'): LiveTabView => ({ tabId, windowId: 1, index, active: false, title: `Tab ${tabId}`, url, urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false })
 
 describe('runtime ownership', () => {
   it('retains explicit identity through navigation and updates its window', () => {

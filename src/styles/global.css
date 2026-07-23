@@ -543,3 +543,60 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   place-items: center;
   background: rgba(24,21,18,.38);
 }
+
+/* Protection badges and pin button */
+.live-tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.protection-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.protection-badge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.protection-badge-manual-pin {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+.protection-badge-chrome-pinned {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+.protection-badge-audible {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.pin-button {
+  padding: 2px 6px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 3px;
+  background: var(--surface-lowest);
+  color: var(--on-surface-variant);
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity .15s ease;
+  cursor: pointer;
+}
+.live-tab-row-container:hover .pin-button,
+.pin-button:focus-visible {
+  opacity: 1;
+}
+.pin-button.pinned {
+  opacity: 1;
+  background: #e3f2fd;
+  border-color: #90caf9;
+  color: #1565c0;
+}
+.live-tab-row.protected {
+  border-left: 3px solid #90caf9;
+}

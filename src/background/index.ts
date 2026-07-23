@@ -10,6 +10,7 @@ import { ChromeSessionStorageAdapter, OwnershipStore } from './tabs/ownershipSto
 import { CloseTrackerStore, ChromeSessionStorageAdapter as CloseTrackerSessionAdapter } from './tabs/closeTracker'
 import { FilingOrchestrator } from './tabs/filing'
 import { ActiveProjectStore, ChromeSessionStorageAdapter as ActiveProjectSessionAdapter } from './tabs/activeProjectStore'
+import { ProtectedTabsStore, ChromeSessionStorageAdapter as ProtectedTabsSessionAdapter } from './tabs/protectedTabsStore'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
 const chromeStorageAdapter = new ChromeStorageAdapter()
@@ -23,6 +24,9 @@ void closeTracker.initialize().catch((error: unknown) => console.error('Protab c
 const activeProjectStore = new ActiveProjectStore(new ActiveProjectSessionAdapter())
 void activeProjectStore.initialize().catch((error: unknown) => console.error('Protab could not restrict active project storage access.', error))
 
+const protectedTabsStore = new ProtectedTabsStore(new ProtectedTabsSessionAdapter())
+void protectedTabsStore.initialize().catch((error: unknown) => console.error('Protab could not restrict protected tabs storage access.', error))
+
 const tabsApi = new ChromeTabsAdapter()
 
 const filingOrchestrator = new FilingOrchestrator(
@@ -35,7 +39,7 @@ const filingOrchestrator = new FilingOrchestrator(
   () => liveTabs.scheduleAll(),
 )
 
-const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore, chromeStorageAdapter, migrationStorage)
+const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore, chromeStorageAdapter, migrationStorage, protectedTabsStore)
 
 // Initialize coordinator with write-through migration
 void loadStateWithMetadata(chromeStorageAdapter, migrationStorage)

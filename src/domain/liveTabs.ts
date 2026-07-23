@@ -10,6 +10,8 @@ export interface OwnershipCandidate {
   savedUrlId: string
 }
 
+export type ProtectionReason = 'manual-pin' | 'chrome-pinned' | 'audible'
+
 export interface LiveTabView {
   tabId: number
   windowId: number
@@ -23,6 +25,10 @@ export interface LiveTabView {
   supported: boolean
   ownership?: LiveOwnership
   candidates: OwnershipCandidate[]
+  chromePinned: boolean
+  chromeAudible: boolean
+  protectionReasons: ProtectionReason[]
+  isProtected: boolean
 }
 
 export interface LiveTabGroup {
@@ -81,6 +87,10 @@ export function normalizeChromeTab(tab: chrome.tabs.Tab): LiveTabView | undefine
     favIconUrl: tab.favIconUrl,
     supported: isSupportedTabUrl(tab.url),
     candidates: [],
+    chromePinned: Boolean(tab.pinned),
+    chromeAudible: Boolean(tab.audible),
+    protectionReasons: [],
+    isProtected: false,
   }
 }
 

@@ -102,6 +102,8 @@ export type LiveTabRequest =
   | { kind: 'CHECK_MIGRATION_BACKUP' }
   | { kind: 'EXPORT_MIGRATION_BACKUP' }
   | { kind: 'RESTORE_MIGRATION_BACKUP' }
+  // Phase 4D: Protected tabs
+  | { kind: 'TOGGLE_LIVE_TAB_PIN'; tabId: number }
 
 export type LiveTabMessage =
   | { kind: 'LIVE_TAB_INVENTORY'; inventory: LiveTabInventory }
