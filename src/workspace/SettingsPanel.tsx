@@ -72,6 +72,8 @@ export function SettingsPanel({
   const [selectedLegacyProjects, setSelectedLegacyProjects] = useState<Set<string>>(new Set())
   const [confirmImport, setConfirmImport] = useState(false)
   const [oldVersionWarningDismissed, setOldVersionWarningDismissed] = useState(false)
+  const [testToastKey, setTestToastKey] = useState(0)
+  const [showTestToast, setShowTestToast] = useState(false)
 
   // Check for migration backup on mount
   useEffect(() => {
@@ -236,7 +238,7 @@ export function SettingsPanel({
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="show-tab-counts">Show tab counts</label>
-              <p>Display the number of saved URLs next to each project name.</p>
+              <p>Display the number of saved URLs next to each project name. <em>(3 + 2) means 3 active and 2 archived.</em></p>
             </div>
             <div className="setting-control">
               <button
@@ -253,7 +255,7 @@ export function SettingsPanel({
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="show-sidebar-quotes">Show sidebar quotes</label>
-              <p>Display a daily inspiration quote in the project sidebar.</p>
+              <p>Adds a little daily nugget of wisdom to your sidebar.</p>
             </div>
             <div className="setting-control">
               <button
@@ -270,7 +272,7 @@ export function SettingsPanel({
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="projects-pane-position">Projects pane position</label>
-              <p>Choose which side of the workspace the projects list appears on.</p>
+              <p>Move the project list to the side that works best for your flow.</p>
             </div>
             <div className="setting-control">
               <select
@@ -287,11 +289,11 @@ export function SettingsPanel({
 
         <section className="settings-section">
           <h3>Focus Tracking</h3>
-          <p className="settings-section-desc">Tab count thresholds for the focus heatmap in Analytics. Darker = fewer tabs = more focused.</p>
+          <p className="settings-section-desc">Decide what 'focused' means for you. The colors in your Analytics calendar will adjust to match.</p>
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="focus-threshold-focused">Focused threshold</label>
-              <p>0 to this count = darkest green (most focused).</p>
+              <p>If you're below this many tabs, you're in the zone and focused. Shows as the darkest on your streaks.</p>
             </div>
             <div className="setting-control">
               <input
@@ -308,7 +310,7 @@ export function SettingsPanel({
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="focus-threshold-normal">Normal threshold</label>
-              <p>Focused+1 to this count = medium green.</p>
+              <p>You're drifting out of focus and hogging up your memory and CPU resources if you cross this many tabs. Lighter on streak page.</p>
             </div>
             <div className="setting-control">
               <input
@@ -325,7 +327,7 @@ export function SettingsPanel({
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="focus-threshold-distracted">Distracted threshold</label>
-              <p>Normal+1 to this count = lightest green. Above this = no color.</p>
+              <p>Past this many tabs? You gotta get yourself together! Your brain works best when focused — neuroscience backs this up. Shows as the lightest shade on your streak. Stash away those distractions!</p>
             </div>
             <div className="setting-control">
               <input
@@ -343,11 +345,11 @@ export function SettingsPanel({
 
         <section className="settings-section">
           <h3>Workspace Page</h3>
-          <p className="settings-section-desc">Behavior when filing tabs from the Current Tabs pane.</p>
+          <p className="settings-section-desc">What happens when you save a tab to a project.</p>
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="page-close-behavior">Close tab after filing</label>
-              <p>When pressing 'A' to file a tab, close the tab after saving.</p>
+              <p>Automatically close a tab once you've saved it to a project. Keeps things tidy.</p>
             </div>
             <div className="setting-control">
               <button
@@ -364,12 +366,12 @@ export function SettingsPanel({
         </section>
 
         <section className="settings-section">
-          <h3>Extension Popup</h3>
-          <p className="settings-section-desc">Behavior when using the quick-capture popup.</p>
+          <h3>Quick-capture popup</h3>
+          <p className="settings-section-desc">What happens when you capture a tab from the popup.</p>
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="popup-close-behavior">Close tab after capture</label>
-              <p>When using quick-capture, close the tab after saving. Default keeps the tab open.</p>
+              <p>Automatically close the tab after saving. Off by default so you can keep reading.</p>
             </div>
             <div className="setting-control">
               <button
@@ -386,7 +388,7 @@ export function SettingsPanel({
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="popup-workspace-shortcut">Open workspace shortcut</label>
-              <p>Keyboard shortcut to open the full workspace from the popup.</p>
+              <p>Jump straight to the full workspace from the popup with a keystroke.</p>
             </div>
             <div className="setting-control">
               <select
@@ -408,7 +410,7 @@ export function SettingsPanel({
             <div className="setting-info">
               <label>Quick-capture shortcut</label>
               <p>
-                <code>Ctrl+Shift+X</code> (or <code>Cmd+Shift+X</code> on Mac)
+                <code>Ctrl+Shift+X</code> / <code>⌘+Shift+X</code>. Change it in Chrome's shortcut settings.
               </p>
             </div>
             <div className="setting-control">
@@ -423,9 +425,9 @@ export function SettingsPanel({
           <div className="setting-row">
             <div className="setting-info">
               <label htmlFor="toast-duration">Toast duration</label>
-              <p>How long success/error toasts stay visible.</p>
+              <p>Set how quickly confirmation messages disappear. Pick 'Manual dismiss' to close them yourself.</p>
             </div>
-            <div className="setting-control">
+            <div className="setting-control toast-test-control">
               <select
                 id="toast-duration"
                 value={settings.toastDuration}
@@ -436,55 +438,80 @@ export function SettingsPanel({
                 <option value={5000}>5 seconds</option>
                 <option value={0}>Manual dismiss</option>
               </select>
+              <button
+                className="small-button"
+                onClick={() => {
+                  setShowTestToast(false)
+                  setTestToastKey((k) => k + 1)
+                  requestAnimationFrame(() => setShowTestToast(true))
+                }}
+              >
+                Test
+              </button>
+              {showTestToast && (
+                <div
+                  key={testToastKey}
+                  className="test-toast"
+                  style={{ animationDuration: settings.toastDuration === 0 ? '0ms' : `${settings.toastDuration}ms` }}
+                  onAnimationEnd={() => settings.toastDuration !== 0 && setShowTestToast(false)}
+                >
+                  <span>This is a test notification.</span>
+                  <button onClick={() => setShowTestToast(false)}>×</button>
+                </div>
+              )}
             </div>
           </div>
         </section>
 
-        {migrationBackupStatus?.available && (
-          <section className="settings-section">
-            <h3>Data Recovery</h3>
-            <p className="settings-section-desc">
-              A migration backup was created when Protab updated your saved data format
-              (schema v{migrationBackupStatus.fromSchemaVersion} → v{migrationBackupStatus.toSchemaVersion}
-              {migrationBackupStatus.createdAt
-                ? ` on ${new Date(migrationBackupStatus.createdAt).toLocaleDateString()}`
-                : ''}
-              ).
-            </p>
-            <div className="setting-row">
-              <div className="setting-info">
-                <label>Export migration backup</label>
-                <p>Download the pre-migration data as JSON for manual safekeeping.</p>
+        <section className="settings-section">
+          <h3>Backup &amp; restore</h3>
+          {migrationBackupStatus?.available ? (
+            <>
+              <p className="settings-section-desc">
+                A migration backup was created when Protab updated your saved data format
+                (schema v{migrationBackupStatus.fromSchemaVersion} → v{migrationBackupStatus.toSchemaVersion}
+                {migrationBackupStatus.createdAt
+                  ? ` on ${new Date(migrationBackupStatus.createdAt).toLocaleDateString()}`
+                  : ''}
+                ).
+              </p>
+              <div className="setting-row">
+                <div className="setting-info">
+                  <label>Export migration backup</label>
+                  <p>Save a copy of your old data before the update, just in case.</p>
+                </div>
+                <div className="setting-control">
+                  <button className="small-button" onClick={handleExportBackup}>
+                    <Download size={14} /> Export
+                  </button>
+                </div>
               </div>
-              <div className="setting-control">
-                <button className="small-button" onClick={handleExportBackup}>
-                  <Download size={14} /> Export
-                </button>
+              <div className="setting-row">
+                <div className="setting-info">
+                  <label>Restore migration backup</label>
+                  <p>Restore your data to how it was before the update. This can't be undone — export a backup first if you're unsure.</p>
+                </div>
+                <div className="setting-control">
+                  <button className="small-button" onClick={handleRestoreClick}>
+                    <RotateCcw size={14} /> Restore
+                  </button>
+                </div>
               </div>
+            </>
+          ) : (
+            <p className="settings-section-desc settings-section-empty">All good! No previous version data to restore.</p>
+          )}
+          {migrationRestoreResult && (
+            <div className={`settings-notice ${migrationRestoreResult.success ? 'success' : 'error'}`} role="status">
+              <span>
+                {migrationRestoreResult.success
+                  ? 'Migration backup restored successfully.'
+                  : `Restore failed: ${migrationRestoreResult.error}`}
+              </span>
+              <button onClick={onDismissRestoreResult}>Dismiss</button>
             </div>
-            <div className="setting-row">
-              <div className="setting-info">
-                <label>Restore migration backup</label>
-                <p>Replace current project data with the backed-up state. This cannot be undone.</p>
-              </div>
-              <div className="setting-control">
-                <button className="small-button" onClick={handleRestoreClick}>
-                  <RotateCcw size={14} /> Restore
-                </button>
-              </div>
-            </div>
-            {migrationRestoreResult && (
-              <div className={`settings-notice ${migrationRestoreResult.success ? 'success' : 'error'}`} role="status">
-                <span>
-                  {migrationRestoreResult.success
-                    ? 'Migration backup restored successfully.'
-                    : `Restore failed: ${migrationRestoreResult.error}`}
-                </span>
-                <button onClick={onDismissRestoreResult}>Dismiss</button>
-              </div>
-            )}
-          </section>
-        )}
+          )}
+        </section>
       </div>
 
       {confirmRestore && (

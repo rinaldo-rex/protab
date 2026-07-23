@@ -772,3 +772,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Settings number input */
 .settings-number-input { width: 72px; height: 36px; padding: 6px 8px; border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface-lowest); color: var(--on-surface); font-size: 14px; text-align: center; }
 .settings-number-input:focus { border-color: var(--primary); outline: none; }
+
+/* Toast test control */
+.toast-test-control { display: flex; align-items: center; gap: 8px; position: relative; }
+.test-toast { position: absolute; top: 100%; right: 0; margin-top: 8px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: var(--on-surface); color: var(--surface); font-size: 13px; white-space: nowrap; z-index: 10; animation: test-toast-fade linear forwards; }
+.test-toast button { background: none; border: none; color: var(--surface); cursor: pointer; font-size: 16px; padding: 0 0 0 4px; opacity: 0.7; }
+.test-toast button:hover { opacity: 1; }
+@keyframes test-toast-fade { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Backup & restore empty state */
+.settings-section-empty { font-style: italic; opacity: 0.7; }
