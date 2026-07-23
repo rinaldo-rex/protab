@@ -252,6 +252,33 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .filing-result-content { flex: 1; min-width: 0; }
 .filing-result-actions { display: flex; align-items: center; gap: 4px; }
 
+/* Drag ghost icon */
+.drag-ghost-icon {
+  position: fixed;
+  top: -100px;
+  left: -100px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Drag placeholder hint */
+.drag-placeholder-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  width: 100%;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  font-style: italic;
+}
+
 /* Drag and drop styles */
 .live-tab-row[draggable="true"] { cursor: grab; }
 .live-tab-row[draggable="true"]:active { cursor: grabbing; }

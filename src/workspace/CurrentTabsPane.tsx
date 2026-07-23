@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { AlertTriangle, Archive, ChevronDown, FolderInput, Globe2, Pin, RefreshCw, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, ChevronDown, FileText, FolderInput, Globe2, Pin, RefreshCw, Trash2 } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
 import { PROTECTION_LABELS } from '../domain/tabProtection'
@@ -164,6 +164,15 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
     event.dataTransfer.effectAllowed = 'move'
     setDraggingTabId(tab.tabId)
     onDragStart?.(tab)
+
+    // Use a small document icon as the drag ghost
+    const ghost = document.createElement('div')
+    ghost.className = 'drag-ghost-icon'
+    ghost.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`
+    document.body.appendChild(ghost)
+    event.dataTransfer.setDragImage(ghost, 10, 10)
+    // Clean up after the browser has used the element
+    requestAnimationFrame(() => ghost.remove())
   }
 
   const handleDragEnd = () => {
@@ -219,11 +228,18 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                           onDragStart={isFileable ? (e) => handleDragStart(tab, e) : undefined}
                           onDragEnd={isFileable ? handleDragEnd : undefined}
                         >
+                          {isDragging ? (
+                            <span className="drag-placeholder-hint">
+                              <FileText size={14} aria-hidden="true" />
+                              <span>Drag into a project</span>
+                            </span>
+                          ) : (<>
                           {isFileable && isHovered && (
                             <span className="hover-hint" aria-hidden="true">Add (A)</span>
                           )}
                           {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
                           <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
+                          </>)}
                         </button>
                         <div className="live-tab-actions">
                           <ProtectionBadges reasons={tab.protectionReasons} />
