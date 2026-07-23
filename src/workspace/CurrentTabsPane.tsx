@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
+import { AlertTriangle, ChevronDown, FolderInput, Globe2, Pin, RefreshCw } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
 import { PROTECTION_LABELS } from '../domain/tabProtection'
 import type { PersistedState } from '../domain/types'
 import type { LiveTabsModel } from './useLiveTabs'
-import { LiveTabFileActions } from './LiveTabFileActions'
+import { ContextMenu } from './ContextMenu'
 import { FilingResult } from './FilingResult'
 import type { LiveTabView } from '../domain/liveTabs'
 import type { ProtectionReason } from '../domain/liveTabs'
@@ -59,6 +59,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
   const [draggingTabId, setDraggingTabId] = useState<number>()
   const [hoveredTabId, setHoveredTabId] = useState<number | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tab: LiveTabView } | null>(null)
   const assignmentTrigger = useRef<HTMLButtonElement>(null)
 
   // Handle hover 'A' shortcut
@@ -151,6 +152,10 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                         className={`live-tab-row-container ${isDragging ? 'dragging' : ''} ${isHovered ? 'hovered' : ''} ${tab.isProtected ? 'protected' : ''}`}
                         onMouseEnter={() => setHoveredTabId(tab.tabId)}
                         onMouseLeave={() => setHoveredTabId(null)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setContextMenu({ x: e.clientX, y: e.clientY, tab })
+                        }}
                       >
                         <button
                           className={`live-tab-row${tab.isProtected ? ' protected' : ''}`}
@@ -181,14 +186,6 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                           )}
                           <ProtectionBadges reasons={tab.protectionReasons} />
                         </div>
-                        {isFileable && model.preparedFiling?.tabId === tab.tabId ? null : isFileable ? (
-                          <LiveTabFileActions
-                            tab={tab}
-                            state={state}
-                            pending={model.filingPending}
-                            onFile={model.prepareFileTab}
-                          />
-                        ) : null}
                         {!tab.ownership && tab.candidates.length > 0 && <button ref={assigningTabId === tab.tabId ? assignmentTrigger : undefined} className="assign-button" aria-haspopup="dialog" onClick={() => setAssigningTabId(tab.tabId)}>Assign to…</button>}
                       </div>
                       {model.filingResult && model.filingResult.tabId === tab.tabId && (
@@ -220,6 +217,38 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
           })}</div>
           <button className="button secondary" autoFocus onClick={() => { setAssigningTabId(undefined); queueMicrotask(() => assignmentTrigger.current?.focus()) }}>Cancel</button>
         </section></div>
+      })()}
+      {contextMenu && (() => {
+        const { tab } = contextMenu
+        const isFileable = tab.supported && tab.url && isSupportedTabUrl(tab.url) && (!tab.ownership || tab.ownership.drifted)
+        const isManualPin = tab.protectionReasons.includes('manual-pin')
+        const items = []
+        if (isFileable && state.projects.length > 0) {
+          items.push({
+            label: 'File to project',
+            icon: <FolderInput size={14} />,
+            submenu: state.projects.map((project) => ({
+              label: project.name,
+              onClick: () => model.prepareFileTab(tab.tabId, project.id),
+            })),
+          })
+        }
+        if (tab.supported && tab.url) {
+          items.push({
+            label: isManualPin ? 'Unpin tab' : 'Pin tab',
+            icon: <Pin size={14} />,
+            onClick: () => model.toggleTabPin(tab.tabId),
+          })
+        }
+        if (items.length === 0) return null
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={items}
+            onClose={() => setContextMenu(null)}
+          />
+        )
       })()}
       {toast && (
         <Toast
