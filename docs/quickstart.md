@@ -1,188 +1,114 @@
-# Protab Quickstart
+# Protab quickstart guide
 
-Protab helps you turn messy browser tabs into durable project context.
+## Why Protab exists
 
-Use it when a browser window has become a pile of reminders: docs you need later, social links you might read, admin pages you cannot forget, and project tabs you are afraid to close.
+You have 30 tabs open. Some are for your current project, some are for a side research task, two are playing music, and the rest are "I'll read this later" reminders you haven't touched in weeks. Closing the window feels risky — what if you lose something important?
 
-Protab is not trying to replace bookmarks, read-it-later apps, or session managers. It is for active work: the tabs you keep open because they still mean something. Protab lets you save them into projects, close them, and reopen only what you need later.
+Protab separates **durable context** from **temporary tabs**. Your projects store URLs, tags, and notes. Live tabs are disposable working copies you open only when needed. The result: a clean browser window without losing anything.
 
-No account, subscription, or server is required for the core workflow. Your projects and saved URLs stay in local Chrome extension storage.
+## Core mental model
 
-> Screenshot: Protab workspace with Projects, Saved URLs, and Current Tabs panes.
+- **Saved URLs are durable.** They live in projects, survive browser restarts, and hold your tags and notes.
+- **Live tabs are temporary.** They're working instances of saved URLs (or unassigned pages you haven't filed yet).
+- **Protab never syncs or uploads.** Everything stays in your browser's local storage.
 
-## The basic idea
+## Your first cleanup
 
-Tabs are temporary. Projects are durable.
+### 1. Open the workspace
 
-A saved URL in Protab can have:
+Click the Protab toolbar icon, then click **Open workspace** at the bottom of the popup (or press the keyboard shortcut shown there). The full-page workspace opens with a sidebar on the left and your current tabs on the right.
 
-- a title
-- tags
-- notes
-- archive state
-- project ownership when opened from Protab
+### 2. Create a project
 
-The main loop is:
+Click **New project** in the sidebar and give it a name — something like "Client work" or "Side project". This is a container for related URLs.
 
-1. Save a tab into a project.
-2. Close the live tab.
-3. Reopen it later when you need it.
+### 3. File your tabs
 
-## Mental model
+Look at the **Current Tabs** pane on the right. Each open tab in your browser window appears here, grouped by project ownership or **Unassigned**.
 
-- **Saved URL**: durable project context.
-- **Live tab**: a temporary working copy.
-- **Selected project**: the project you are viewing.
-- **Active project**: the project you are focusing the current window around.
-- **Unassigned tab**: a tab Protab has not connected to a project.
+To file a tab into your new project:
 
-Selecting a project is harmless. Activating a project is deliberate and may close other projects' tabs in the current Chrome window.
+- **Drag and drop**: Drag an unassigned tab row from the right pane into your project in the sidebar.
+- **Hover shortcut**: Hover over a tab row and press `A`. It files to the currently selected project.
+- **File button**: Hover over a tab row and click the file button that appears.
 
-## Your first 5 minutes
+When you file a tab, Protab saves the URL and closes the browser tab. The URL is now safe in your project.
 
-1. Open a messy Chrome window.
-2. Create 2–3 projects for the contexts in that window.
-3. Select one project.
-4. File a few unassigned tabs into projects.
-5. Activate the project you want to work on now.
-6. Reopen one saved URL to confirm the save–close–reopen loop.
-7. Use quick-capture for new tabs before clutter builds up again.
+### 4. File all at once
 
-## First cleanup: turn a messy window into projects
+If you have many unassigned tabs, use **File all unassigned** from the project's action menu. Protab saves every eligible tab and closes them in one go.
 
-Imagine one window has a mix of tabs:
+## Quick capture from anywhere
 
-- coding docs
-- GitHub issues
-- Hacker News
-- YouTube
-- admin forms
-- research links
-- Twitter/X or Reddit threads
+You don't need to open the workspace to save a tab. Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac) from any tab to open the quick-capture popup.
 
-Instead of keeping all of them open, create projects for the contexts you care about.
+Type your capture using this format:
 
-Example projects:
-
-- `Protab dev`
-- `Research`
-- `Life admin`
-- `Reading / social`
-
-## 1. Open the workspace
-
-Click the Protab extension icon to open the quick-capture popup, then choose **Open workspace**.
-
-If you are running the extension locally, build and load the unpacked `dist/` folder as described in the README.
-
-> Screenshot: Protab popup with “Open workspace”.
-
-## 2. Create a project
-
-In the workspace sidebar, create a project for one context, such as:
-
-```text
-Protab dev
+```
+optional note #tag1 #tag2 @ProjectName
 ```
 
-Then create another project for a different context:
+Examples:
+- `Check this later #blog @Research`
+- `API docs #code #reference @Client work`
+- `@Side project` (no note or tags — just save it)
 
-```text
-Research
-```
+The `@Project` part is required. Tags are optional. If the URL already exists in the project, Protab adds new tags and appends the note instead of creating a duplicate.
 
-Selecting a project only shows it. It does not open or close tabs.
+## Activation: deliberate focus
 
-## 3. File tabs into projects
+**Selecting** a project (clicking it in the sidebar) just shows its saved URLs. **Activating** it does something stronger: it closes other projects' tabs in the current window and marks this project as your active focus.
 
-Use the **Current Tabs** pane to file live tabs.
+To activate a project, use the project's action menu and choose **Activate**. Unassigned tabs stay open. Tabs that are pinned in Chrome or playing audio are also kept open (they're "protected").
 
-You can:
+Activation never opens tabs automatically — it only closes others. You open what you need from the saved URLs.
 
-- drag an unassigned tab into a project
-- hover a tab and press `A` to file it to the selected project
-- use quick-capture for the current tab
+## Reopening saved URLs
 
-When Protab files a tab, it saves the URL first. Then it attempts to close the tab, depending on the close behavior for that workflow.
+In the project canvas, each saved URL shows an **Open** button. Click it to open that URL in the current window. If it's already open, Protab focuses the existing tab instead of opening a duplicate.
 
-> Screenshot: Current Tabs pane with unassigned tabs.
+Use **Open another copy** from the URL's action menu if you need a second instance.
 
-## 4. Use quick capture for low-friction saving
+**Open all active** (from the project menu) opens every non-archived URL that isn't already open.
 
-From any page, open the quick-capture popup with the configured shortcut.
+## Protected tabs
 
-Default:
+Some tabs shouldn't be closed by Protab. A tab is protected if:
 
-```text
-Ctrl+Shift+X
-```
+- **You pinned it in Protab** — click the **Pin** button on any tab row in Current Tabs
+- **It's pinned in Chrome** — Chrome's native tab pinning
+- **It's playing audio** — Chrome reports the tab as audible
 
-Then type a note, tags, and a project:
+Protected tabs show badges (Pinned, Chrome pinned, Playing audio) and are skipped by all Protab close actions: filing, activation, close all, and quick-capture close. They're never silently closed.
 
-```text
-useful API example #typescript #docs @Protab dev
-```
+Protab pins are session-only — they disappear when the tab closes. They don't permanently protect a URL.
 
-Format:
+## Archiving
 
-```text
-note #tag @Project
-```
+When you're done with a URL but want to keep it for reference, archive it. Right-click the URL accordion or hover over it and press `R`. Archived URLs move to a separate collapsible section and are excluded from activation and Open all.
 
-If the URL already exists in that project, Protab updates the existing record instead of creating a duplicate.
+Press `R` again to unarchive.
 
-> Screenshot: Quick-capture popup with `#tag` and `@Project` autocomplete.
+## Export and backup
 
-## 5. Activate a project when you want focus
+Use the project action menu to **Export** a project as a self-contained HTML file (works offline, all links clickable). Use **Export all** in the sidebar to get a ZIP of every project.
 
-After filing tabs into projects, choose the project you want to work on and click **Activate**.
+You can import these files later by dragging them onto the sidebar's import zone.
 
-Activation is deliberate:
+## Local, no subscription
 
-- it does not open tabs
-- it does not close unassigned tabs
-- it only affects the current Chrome window
-- it closes tabs owned by other projects, except tabs Protab must keep open
+Protab doesn't create accounts, sync data, or phone home. Your projects live in your browser's local storage. If you uninstall the extension or clear extension data, the data is gone — so export projects periodically if you want a backup.
 
-This lets you clean the window around one active context without losing the rest of your saved work.
+## What Protab is not
 
-> Screenshot: Active project indicator.
+- **Not a bookmark manager.** Bookmarks are browser-wide and flat. Protab is project-scoped and includes tags, notes, and an explicit close workflow.
+- **Not a read-it-later tool.** Protab is about active work context, not article queuing.
+- **Not a session manager.** Protab doesn't restore entire browser sessions. It saves individual URLs you choose to keep.
+- **Not a tab suspender.** Protab doesn't hibernate tabs. It closes them after saving.
 
-## 6. Reopen what you need
+## Important safety notes
 
-Inside a project, each saved URL can be reopened.
-
-Use:
-
-- **Open** to focus an existing owned copy or open one if needed
-- **Open another copy** when you intentionally want a second instance
-- **Open all** to restore the active saved URLs for that project
-
-Saved URLs are the durable source of truth. Live tabs are just working copies.
-
-## Everyday habit
-
-Use Protab when you notice:
-
-- too many tabs are slowing down your browser
-- a window has mixed contexts
-- you are afraid to close tabs because they still feel important
-- you want to switch projects without keeping every project live
-
-A simple daily flow:
-
-1. Quick-capture or file tabs as soon as they become project context.
-2. Close tabs after saving them.
-3. Activate the project you are working on now.
-4. Reopen saved URLs only when needed.
-
-## Important notes
-
-Protab does not guess silently.
-
-- Unassigned tabs stay visible.
-- Ambiguous tabs stay unassigned until you decide.
-- Protab does not claim to detect unsaved page changes.
-- Closing is requested through Chrome, and Protab reports what happened as honestly as possible.
-
-Protab is best used as a lightweight project-context layer for active work — not as a replacement for the other tools you already use.
+- **Unassigned tabs are never closed by activation.** Only other projects' tabs are targeted.
+- **Protected tabs are never closed by any Protab action.** Chrome-pinned, audible, and manually pinned tabs are always skipped.
+- **Protab can't detect unsaved form state.** Chrome may show its own warning for pages with form data, but Protab doesn't promise this.
+- **Close is always explicit.** Every close action shows a confirmation or summary. Protab never silently closes tabs in the background.
