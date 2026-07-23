@@ -130,6 +130,8 @@ export interface LiveTabsModel {
   unarchive: (projectId: string, savedUrlId: string) => void
   // Phase 4B: Silent file
   silentFileTab: (tabId: number, projectId: string) => void
+  // Phase 4D: Silent file and archive
+  silentFileAndArchiveTab: (tabId: number, projectId: string) => void
   // Phase 4D: Migration backup
   migrationBackupStatus?: { available: boolean; fromSchemaVersion?: number; toSchemaVersion?: number; createdAt?: number }
   migrationBackupExportedJson?: string
@@ -436,6 +438,11 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     silentFileTab: (tabId, projectId) => {
       setFilingResult(undefined)
       client.send({ kind: 'SILENT_FILE_TAB', tabId, projectId })
+    },
+    // Phase 4D: Silent file and archive
+    silentFileAndArchiveTab: (tabId, projectId) => {
+      setFilingResult(undefined)
+      client.send({ kind: 'SILENT_FILE_AND_ARCHIVE_TAB', tabId, projectId })
     },
     // Phase 4D: Migration backup
     migrationBackupStatus,

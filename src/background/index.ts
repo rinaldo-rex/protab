@@ -46,6 +46,13 @@ const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(),
 // Initialize coordinator with write-through migration
 void loadStateWithMetadata(chromeStorageAdapter, migrationStorage)
   .then(async (loaded) => {
+    // Ensure Trash project exists
+    const trashExists = loaded.state.projects.some((p) => p.name === 'Trash')
+    if (!trashExists) {
+      const { state } = await queue.execute({ type: 'CREATE_PROJECT', name: 'Trash' })
+      loaded.state = state
+    }
+
     await liveTabs.initialize(loaded.state)
     if (loaded.legacyData) {
       // Notify connected workspaces about legacy data

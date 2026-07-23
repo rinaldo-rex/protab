@@ -98,6 +98,8 @@ export type LiveTabRequest =
   | { kind: 'QUICK_CAPTURE_TAB'; projectId: string; note: string; tags: string[] }
   // Phase 4B: Silent file (no confirmation)
   | { kind: 'SILENT_FILE_TAB'; tabId: number; projectId: string }
+  // Phase 4D: Silent file and archive (no confirmation)
+  | { kind: 'SILENT_FILE_AND_ARCHIVE_TAB'; tabId: number; projectId: string }
   // Phase 4D: Migration backup
   | { kind: 'CHECK_MIGRATION_BACKUP' }
   | { kind: 'EXPORT_MIGRATION_BACKUP' }

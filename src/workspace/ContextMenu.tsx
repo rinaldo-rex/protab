@@ -7,6 +7,7 @@ interface ContextMenuItem {
   disabled?: boolean
   danger?: boolean
   submenu?: ContextMenuItem[]
+  shortcut?: string
 }
 
 interface ContextMenuProps {
@@ -139,7 +140,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
               }}
             >
               {item.icon && <span className="context-menu-icon">{item.icon}</span>}
-              {item.label}
+              <span className="context-menu-label">{item.label}</span>
+              {item.shortcut && <span className="context-menu-shortcut">{item.shortcut}</span>}
             </button>
           )
         ))}

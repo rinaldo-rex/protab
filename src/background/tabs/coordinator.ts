@@ -226,6 +226,11 @@ export class LiveTabsCoordinator {
       this.enqueueWindow(client.windowId, () => this.silentFileTab(client, message.tabId!, message.projectId!))
       return
     }
+    // Phase 4D: Silent file and archive
+    if (message.kind === 'SILENT_FILE_AND_ARCHIVE_TAB' && typeof message.tabId === 'number' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.silentFileAndArchiveTab(client, message.tabId!, message.projectId!))
+      return
+    }
     // Phase 4D: Migration backup
     if (message.kind === 'CHECK_MIGRATION_BACKUP') {
       await this.handleCheckMigrationBackup(client)
@@ -1061,6 +1066,43 @@ export class LiveTabsCoordinator {
         kind: 'LIVE_TAB_ACTION_ERROR',
         tabId,
         message: reason instanceof Error ? reason.message : 'Could not file tab.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
+  // Phase 4D: Silent file and archive tab (no confirmation)
+  private async silentFileAndArchiveTab(client: ClientSubscription, tabId: number, projectId: string): Promise<void> {
+    if (!this.filingOrchestrator || !this.durableQueue) return
+
+    try {
+      // File the tab
+      const operation = await this.filingOrchestrator.prepare(tabId, projectId, client.windowId)
+      const result = await this.filingOrchestrator.executeFiling(operation.operationId, client.windowId)
+
+      // If filing succeeded, archive the saved URL
+      if (result.savedUrlId && result.closeState !== 'failed') {
+        await this.durableQueue.execute({
+          type: 'ARCHIVE_SAVED_URL',
+          projectId,
+          savedUrlId: result.savedUrlId,
+          archived: true,
+        })
+      }
+
+      // Post result
+      this.post(client, { kind: 'FILING_RESULT', result })
+
+      // Notify workspace of state change
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+
+      // Refresh inventory
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        tabId,
+        message: reason instanceof Error ? reason.message : 'Could not file and archive tab.',
       })
       this.scheduleWindow(client.windowId)
     }

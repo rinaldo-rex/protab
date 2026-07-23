@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { AlertTriangle, ChevronDown, FolderInput, Globe2, Pin, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Archive, ChevronDown, FolderInput, Globe2, Pin, RefreshCw, Trash2 } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
 import { PROTECTION_LABELS } from '../domain/tabProtection'
@@ -87,22 +87,76 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
     setToast({ message: 'Saved to project.', type: 'success' })
   }, [selectedProjectId, model, groups])
 
-  // Keyboard listener for 'A' shortcut
+  // Handle hover 'P' shortcut - toggle pin
+  const handleTogglePin = useCallback((tabId: number) => {
+    model.toggleTabPin(tabId)
+    setToast({ message: 'Pin toggled.', type: 'success' })
+  }, [model])
+
+  // Handle hover 'R' shortcut - archive
+  const handleArchive = useCallback((tabId: number) => {
+    const tab = inventory?.tabs.find((t) => t.tabId === tabId)
+    if (!tab || !tab.supported || !tab.url) return
+
+    if (tab.ownership && !tab.ownership.drifted) {
+      // Owned tab - archive/unarchive the saved URL
+      const project = state.projects.find((p) => p.id === tab.ownership!.projectId)
+      const savedUrl = project?.savedUrls.find((r) => r.id === tab.ownership!.savedUrlId)
+      if (savedUrl) {
+        if (savedUrl.archivedAt) {
+          model.unarchive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+          setToast({ message: 'Unarchived.', type: 'success' })
+        } else {
+          model.archive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+          setToast({ message: 'Archived.', type: 'success' })
+        }
+      }
+    } else if (selectedProjectId) {
+      // Unassigned tab - file to selected project and archive
+      model.silentFileAndArchiveTab(tabId, selectedProjectId)
+      setToast({ message: 'Filed and archived.', type: 'success' })
+    } else {
+      setToast({ message: 'Select a project first.', type: 'error' })
+    }
+  }, [inventory, state, selectedProjectId, model])
+
+  // Handle hover 'D' shortcut - delete to Trash
+  const handleDeleteToTrash = useCallback((tabId: number) => {
+    const trashProject = state.projects.find((p) => p.name === 'Trash')
+    if (!trashProject) {
+      setToast({ message: 'Trash project not found.', type: 'error' })
+      return
+    }
+    model.silentFileTab(tabId, trashProject.id)
+    setToast({ message: 'Saved to Trash.', type: 'success' })
+  }, [state, model])
+
+  // Keyboard listener for 'A', 'P', 'R', 'D' shortcuts
   useEffect(() => {
     if (!hoveredTabId) return
 
     function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
       if (event.key === 'a' || event.key === 'A') {
-        const target = event.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
         event.preventDefault()
         handleSilentFile(hoveredTabId!)
+      } else if (event.key === 'p' || event.key === 'P') {
+        event.preventDefault()
+        handleTogglePin(hoveredTabId!)
+      } else if (event.key === 'r' || event.key === 'R') {
+        event.preventDefault()
+        handleArchive(hoveredTabId!)
+      } else if (event.key === 'd' || event.key === 'D') {
+        event.preventDefault()
+        handleDeleteToTrash(hoveredTabId!)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hoveredTabId, handleSilentFile])
+  }, [hoveredTabId, handleSilentFile, handleTogglePin, handleArchive, handleDeleteToTrash])
 
   const handleDragStart = (tab: LiveTabView, event: React.DragEvent) => {
     const payload: DragPayload = { tabId: tab.tabId, tabTitle: tab.title }
@@ -145,7 +199,6 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                   const isFileable = group.id === 'unassigned' && tab.supported && tab.url && isSupportedTabUrl(tab.url) && (!tab.ownership || tab.ownership.drifted)
                   const isDragging = draggingTabId === tab.tabId
                   const isHovered = hoveredTabId === tab.tabId
-                  const isManualPin = tab.protectionReasons.includes('manual-pin')
                   return (
                     <li key={tab.tabId}>
                       <div
@@ -173,17 +226,6 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                           <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
                         </button>
                         <div className="live-tab-actions">
-                          {tab.supported && tab.url && (
-                            <button
-                              className={`pin-button${isManualPin ? ' pinned' : ''}`}
-                              onClick={(e) => { e.stopPropagation(); model.toggleTabPin(tab.tabId) }}
-                              aria-label={isManualPin ? `Unpin ${tab.title}` : `Pin ${tab.title}`}
-                              aria-pressed={isManualPin}
-                              title={isManualPin ? 'Unpin tab' : 'Pin tab — pinned tabs are skipped by Protab close actions'}
-                            >
-                              {isManualPin ? 'Unpin' : 'Pin'}
-                            </button>
-                          )}
                           <ProtectionBadges reasons={tab.protectionReasons} />
                         </div>
                         {!tab.ownership && tab.candidates.length > 0 && <button ref={assigningTabId === tab.tabId ? assignmentTrigger : undefined} className="assign-button" aria-haspopup="dialog" onClick={() => setAssigningTabId(tab.tabId)}>Assign to…</button>}
@@ -222,6 +264,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
         const { tab } = contextMenu
         const isFileable = tab.supported && tab.url && isSupportedTabUrl(tab.url) && (!tab.ownership || tab.ownership.drifted)
         const isManualPin = tab.protectionReasons.includes('manual-pin')
+        const isOwned = tab.ownership && !tab.ownership.drifted
         const items = []
         if (isFileable && state.projects.length > 0) {
           items.push({
@@ -234,9 +277,58 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
           })
         }
         if (tab.supported && tab.url) {
+          if (isOwned) {
+            // Owned tab - show archive/unarchive
+            const project = state.projects.find((p) => p.id === tab.ownership!.projectId)
+            const savedUrl = project?.savedUrls.find((r) => r.id === tab.ownership!.savedUrlId)
+            if (savedUrl) {
+              items.push({
+                label: savedUrl.archivedAt ? 'Unarchive' : 'Archive',
+                icon: <Archive size={14} />,
+                shortcut: 'R',
+                onClick: () => {
+                  if (savedUrl.archivedAt) {
+                    model.unarchive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+                  } else {
+                    model.archive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+                  }
+                },
+              })
+            }
+          } else if (isFileable) {
+            // Unassigned tab - file + archive
+            items.push({
+              label: 'Archive',
+              icon: <Archive size={14} />,
+              shortcut: 'R',
+              onClick: () => {
+                if (selectedProjectId) {
+                  model.silentFileAndArchiveTab(tab.tabId, selectedProjectId)
+                } else {
+                  setToast({ message: 'Select a project first.', type: 'error' })
+                }
+              },
+            })
+          }
+          // Delete to Trash
+          items.push({
+            label: 'Delete to Trash',
+            icon: <Trash2 size={14} />,
+            shortcut: 'D',
+            onClick: () => {
+              const trashProject = state.projects.find((p) => p.name === 'Trash')
+              if (trashProject) {
+                model.silentFileTab(tab.tabId, trashProject.id)
+              } else {
+                setToast({ message: 'Trash project not found.', type: 'error' })
+              }
+            },
+          })
+          // Pin/Unpin
           items.push({
             label: isManualPin ? 'Unpin tab' : 'Pin tab',
             icon: <Pin size={14} />,
+            shortcut: 'P',
             onClick: () => model.toggleTabPin(tab.tabId),
           })
         }

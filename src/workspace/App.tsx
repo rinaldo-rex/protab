@@ -446,16 +446,16 @@ export function App({ client, liveTabsClient }: AppProps) {
         <div className="filing-dialog-backdrop" role="presentation">
           <section className="filing-dialog" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
             <div className="filing-dialog-header">
-              <h3 id="bulk-confirm-title">File all unassigned tabs</h3>
+              <h3 id="bulk-confirm-title">Add all current tabs</h3>
               <button className="icon-button" aria-label="Close" onClick={() => { liveTabs.dismissBulkSummary(); setBulkConfirmProjectId(undefined) }}><X size={18} /></button>
             </div>
             <div className="filing-dialog-body">
-              <p>File {liveTabs.bulkPrepared.eligible} unassigned tab{liveTabs.bulkPrepared.eligible !== 1 ? 's' : ''} to <strong>{liveTabs.bulkPrepared.projectName}</strong>?</p>
+              <p>Add {liveTabs.bulkPrepared.eligible} tab{liveTabs.bulkPrepared.eligible !== 1 ? 's' : ''} to <strong>{liveTabs.bulkPrepared.projectName}</strong>?</p>
               <p className="filing-honesty-note">Protab will save each URL and request Chrome to close the tab. Some pages may show a native warning.</p>
             </div>
             <div className="filing-dialog-actions">
               <button className="button secondary" onClick={() => { liveTabs.dismissBulkSummary(); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>Cancel</button>
-              <button className="button primary" onClick={() => { liveTabs.confirmBulkFile(liveTabs.bulkPrepared!.operationId, bulkConfirmProjectId); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>{liveTabs.bulkPending ? 'Filing…' : 'File all'}</button>
+              <button className="button primary" onClick={() => { liveTabs.confirmBulkFile(liveTabs.bulkPrepared!.operationId, bulkConfirmProjectId); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>{liveTabs.bulkPending ? 'Adding…' : 'Add all'}</button>
             </div>
           </section>
         </div>
@@ -698,10 +698,10 @@ export function App({ client, liveTabsClient }: AppProps) {
                         }
                       }}
                       disabled={liveTabs.bulkPending}
-                      aria-label={`File all unassigned tabs (${eligibleBulkCount})`}
+                      aria-label={`Add all current tabs (${eligibleBulkCount})`}
                     >
                       <FolderInput size={16} aria-hidden="true" />
-                      <span>File all unassigned ({eligibleBulkCount})</span>
+                      <span>Add all current tabs ({eligibleBulkCount})</span>
                     </button>
                   )}
                   <AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} liveTabs={liveTabs} ownedLiveCount={projectLiveCounts[selected.id] ?? 0} onDeleted={(deletedIndex) => {
