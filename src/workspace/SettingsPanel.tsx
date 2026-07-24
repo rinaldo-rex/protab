@@ -363,6 +363,23 @@ export function SettingsPanel({
               </button>
             </div>
           </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="open-all-threshold">Open all warning threshold</label>
+              <p>Show a confirmation before opening more than this many tabs at once via "Open all active".</p>
+            </div>
+            <div className="setting-control">
+              <input
+                id="open-all-threshold"
+                type="number"
+                min={1}
+                max={100}
+                value={settings.openAllThreshold}
+                onChange={(e) => onSave({ openAllThreshold: Number(e.target.value) })}
+                className="settings-number-input"
+              />
+            </div>
+          </div>
         </section>
 
         <section className="settings-section">
@@ -400,6 +417,23 @@ export function SettingsPanel({
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
+            </div>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="allow-quick-capture-create-project">Allow creating new projects</label>
+              <p>If turned on, you can create a new project from the quick capture popup just like a new tag. (Recommended to keep disabled so that you can be mindful about too many projects)</p>
+            </div>
+            <div className="setting-control">
+              <button
+                id="allow-quick-capture-create-project"
+                role="switch"
+                aria-checked={settings.allowQuickCaptureCreateProject}
+                className={`toggle ${settings.allowQuickCaptureCreateProject ? 'active' : ''}`}
+                onClick={() => onSave({ allowQuickCaptureCreateProject: !settings.allowQuickCaptureCreateProject })}
+              >
+                <span className="toggle-thumb" />
+              </button>
             </div>
           </div>
         </section>

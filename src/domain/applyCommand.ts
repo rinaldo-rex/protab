@@ -147,7 +147,7 @@ export function applyCommand(
         title: capturedTitle ? validateTitle(capturedTitle) : automaticTitle(url),
         titleSource: 'automatic',
         tags: normalizeTags(command.suggestedTags),
-        notes: '',
+        notes: validateNotes(command.notes ?? ''),
         archivedAt: null,
       }
       project.savedUrls.push(record)
