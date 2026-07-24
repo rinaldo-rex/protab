@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3 } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3, HelpCircle } from 'lucide-react'
 import type { WorkspaceClient } from './client'
 import { ConfirmDialog } from './ConfirmDialog'
 import { generateExportHtml } from './export/generateHtml'
@@ -26,6 +26,7 @@ import { parseImportFile, type ImportResult } from './export/parseImport'
 import { ConfirmImportDialog } from './ConfirmImportDialog'
 import { SettingsPanel } from './SettingsPanel'
 import { AnalyticsPanel } from './AnalyticsPanel'
+import { QuickstartPanel } from './QuickstartPanel'
 import { useSettings } from './useSettings'
 import { useAnalytics } from './useAnalytics'
 import { getDailyQuote } from '../domain/quotes'
@@ -59,7 +60,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'workspace' | 'settings' | 'analytics'>('workspace')
+  const [viewMode, setViewMode] = useState<'workspace' | 'settings' | 'analytics' | 'quickstart'>('workspace')
   const [renameDialogProjectId, setRenameDialogProjectId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renameError, setRenameError] = useState<string>()
@@ -574,6 +575,14 @@ export function App({ client, liveTabsClient }: AppProps) {
             </button>
             <button
               className="icon-button settings-button"
+              onClick={() => setViewMode(viewMode === 'quickstart' ? 'workspace' : 'quickstart')}
+              aria-label="Quickstart guide"
+              title="Quickstart guide"
+            >
+              <HelpCircle size={16} />
+            </button>
+            <button
+              className="icon-button settings-button"
               onClick={() => setViewMode(viewMode === 'settings' ? 'workspace' : 'settings')}
               aria-label="Settings"
               title="Settings"
@@ -746,6 +755,8 @@ export function App({ client, liveTabsClient }: AppProps) {
               onDismissLegacyData={liveTabs.dismissLegacyData}
               onDismissLegacyImportResult={liveTabs.dismissLegacyImportResult}
             />
+          ) : viewMode === 'quickstart' ? (
+            <QuickstartPanel onBack={() => setViewMode('workspace')} />
           ) : (
           <section
             className={`project-canvas ${dragOverCanvas && selected ? 'drag-over-valid' : ''}`}
@@ -854,6 +865,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                 <p className="eyebrow">A calmer browser starts here</p>
                 <h2 id="project-title">Turn temporary tabs into durable project context.</h2>
                 <p>Create your first project, then collect URLs, titles, tags, and notes that remain available after Chrome closes.</p>
+                <p className="first-use-hint">Click the <HelpCircle size={12} style={{ verticalAlign: '-2px' }} /> icon in the sidebar header for a guided walkthrough.</p>
                 <div className="first-use-actions">
                   <button className="button primary" onClick={() => setCreating(true)}><Plus size={17} /> Create first project</button>
                   <button className="button secondary" onClick={() => document.getElementById('import-file-input')?.click()}><Upload size={17} /> Import from file</button>
