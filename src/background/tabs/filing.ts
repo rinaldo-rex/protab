@@ -66,12 +66,21 @@ export function isFileable(tab: LiveTabView, workspaceUrl: string): boolean {
   return true
 }
 
+export const TITLE_MAX_LENGTH = 200
+
 export function prepareTitle(tab: LiveTabView): string {
+  let title: string
   if (tab.title && tab.title.trim() && tab.title !== summarizeTabUrl(tab.url).summary) {
-    return tab.title.trim()
+    title = tab.title.trim()
+  } else if (tab.hostname) {
+    title = tab.hostname
+  } else {
+    title = summarizeTabUrl(tab.url).summary
   }
-  if (tab.hostname) return tab.hostname
-  return summarizeTabUrl(tab.url).summary
+  if (title.length > TITLE_MAX_LENGTH) {
+    title = title.slice(0, TITLE_MAX_LENGTH)
+  }
+  return title
 }
 
 export class FilingOrchestrator {

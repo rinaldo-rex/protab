@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3, HelpCircle } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3, HelpCircle, AlertTriangle } from 'lucide-react'
 import type { WorkspaceClient } from './client'
 import { ConfirmDialog } from './ConfirmDialog'
 import { generateExportHtml } from './export/generateHtml'
@@ -66,6 +66,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [renameError, setRenameError] = useState<string>()
   const [deleteDialogProjectId, setDeleteDialogProjectId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string>()
+  const [openAllConfirmProjectId, setOpenAllConfirmProjectId] = useState<string | null>(null)
   const [settings, updateSettings] = useSettings()
   const analytics = useAnalytics()
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
@@ -150,6 +151,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const handleProjectClick = useCallback((projectId: string) => {
     if (!isDraggingProject.current) {
       model.selectProject(projectId)
+      setViewMode('workspace')
     }
     dragStartPos.current = null
     isDraggingProject.current = false
@@ -653,7 +655,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                   onFocus={() => setFocusProjectId(undefined)}
                   onClick={() => handleProjectClick(project.id)}
                 >
-                  {isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
+                  {project.name === 'Trash' ? <Trash2 size={16} /> : isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span className="project-name">{project.name}</span>
                   {settings.showTabCounts && project.savedUrls.length > 0 && (
                     <span className="project-count">
@@ -961,6 +963,29 @@ export function App({ client, liveTabsClient }: AppProps) {
           </ConfirmDialog>
         )
       })()}
+      {openAllConfirmProjectId && (() => {
+        const openAllProject = state.projects.find((p) => p.id === openAllConfirmProjectId)
+        if (!openAllProject) return null
+        const activeCount = openAllProject.savedUrls.filter((u) => !u.archivedAt).length
+        return (
+          <ConfirmDialog
+            title={`Open ${activeCount} tabs?`}
+            confirmLabel={`Open ${activeCount} tabs`}
+            pending={liveTabs.openAllPending}
+            onCancel={() => setOpenAllConfirmProjectId(null)}
+            onConfirm={() => {
+              liveTabs.openAllProjectUrls(openAllConfirmProjectId)
+              setOpenAllConfirmProjectId(null)
+            }}
+          >
+            <p>This will open {activeCount} saved URLs from <strong>{openAllProject.name}</strong> in your current window. Already-open tabs will be focused instead of duplicated.</p>
+            <div className="open-all-warning">
+              <AlertTriangle size={16} />
+              <span>Too many tabs may slow down your device</span>
+            </div>
+          </ConfirmDialog>
+        )
+      })()}
       {contextMenu && (() => {
         const contextProject = state.projects.find((p) => p.id === contextMenu.projectId)
         if (!contextProject) return null
@@ -978,7 +1003,14 @@ export function App({ client, liveTabsClient }: AppProps) {
               {
                 label: 'Open all active',
                 icon: <FolderOpen size={14} />,
-                onClick: () => liveTabs.openAllProjectUrls(contextMenu.projectId),
+                onClick: () => {
+                  const activeCount = contextProject.savedUrls.filter((u) => !u.archivedAt).length
+                  if (activeCount > settings.openAllThreshold) {
+                    setOpenAllConfirmProjectId(contextMenu.projectId)
+                  } else {
+                    liveTabs.openAllProjectUrls(contextMenu.projectId)
+                  }
+                },
               },
               {
                 label: 'Close all',
@@ -1009,6 +1041,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                 label: 'Delete project',
                 icon: <Trash2 size={14} />,
                 danger: true,
+                disabled: contextProject.name === 'Trash',
                 onClick: () => {
                   setDeleteError(undefined)
                   setDeleteDialogProjectId(contextMenu.projectId)

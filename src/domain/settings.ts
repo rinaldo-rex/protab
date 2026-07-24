@@ -21,6 +21,7 @@ export interface ProtabSettings {
   focusThresholds: FocusThresholds // Tab count thresholds for focus heatmap coloring
   showSidebarQuotes: boolean // Show daily inspiration quotes in the sidebar (default: true)
   allowQuickCaptureCreateProject: boolean // Allow creating new projects from quick capture (default: true)
+  openAllThreshold: number // Warn before opening more than this many tabs at once (default: 15)
 }
 
 export const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
@@ -36,6 +37,7 @@ export const DEFAULT_SETTINGS: ProtabSettings = {
   focusThresholds: DEFAULT_FOCUS_THRESHOLDS,
   showSidebarQuotes: true,
   allowQuickCaptureCreateProject: true,
+  openAllThreshold: 15,
 }
 
 export function parseSettings(raw: unknown): ProtabSettings {
@@ -72,6 +74,7 @@ export function parseSettings(raw: unknown): ProtabSettings {
     focusThresholds,
     showSidebarQuotes: typeof obj.showSidebarQuotes === 'boolean' ? obj.showSidebarQuotes : DEFAULT_SETTINGS.showSidebarQuotes,
     allowQuickCaptureCreateProject: typeof obj.allowQuickCaptureCreateProject === 'boolean' ? obj.allowQuickCaptureCreateProject : DEFAULT_SETTINGS.allowQuickCaptureCreateProject,
+    openAllThreshold: typeof obj.openAllThreshold === 'number' && obj.openAllThreshold >= 1 ? obj.openAllThreshold : DEFAULT_SETTINGS.openAllThreshold,
   }
 }
 
