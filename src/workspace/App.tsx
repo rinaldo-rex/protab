@@ -592,7 +592,6 @@ export function App({ client, liveTabsClient }: AppProps) {
               <Settings size={16} />
             </button>
           </div>
-          <small>LOCAL WORKSPACE</small>
         </div>
         <div className="sidebar-heading">
           <span>Projects</span>
@@ -717,7 +716,7 @@ export function App({ client, liveTabsClient }: AppProps) {
       </aside>
 
       <main className="workspace">
-        <header className="topbar"><h1>Project Workspace</h1><span className="local-status">Stored locally</span></header>
+        <header className="topbar"><h1>Project Workspace</h1></header>
         {liveTabs.attentionItems.length > 0 && (
           <AttentionBanner
             items={liveTabs.attentionItems}
