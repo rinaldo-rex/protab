@@ -227,4 +227,50 @@ describe('getProjectAutocomplete', () => {
     const result = getProjectAutocomplete('Project', manyProjects)
     expect(result.length).toBeLessThanOrEqual(8)
   })
+
+  describe('with allowCreate', () => {
+    it('adds create option when no exact match', () => {
+      const result = getProjectAutocomplete('NewProject', projectNames, true)
+      expect(result).toEqual([
+        { type: 'create-project', label: "+ Create 'NewProject'", value: 'NewProject' },
+      ])
+    })
+
+    it('does not add create option when exact match exists', () => {
+      const result = getProjectAutocomplete('Work', projectNames, true)
+      expect(result).toEqual([
+        { type: 'project', label: 'Work', value: 'Work' },
+        { type: 'project', label: 'Work Projects', value: 'Work Projects' },
+      ])
+    })
+
+    it('does not add create option for empty partial when allowCreate is false', () => {
+      const result = getProjectAutocomplete('', projectNames, false)
+      expect(result).toEqual(
+        projectNames.map((name) => ({ type: 'project', label: name, value: name }))
+      )
+    })
+
+    it('adds New project option for empty partial when allowCreate is true', () => {
+      const result = getProjectAutocomplete('', projectNames, true)
+      expect(result).toEqual([
+        ...projectNames.map((name) => ({ type: 'project', label: name, value: name })),
+        { type: 'create-project', label: '+ New project', value: '' },
+      ])
+    })
+
+    it('shows matching projects and create option together', () => {
+      const result = getProjectAutocomplete('wor', projectNames, true)
+      expect(result).toEqual([
+        { type: 'project', label: 'Work', value: 'Work' },
+        { type: 'project', label: 'Work Projects', value: 'Work Projects' },
+        { type: 'create-project', label: "+ Create 'wor'", value: 'wor' },
+      ])
+    })
+
+    it('does not add create option when allowCreate is false', () => {
+      const result = getProjectAutocomplete('NewProject', projectNames, false)
+      expect(result).toEqual([])
+    })
+  })
 })

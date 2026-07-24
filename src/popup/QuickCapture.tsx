@@ -91,7 +91,7 @@ export function QuickCapture() {
       const partial = text.slice(lastAt + 1)
       if (!partial.includes(' ')) {
         const projectNames = state.projects.map((p) => p.name)
-        const suggestions = getProjectAutocomplete(partial, projectNames)
+        const suggestions = getProjectAutocomplete(partial, projectNames, settings.allowQuickCaptureCreateProject)
         setAutocomplete(suggestions)
         setAutocompleteVisible(suggestions.length > 0)
         setAutocompleteIndex(-1)
@@ -100,7 +100,7 @@ export function QuickCapture() {
     }
 
     setAutocompleteVisible(false)
-  }, [input, cursorPosition, state])
+  }, [input, cursorPosition, state, settings.allowQuickCaptureCreateProject])
 
   const selectAutocomplete = useCallback((option: AutocompleteOption) => {
     const text = input.slice(0, cursorPosition)
@@ -139,7 +139,9 @@ export function QuickCapture() {
 
   const handleSubmit = useCallback(async () => {
     if (!parsed.projectName) {
-      setErrorMessage('Please specify a project with @ProjectName.')
+      setErrorMessage(settings.allowQuickCaptureCreateProject
+        ? 'Type a project name after @ to save or create one.'
+        : 'Please specify a project with @ProjectName.')
       setStatus('error')
       return
     }
@@ -150,11 +152,47 @@ export function QuickCapture() {
       return
     }
 
-    const project = state.projects.find((p) => p.name === parsed.projectName)
+    let project = state.projects.find((p) => p.name === parsed.projectName)
     if (!project) {
-      setErrorMessage(`Project '${parsed.projectName}' not found.`)
-      setStatus('error')
-      return
+      if (!settings.allowQuickCaptureCreateProject) {
+        setErrorMessage(`Project '${parsed.projectName}' not found.`)
+        setStatus('error')
+        return
+      }
+
+      // Create the project first
+      const createMessage: ClientMessage = {
+        channel: MESSAGE_CHANNEL,
+        kind: 'COMMAND',
+        command: {
+          type: 'CREATE_PROJECT',
+          name: parsed.projectName,
+        },
+      }
+      try {
+        const createResponse: BackgroundResponse = await chrome.runtime.sendMessage(createMessage)
+        if (!createResponse.ok) {
+          setErrorMessage(createResponse.error?.message || 'Failed to create project.')
+          setStatus('error')
+          return
+        }
+        // Re-read state to get the new project
+        const stateMessage: ClientMessage = { channel: MESSAGE_CHANNEL, kind: 'READ_STATE' }
+        const stateResponse: BackgroundResponse = await chrome.runtime.sendMessage(stateMessage)
+        if (stateResponse.ok) {
+          setState(stateResponse.state)
+          project = stateResponse.state.projects.find((p) => p.name === parsed.projectName)
+        }
+        if (!project) {
+          setErrorMessage('Project was created but could not be found.')
+          setStatus('error')
+          return
+        }
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to create project.')
+        setStatus('error')
+        return
+      }
     }
 
     setStatus('loading')
@@ -236,7 +274,7 @@ export function QuickCapture() {
       setErrorMessage(error instanceof Error ? error.message : 'An error occurred.')
       setStatus('error')
     }
-  }, [parsed, state])
+  }, [parsed, state, settings.allowQuickCaptureCreateProject])
 
   const openWorkspace = useCallback(() => {
     void chrome.tabs.create({ url: chrome.runtime.getURL('workspace.html') })

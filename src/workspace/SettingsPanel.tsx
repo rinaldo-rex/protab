@@ -402,6 +402,23 @@ export function SettingsPanel({
               </select>
             </div>
           </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <label htmlFor="allow-quick-capture-create-project">Allow creating new projects</label>
+              <p>If turned on, you can create a new project from the quick capture popup just like a new tag. (Recommended to keep disabled so that you can be mindful about too many projects)</p>
+            </div>
+            <div className="setting-control">
+              <button
+                id="allow-quick-capture-create-project"
+                role="switch"
+                aria-checked={settings.allowQuickCaptureCreateProject}
+                className={`toggle ${settings.allowQuickCaptureCreateProject ? 'active' : ''}`}
+                onClick={() => onSave({ allowQuickCaptureCreateProject: !settings.allowQuickCaptureCreateProject })}
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="settings-section">
