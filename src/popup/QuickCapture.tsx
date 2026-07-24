@@ -30,6 +30,11 @@ function shortcutLabel(shortcut: WorkspaceShortcut): string {
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
+interface ExistingProject {
+  name: string
+  savedUrlId: string
+}
+
 export function QuickCapture() {
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<Status>('idle')
@@ -41,8 +46,33 @@ export function QuickCapture() {
   const [autocompleteVisible, setAutocompleteVisible] = useState(false)
   const [autocompleteIndex, setAutocompleteIndex] = useState(-1)
   const [cursorPosition, setCursorPosition] = useState(0)
+  const [currentTabUrl, setCurrentTabUrl] = useState<string>()
+  const [existingProjects, setExistingProjects] = useState<ExistingProject[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const autocompleteRef = useRef<HTMLDivElement>(null)
+
+  // Fetch current tab URL
+  useEffect(() => {
+    const fetchTab = async () => {
+      let tab: chrome.tabs.Tab | undefined
+      const params = new URLSearchParams(window.location.search)
+      const tabIdParam = params.get('tabId')
+      if (tabIdParam) {
+        try {
+          tab = await chrome.tabs.get(Number(tabIdParam))
+        } catch {
+          // Tab may have been closed
+        }
+      }
+      if (!tab) {
+        ;[tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      }
+      if (tab?.url) {
+        setCurrentTabUrl(tab.url)
+      }
+    }
+    void fetchTab()
+  }, [])
 
   // Fetch state and settings on mount
   useEffect(() => {
@@ -54,6 +84,28 @@ export function QuickCapture() {
     })
     void readSettings().then(setSettings)
   }, [])
+
+  // Find existing projects that have this URL
+  useEffect(() => {
+    if (!state || !currentTabUrl) {
+      setExistingProjects([])
+      return
+    }
+
+    const normalizedUrl = currentTabUrl.replace(/\/$/, '')
+    const found: ExistingProject[] = []
+
+    for (const project of state.projects) {
+      for (const savedUrl of project.savedUrls) {
+        if (savedUrl.url.replace(/\/$/, '') === normalizedUrl && !savedUrl.archivedAt) {
+          found.push({ name: project.name, savedUrlId: savedUrl.id })
+          break
+        }
+      }
+    }
+
+    setExistingProjects(found)
+  }, [state, currentTabUrl])
 
   // Auto-close on success after 1.5 seconds
   useEffect(() => {
@@ -281,6 +333,20 @@ export function QuickCapture() {
     window.close()
   }, [])
 
+  const fillProject = useCallback((projectName: string) => {
+    // Replace any existing @project or append @project
+    const lastAt = input.lastIndexOf('@')
+    if (lastAt >= 0) {
+      // Replace existing @project
+      const before = input.slice(0, lastAt)
+      setInput(`${before}@${projectName} `)
+    } else {
+      // Append @project
+      setInput(`${input.trimEnd()} @${projectName} `)
+    }
+    inputRef.current?.focus()
+  }, [input])
+
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (autocompleteVisible) {
       if (event.key === 'ArrowDown') {
@@ -375,6 +441,23 @@ export function QuickCapture() {
           {status === 'error' && errorMessage && (
             <div className="popup-error" role="alert">
               {errorMessage}
+            </div>
+          )}
+          {existingProjects.length > 0 && (
+            <div className="popup-existing-projects">
+              <span className="popup-existing-label">Already saved in:</span>
+              <div className="popup-existing-list">
+                {existingProjects.map((p) => (
+                  <button
+                    key={p.name}
+                    className="popup-existing-chip"
+                    onClick={() => fillProject(p.name)}
+                    title={`Click to fill @${p.name}`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="popup-actions">
