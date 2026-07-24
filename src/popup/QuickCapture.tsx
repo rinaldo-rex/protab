@@ -193,6 +193,7 @@ export function QuickCapture() {
         url: tab.url,
         capturedTitle: tab.title,
         suggestedTags: parsed.tags,
+        notes: parsed.note,
       },
     }
 
