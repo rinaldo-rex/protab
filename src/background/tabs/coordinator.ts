@@ -1,13 +1,19 @@
 import type { PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
+import type { StorageAdapter } from '../../storage/repository'
+import { restoreMigrationBackup, exportMigrationBackup, readMigrationBackup, readLegacyData, extractLegacyDataInfo, importLegacyProjects } from '../../storage/repository'
+import type { MigrationStorageAdapter } from '../../storage/repository'
 import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabInventory } from '../../domain/liveTabs'
+import { computeProtectionReasons } from '../../domain/tabProtection'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../messages'
 import { queryOrdinaryTabs, type ChromeTabsApi } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
 import type { CloseTrackerStore } from './closeTracker'
 import type { FilingOrchestrator } from './filing'
 import type { ActiveProjectStore } from './activeProjectStore'
+import type { ProtectedTabsStore } from './protectedTabsStore'
+import { checkCloseProtection } from './closeGuard'
 
 interface ClientSubscription {
   workspaceTabId: number
@@ -32,6 +38,9 @@ export class LiveTabsCoordinator {
     private readonly closeTracker?: CloseTrackerStore,
     private readonly filingOrchestrator?: FilingOrchestrator,
     private readonly activeProjectStore?: ActiveProjectStore,
+    private readonly storageAdapter?: StorageAdapter,
+    private readonly migrationStorage?: MigrationStorageAdapter,
+    private readonly protectedTabsStore?: ProtectedTabsStore,
   ) {}
 
   async connect(port: chrome.runtime.Port): Promise<void> {
@@ -81,6 +90,27 @@ export class LiveTabsCoordinator {
           if (reconciled.matched || reconciled.ambiguous) reconciliation = { matched: reconciled.matched, ambiguous: reconciled.ambiguous }
         }
       }
+      // Compute protection reasons
+      if (this.protectedTabsStore) {
+        const manualPinned = await this.protectedTabsStore.read()
+        const activeTabIds = new Set(rawTabs.map((t) => t.tabId))
+        // Clean up closed tabs from protected store
+        await this.protectedTabsStore.removeClosedTabs(activeTabIds)
+        tabs = tabs.map((tab) => {
+          const protectionReasons = computeProtectionReasons(
+            tab.chromePinned,
+            tab.chromeAudible,
+            manualPinned,
+            tab.tabId,
+          )
+          return {
+            ...tab,
+            protectionReasons,
+            isProtected: protectionReasons.length > 0,
+          }
+        })
+      }
+
       const inventory: LiveTabInventory = { windowId, tabs, stale: false, reconciliation }
       subscribers.forEach((client) => {
         client.lastInventory = inventory
@@ -196,6 +226,43 @@ export class LiveTabsCoordinator {
       this.enqueueWindow(client.windowId, () => this.silentFileTab(client, message.tabId!, message.projectId!))
       return
     }
+    // Phase 4D: Silent file and archive
+    if (message.kind === 'SILENT_FILE_AND_ARCHIVE_TAB' && typeof message.tabId === 'number' && typeof message.projectId === 'string') {
+      this.enqueueWindow(client.windowId, () => this.silentFileAndArchiveTab(client, message.tabId!, message.projectId!))
+      return
+    }
+    // Phase 4D: Migration backup
+    if (message.kind === 'CHECK_MIGRATION_BACKUP') {
+      await this.handleCheckMigrationBackup(client)
+      return
+    }
+    if (message.kind === 'EXPORT_MIGRATION_BACKUP') {
+      await this.handleExportMigrationBackup(client)
+      return
+    }
+    if (message.kind === 'RESTORE_MIGRATION_BACKUP') {
+      await this.handleRestoreMigrationBackup(client)
+      return
+    }
+    // Phase 4D: Protected tabs
+    if (message.kind === 'TOGGLE_LIVE_TAB_PIN' && typeof message.tabId === 'number') {
+      await this.handleToggleTabPin(client, message.tabId)
+      return
+    }
+    // Phase 4D: Legacy data
+    if (message.kind === 'CHECK_LEGACY_DATA') {
+      await this.handleCheckLegacyData(client)
+      return
+    }
+    if (message.kind === 'IMPORT_LEGACY_PROJECTS' && Array.isArray(message.projectNames)) {
+      await this.handleImportLegacyProjects(client, message.projectNames!)
+      return
+    }
+    if (message.kind === 'DISMISS_LEGACY_DATA') {
+      await this.handleDismissLegacyData()
+      return
+    }
+
     if (message.kind !== 'FOCUS_LIVE_TAB' || typeof message.tabId !== 'number') return
     try {
       const tab = await this.api.get(message.tabId)
@@ -551,6 +618,15 @@ export class LiveTabsCoordinator {
           continue
         }
 
+        // Check protection before close
+        if (this.protectedTabsStore) {
+          const protection = await checkCloseProtection(tabId, this.api, this.protectedTabsStore)
+          if (protection.protected) {
+            summary.skipped.push({ tabId, reason: `Protected: ${protection.reasons.join(', ')}` })
+            continue
+          }
+        }
+
         // Register close tracking
         if (this.closeTracker) {
           await this.closeTracker.set({
@@ -839,6 +915,15 @@ export class LiveTabsCoordinator {
           continue
         }
 
+        // Check protection before close
+        if (this.protectedTabsStore) {
+          const protection = await checkCloseProtection(tabId, this.api, this.protectedTabsStore)
+          if (protection.protected) {
+            summary.skipped.push({ tabId, reason: `Protected: ${protection.reasons.join(', ')}` })
+            continue
+          }
+        }
+
         // Register close tracking
         if (this.closeTracker) {
           await this.closeTracker.set({
@@ -987,6 +1072,43 @@ export class LiveTabsCoordinator {
     }
   }
 
+  // Phase 4D: Silent file and archive tab (no confirmation)
+  private async silentFileAndArchiveTab(client: ClientSubscription, tabId: number, projectId: string): Promise<void> {
+    if (!this.filingOrchestrator || !this.durableQueue) return
+
+    try {
+      // File the tab
+      const operation = await this.filingOrchestrator.prepare(tabId, projectId, client.windowId)
+      const result = await this.filingOrchestrator.executeFiling(operation.operationId, client.windowId)
+
+      // If filing succeeded, archive the saved URL
+      if (result.savedUrlId && result.closeState !== 'failed') {
+        await this.durableQueue.execute({
+          type: 'ARCHIVE_SAVED_URL',
+          projectId,
+          savedUrlId: result.savedUrlId,
+          archived: true,
+        })
+      }
+
+      // Post result
+      this.post(client, { kind: 'FILING_RESULT', result })
+
+      // Notify workspace of state change
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+
+      // Refresh inventory
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        tabId,
+        message: reason instanceof Error ? reason.message : 'Could not file and archive tab.',
+      })
+      this.scheduleWindow(client.windowId)
+    }
+  }
+
   // Phase 4A: Archive a saved URL
   private async archiveSavedUrl(client: ClientSubscription, projectId: string, savedUrlId: string): Promise<void> {
     if (!this.durableQueue) return
@@ -1009,6 +1131,143 @@ export class LiveTabsCoordinator {
     } catch (reason) {
       this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not unarchive this URL.' })
     }
+  }
+
+  // Phase 4D: Protected tab pin toggle
+  private async handleToggleTabPin(client: ClientSubscription, tabId: number): Promise<void> {
+    if (!this.protectedTabsStore) return
+    try {
+      // Validate the tab exists and belongs to this window
+      const tab = await this.api.get(tabId)
+      if (tab.windowId !== client.windowId) {
+        this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', tabId, message: 'That tab is in another window.' })
+        return
+      }
+      // Don't allow pinning the workspace tab
+      if (tab.url === this.api.workspaceUrl()) {
+        this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', tabId, message: 'The workspace tab cannot be pinned.' })
+        return
+      }
+      await this.protectedTabsStore.toggle(tabId)
+      // Refresh inventory to reflect new protection state
+      await this.refreshWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LIVE_TAB_ACTION_ERROR',
+        tabId,
+        message: reason instanceof Error ? reason.message : 'Could not toggle pin state.',
+      })
+    }
+  }
+
+  // Phase 4D: Migration backup handlers
+  private async handleCheckMigrationBackup(client: ClientSubscription): Promise<void> {
+    if (!this.migrationStorage) {
+      this.post(client, { kind: 'MIGRATION_BACKUP_STATUS', available: false })
+      return
+    }
+    try {
+      const backup = await readMigrationBackup(this.migrationStorage)
+      if (backup) {
+        this.post(client, {
+          kind: 'MIGRATION_BACKUP_STATUS',
+          available: true,
+          fromSchemaVersion: backup.fromSchemaVersion,
+          toSchemaVersion: backup.toSchemaVersion,
+          createdAt: backup.createdAt,
+        })
+      } else {
+        this.post(client, { kind: 'MIGRATION_BACKUP_STATUS', available: false })
+      }
+    } catch {
+      this.post(client, { kind: 'MIGRATION_BACKUP_STATUS', available: false })
+    }
+  }
+
+  private async handleExportMigrationBackup(client: ClientSubscription): Promise<void> {
+    if (!this.migrationStorage) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: 'Migration storage not available.' })
+      return
+    }
+    try {
+      const json = await exportMigrationBackup(this.migrationStorage)
+      this.post(client, { kind: 'MIGRATION_BACKUP_EXPORTED', json })
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not export migration backup.' })
+    }
+  }
+
+  private async handleRestoreMigrationBackup(client: ClientSubscription): Promise<void> {
+    if (!this.storageAdapter || !this.migrationStorage) {
+      this.post(client, { kind: 'MIGRATION_BACKUP_RESTORED', success: false, error: 'Storage not available.' })
+      return
+    }
+    try {
+      const result = await restoreMigrationBackup(this.storageAdapter, this.migrationStorage)
+      this.post(client, {
+        kind: 'MIGRATION_BACKUP_RESTORED',
+        success: true,
+      })
+      // Broadcast new state to all workspaces
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: result.state }).catch(() => undefined)
+      this.scheduleAll()
+    } catch (reason) {
+      this.post(client, {
+        kind: 'MIGRATION_BACKUP_RESTORED',
+        success: false,
+        error: reason instanceof Error ? reason.message : 'Could not restore migration backup.',
+      })
+    }
+  }
+
+  // Phase 4D: Legacy data handlers
+  private async handleCheckLegacyData(client: ClientSubscription): Promise<void> {
+    try {
+      if (!this.migrationStorage) {
+        this.post(client, { kind: 'LEGACY_DATA_STATUS', available: false })
+        return
+      }
+      const raw = await readLegacyData(this.migrationStorage)
+      if (!raw) {
+        this.post(client, { kind: 'LEGACY_DATA_STATUS', available: false })
+        return
+      }
+      const info = extractLegacyDataInfo(raw)
+      this.post(client, {
+        kind: 'LEGACY_DATA_STATUS',
+        available: info.available,
+        schemaVersion: info.schemaVersion,
+        projectCount: info.projectCount,
+        projects: info.projects,
+      })
+    } catch {
+      this.post(client, { kind: 'LEGACY_DATA_STATUS', available: false })
+    }
+  }
+
+  private async handleImportLegacyProjects(client: ClientSubscription, projectNames: string[]): Promise<void> {
+    if (!this.storageAdapter || !this.durableQueue || !this.migrationStorage) {
+      this.post(client, { kind: 'LEGACY_DATA_IMPORTED', success: false, error: 'Storage not available.' })
+      return
+    }
+    try {
+      const newState = await importLegacyProjects(this.storageAdapter, this.migrationStorage, projectNames)
+      // Broadcast new state
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: newState }).catch(() => undefined)
+      this.post(client, { kind: 'LEGACY_DATA_IMPORTED', success: true, importedCount: projectNames.length })
+      this.scheduleAll()
+    } catch (reason) {
+      this.post(client, {
+        kind: 'LEGACY_DATA_IMPORTED',
+        success: false,
+        error: reason instanceof Error ? reason.message : 'Could not import legacy data.',
+      })
+    }
+  }
+
+  private async handleDismissLegacyData(): Promise<void> {
+    // Nothing to do - the user dismissed the prompt but legacy data remains available
+    // They can re-check via Settings if needed
   }
 
   private post(client: ClientSubscription, message: LiveTabMessage): void {

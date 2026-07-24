@@ -1,11 +1,14 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface ContextMenuItem {
   label: string
   icon?: React.ReactNode
-  onClick: () => void
+  onClick?: () => void
   disabled?: boolean
   danger?: boolean
+  submenu?: ContextMenuItem[]
+  shortcut?: string
+  separator?: boolean
 }
 
 interface ContextMenuProps {
@@ -15,12 +18,60 @@ interface ContextMenuProps {
   onClose: () => void
 }
 
+function ContextSubmenu({ items, parentRect, onClose }: { items: ContextMenuItem[]; parentRect: DOMRect; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ left: 0, top: 0 })
+
+  useEffect(() => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    let left = parentRect.right + 2
+    let top = parentRect.top
+    if (left + rect.width > vw - 8) left = parentRect.left - rect.width - 2
+    if (top + rect.height > vh - 8) top = vh - rect.height - 8
+    if (top < 8) top = 8
+    setPos({ left, top })
+  }, [parentRect])
+
+  return (
+    <div
+      ref={ref}
+      className="context-menu context-submenu"
+      role="menu"
+      style={{ left: pos.left, top: pos.top }}
+    >
+      {items.map((item, index) => (
+        <button
+          key={index}
+          role="menuitem"
+          className={`context-menu-item${item.danger ? ' danger-text' : ''}`}
+          disabled={item.disabled}
+          onClick={() => {
+            item.onClick?.()
+            onClose()
+          }}
+        >
+          {item.icon && <span className="context-menu-icon">{item.icon}</span>}
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
+  const [openSubmenu, setOpenSubmenu] = useState<{ index: number; rect: DOMRect } | null>(null)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      // Close if click is outside both the main menu and any open submenu
+      const target = event.target as Node
+      const inMainMenu = menuRef.current?.contains(target)
+      const inSubmenu = document.querySelector('.context-submenu')?.contains(target)
+      if (!inMainMenu && !inSubmenu) {
         onClose()
       }
     }
@@ -51,27 +102,60 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   }, [x, y])
 
   return (
-    <div
-      ref={menuRef}
-      className="context-menu"
-      role="menu"
-      style={{ left: x, top: y }}
-    >
-      {items.map((item, index) => (
-        <button
-          key={index}
-          role="menuitem"
-          className={`context-menu-item${item.danger ? ' danger-text' : ''}`}
-          disabled={item.disabled}
-          onClick={() => {
-            item.onClick()
-            onClose()
-          }}
-        >
-          {item.icon && <span className="context-menu-icon">{item.icon}</span>}
-          {item.label}
-        </button>
-      ))}
-    </div>
+    <>
+      <div
+        ref={menuRef}
+        className="context-menu"
+        role="menu"
+        style={{ left: x, top: y }}
+      >
+        {items.map((item, index) => (
+          item.separator ? (
+            <div key={index} role="separator" className="context-menu-separator" />
+          ) : item.submenu ? (
+            <button
+              key={index}
+              role="menuitem"
+              className="context-menu-item has-submenu"
+              disabled={item.disabled}
+              aria-haspopup="menu"
+              onMouseEnter={(e) => {
+                setOpenSubmenu({ index, rect: e.currentTarget.getBoundingClientRect() })
+              }}
+              onMouseLeave={() => {
+                // Delay closing so mouse can travel to submenu
+                setTimeout(() => setOpenSubmenu((current) => current?.index === index ? null : current), 150)
+              }}
+            >
+              {item.icon && <span className="context-menu-icon">{item.icon}</span>}
+              {item.label}
+              <span className="submenu-arrow" aria-hidden="true">▸</span>
+            </button>
+          ) : (
+            <button
+              key={index}
+              role="menuitem"
+              className={`context-menu-item${item.danger ? ' danger-text' : ''}`}
+              disabled={item.disabled}
+              onClick={() => {
+                item.onClick?.()
+                onClose()
+              }}
+            >
+              {item.icon && <span className="context-menu-icon">{item.icon}</span>}
+              <span className="context-menu-label">{item.label}</span>
+              {item.shortcut && <span className="context-menu-shortcut">{item.shortcut}</span>}
+            </button>
+          )
+        ))}
+      </div>
+      {openSubmenu && menuRef.current && (
+        <ContextSubmenu
+          items={items[openSubmenu.index].submenu!}
+          parentRect={openSubmenu.rect}
+          onClose={onClose}
+        />
+      )}
+    </>
   )
 }

@@ -1,17 +1,32 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { AlertTriangle, ChevronDown, Globe2, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Archive, ChevronDown, FileText, FolderInput, Globe2, Pin, RefreshCw, Trash2 } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
+import { PROTECTION_LABELS } from '../domain/tabProtection'
 import type { PersistedState } from '../domain/types'
 import type { LiveTabsModel } from './useLiveTabs'
-import { LiveTabFileActions } from './LiveTabFileActions'
+import { ContextMenu } from './ContextMenu'
 import { FilingResult } from './FilingResult'
 import type { LiveTabView } from '../domain/liveTabs'
+import type { ProtectionReason } from '../domain/liveTabs'
 import { Toast } from './Toast'
 
 export interface DragPayload {
   tabId: number
   tabTitle: string
+}
+
+function ProtectionBadges({ reasons }: { reasons: ProtectionReason[] }) {
+  if (reasons.length === 0) return null
+  return (
+    <span className="protection-badges" aria-label={`Protected: ${reasons.map((r) => PROTECTION_LABELS[r]).join(', ')}`}>
+      {reasons.map((reason) => (
+        <span key={reason} className={`protection-badge protection-badge-${reason}`}>
+          {PROTECTION_LABELS[reason]}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selectedProjectId, toastDuration }: { model: LiveTabsModel; state: PersistedState; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void; selectedProjectId?: string; toastDuration?: number }) {
@@ -44,6 +59,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
   const [draggingTabId, setDraggingTabId] = useState<number>()
   const [hoveredTabId, setHoveredTabId] = useState<number | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tab: LiveTabView } | null>(null)
   const assignmentTrigger = useRef<HTMLButtonElement>(null)
 
   // Handle hover 'A' shortcut
@@ -52,27 +68,95 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
       setToast({ message: 'Select a project first.', type: 'error' })
       return
     }
-    // Use silent filing (no confirmation)
-    model.silentFileTab(tabId, selectedProjectId)
-    setToast({ message: 'Saved to project.', type: 'success' })
-  }, [selectedProjectId, model])
+    // Find the next fileable tab at the same position before filing
+    let nextTabId: number | null = null
+    for (const group of groups) {
+      if (group.id !== 'unassigned') continue
+      const fileableTabs = group.tabs.filter((t) => t.supported && t.url && isSupportedTabUrl(t.url) && (!t.ownership || t.ownership.drifted))
+      const idx = fileableTabs.findIndex((t) => t.tabId === tabId)
+      if (idx !== -1) {
+        // Pick the tab that will take this slot after removal
+        const remaining = [...fileableTabs.slice(0, idx), ...fileableTabs.slice(idx + 1)]
+        nextTabId = remaining.length > 0 ? remaining[Math.min(idx, remaining.length - 1)].tabId : null
+        break
+      }
+    }
 
-  // Keyboard listener for 'A' shortcut
+    model.silentFileTab(tabId, selectedProjectId)
+    setHoveredTabId(nextTabId)
+    setToast({ message: 'Saved to project.', type: 'success' })
+  }, [selectedProjectId, model, groups])
+
+  // Handle hover 'P' shortcut - toggle pin
+  const handleTogglePin = useCallback((tabId: number) => {
+    model.toggleTabPin(tabId)
+    setToast({ message: 'Pin toggled.', type: 'success' })
+  }, [model])
+
+  // Handle hover 'R' shortcut - archive
+  const handleArchive = useCallback((tabId: number) => {
+    const tab = inventory?.tabs.find((t) => t.tabId === tabId)
+    if (!tab || !tab.supported || !tab.url) return
+
+    if (tab.ownership && !tab.ownership.drifted) {
+      // Owned tab - archive/unarchive the saved URL
+      const project = state.projects.find((p) => p.id === tab.ownership!.projectId)
+      const savedUrl = project?.savedUrls.find((r) => r.id === tab.ownership!.savedUrlId)
+      if (savedUrl) {
+        if (savedUrl.archivedAt) {
+          model.unarchive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+          setToast({ message: 'Unarchived.', type: 'success' })
+        } else {
+          model.archive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+          setToast({ message: 'Archived.', type: 'success' })
+        }
+      }
+    } else if (selectedProjectId) {
+      // Unassigned tab - file to selected project and archive
+      model.silentFileAndArchiveTab(tabId, selectedProjectId)
+      setToast({ message: 'Filed and archived.', type: 'success' })
+    } else {
+      setToast({ message: 'Select a project first.', type: 'error' })
+    }
+  }, [inventory, state, selectedProjectId, model])
+
+  // Handle hover 'D' shortcut - delete to Trash
+  const handleDeleteToTrash = useCallback((tabId: number) => {
+    const trashProject = state.projects.find((p) => p.name === 'Trash')
+    if (!trashProject) {
+      setToast({ message: 'Trash project not found.', type: 'error' })
+      return
+    }
+    model.silentFileTab(tabId, trashProject.id)
+    setToast({ message: 'Saved to Trash.', type: 'success' })
+  }, [state, model])
+
+  // Keyboard listener for 'A', 'P', 'R', 'D' shortcuts
   useEffect(() => {
     if (!hoveredTabId) return
 
     function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
       if (event.key === 'a' || event.key === 'A') {
-        const target = event.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
         event.preventDefault()
         handleSilentFile(hoveredTabId!)
+      } else if (event.key === 'p' || event.key === 'P') {
+        event.preventDefault()
+        handleTogglePin(hoveredTabId!)
+      } else if (event.key === 'r' || event.key === 'R') {
+        event.preventDefault()
+        handleArchive(hoveredTabId!)
+      } else if (event.key === 'd' || event.key === 'D') {
+        event.preventDefault()
+        handleDeleteToTrash(hoveredTabId!)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hoveredTabId, handleSilentFile])
+  }, [hoveredTabId, handleSilentFile, handleTogglePin, handleArchive, handleDeleteToTrash])
 
   const handleDragStart = (tab: LiveTabView, event: React.DragEvent) => {
     const payload: DragPayload = { tabId: tab.tabId, tabTitle: tab.title }
@@ -80,6 +164,15 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
     event.dataTransfer.effectAllowed = 'move'
     setDraggingTabId(tab.tabId)
     onDragStart?.(tab)
+
+    // Use a small document icon as the drag ghost
+    const ghost = document.createElement('div')
+    ghost.className = 'drag-ghost-icon'
+    ghost.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`
+    document.body.appendChild(ghost)
+    event.dataTransfer.setDragImage(ghost, 10, 10)
+    // Clean up after the browser has used the element
+    requestAnimationFrame(() => ghost.remove())
   }
 
   const handleDragEnd = () => {
@@ -118,33 +211,39 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                   return (
                     <li key={tab.tabId}>
                       <div
-                        className={`live-tab-row-container ${isDragging ? 'dragging' : ''} ${isHovered ? 'hovered' : ''}`}
+                        className={`live-tab-row-container ${isDragging ? 'dragging' : ''} ${isHovered ? 'hovered' : ''} ${tab.isProtected ? 'protected' : ''}`}
                         onMouseEnter={() => setHoveredTabId(tab.tabId)}
                         onMouseLeave={() => setHoveredTabId(null)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setContextMenu({ x: e.clientX, y: e.clientY, tab })
+                        }}
                       >
                         <button
-                          className="live-tab-row"
+                          className={`live-tab-row${tab.isProtected ? ' protected' : ''}`}
                           aria-current={tab.active ? 'page' : undefined}
-                          aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.ownership?.drifted ? 'Navigated from saved URL. Unassigned.' : tab.ownership ? `Owned by ${group.label}.` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`}
+                          aria-label={`${tab.title}. ${tab.url ?? tab.urlSummary}. ${tab.active ? 'Current tab. ' : ''}${tab.isProtected ? `Protected: ${tab.protectionReasons.map((r) => PROTECTION_LABELS[r]).join(', ')}. ` : ''}${tab.ownership?.drifted ? 'Navigated from saved URL. Unassigned.' : tab.ownership ? `Owned by ${group.label}.` : tab.supported ? 'Unassigned.' : 'Unsupported page — view only.'}`}
                           onClick={() => model.focus(tab.tabId)}
                           draggable={isFileable ? 'true' : undefined}
                           onDragStart={isFileable ? (e) => handleDragStart(tab, e) : undefined}
                           onDragEnd={isFileable ? handleDragEnd : undefined}
                         >
-                          {isFileable && isHovered && (
-                            <span className="hover-hint" aria-hidden="true">Add (A)</span>
-                          )}
+                          {isDragging ? (
+                            <span className="drag-placeholder-hint">
+                              <FileText size={14} aria-hidden="true" />
+                              <span>Drag into a project</span>
+                            </span>
+                          ) : (<>
                           {tab.favIconUrl ? <img src={tab.favIconUrl} alt="" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.hidden = true }} /> : <Globe2 aria-hidden="true" size={18} />}
                           <span className="live-tab-copy"><strong title={tab.title}>{tab.title}</strong><small title={tab.url}>{tab.urlSummary}</small><span>{tab.active ? 'Current tab · ' : ''}{tab.ownership?.drifted ? 'Navigated from saved URL · Unassigned' : tab.ownership ? `Owned by ${group.label}` : tab.candidates.length > 1 ? `Matches ${new Set(tab.candidates.map((candidate) => candidate.projectId)).size} projects — assignment needed` : tab.supported ? 'Unassigned' : 'Unsupported page — view only'}</span></span>
+                          </>)}
                         </button>
-                        {isFileable && model.preparedFiling?.tabId === tab.tabId ? null : isFileable ? (
-                          <LiveTabFileActions
-                            tab={tab}
-                            state={state}
-                            pending={model.filingPending}
-                            onFile={model.prepareFileTab}
-                          />
-                        ) : null}
+                        <div className="live-tab-actions">
+                          <ProtectionBadges reasons={tab.protectionReasons} />
+                        </div>
+                        {isFileable && isHovered && (
+                          <span className="hover-hint" aria-hidden="true">Add (A)</span>
+                        )}
                         {!tab.ownership && tab.candidates.length > 0 && <button ref={assigningTabId === tab.tabId ? assignmentTrigger : undefined} className="assign-button" aria-haspopup="dialog" onClick={() => setAssigningTabId(tab.tabId)}>Assign to…</button>}
                       </div>
                       {model.filingResult && model.filingResult.tabId === tab.tabId && (
@@ -166,7 +265,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
         const tab = inventory?.tabs.find((candidate) => candidate.tabId === assigningTabId)
         if (!tab) return null
         return <div className="assignment-backdrop" role="presentation"><section className="assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="assignment-title">
-          <h3 id="assignment-title">Assign “{tab.title}” to…</h3>
+          <h3 id="assignment-title">Assign "{tab.title}" to…</h3>
           <p>This keeps the browser tab open and does not change saved metadata.</p>
           <div className="assignment-choices">{tab.candidates.map((candidate) => {
             const project = state.projects.find((item) => item.id === candidate.projectId)
@@ -176,6 +275,88 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
           })}</div>
           <button className="button secondary" autoFocus onClick={() => { setAssigningTabId(undefined); queueMicrotask(() => assignmentTrigger.current?.focus()) }}>Cancel</button>
         </section></div>
+      })()}
+      {contextMenu && (() => {
+        const { tab } = contextMenu
+        const isFileable = tab.supported && tab.url && isSupportedTabUrl(tab.url) && (!tab.ownership || tab.ownership.drifted)
+        const isManualPin = tab.protectionReasons.includes('manual-pin')
+        const isOwned = tab.ownership && !tab.ownership.drifted
+        const items = []
+        if (isFileable && state.projects.length > 0) {
+          items.push({
+            label: 'File to project',
+            icon: <FolderInput size={14} />,
+            submenu: state.projects.map((project) => ({
+              label: project.name,
+              onClick: () => model.prepareFileTab(tab.tabId, project.id),
+            })),
+          })
+        }
+        if (tab.supported && tab.url) {
+          if (isOwned) {
+            // Owned tab - show archive/unarchive
+            const project = state.projects.find((p) => p.id === tab.ownership!.projectId)
+            const savedUrl = project?.savedUrls.find((r) => r.id === tab.ownership!.savedUrlId)
+            if (savedUrl) {
+              items.push({
+                label: savedUrl.archivedAt ? 'Unarchive' : 'Archive',
+                icon: <Archive size={14} />,
+                shortcut: 'R',
+                onClick: () => {
+                  if (savedUrl.archivedAt) {
+                    model.unarchive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+                  } else {
+                    model.archive(tab.ownership!.projectId, tab.ownership!.savedUrlId)
+                  }
+                },
+              })
+            }
+          } else if (isFileable) {
+            // Unassigned tab - file + archive
+            items.push({
+              label: 'Archive',
+              icon: <Archive size={14} />,
+              shortcut: 'R',
+              onClick: () => {
+                if (selectedProjectId) {
+                  model.silentFileAndArchiveTab(tab.tabId, selectedProjectId)
+                } else {
+                  setToast({ message: 'Select a project first.', type: 'error' })
+                }
+              },
+            })
+          }
+          // Delete to Trash
+          items.push({
+            label: 'Delete to Trash',
+            icon: <Trash2 size={14} />,
+            shortcut: 'D',
+            onClick: () => {
+              const trashProject = state.projects.find((p) => p.name === 'Trash')
+              if (trashProject) {
+                model.silentFileTab(tab.tabId, trashProject.id)
+              } else {
+                setToast({ message: 'Trash project not found.', type: 'error' })
+              }
+            },
+          })
+          // Pin/Unpin
+          items.push({
+            label: isManualPin ? 'Unpin tab' : 'Pin tab',
+            icon: <Pin size={14} />,
+            shortcut: 'P',
+            onClick: () => model.toggleTabPin(tab.tabId),
+          })
+        }
+        if (items.length === 0) return null
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={items}
+            onClose={() => setContextMenu(null)}
+          />
+        )
       })()}
       {toast && (
         <Toast

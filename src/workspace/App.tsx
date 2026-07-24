@@ -1,9 +1,11 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, StopCircle, ChevronDown, Archive, Download, Upload, Settings } from 'lucide-react'
-import { ProjectActions } from './ProjectActions'
+import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3 } from 'lucide-react'
 import type { WorkspaceClient } from './client'
+import { ConfirmDialog } from './ConfirmDialog'
+import { generateExportHtml } from './export/generateHtml'
+import { downloadFile, sanitizeFilename } from './export/downloadFile'
 import { ChromeWorkspaceClient } from './client'
 import { CurrentTabsPane, type DragPayload } from './CurrentTabsPane'
 import type { LiveTabsClient } from './useLiveTabs'
@@ -13,7 +15,6 @@ import { useWorkspace } from './useWorkspace'
 import { FileTabsDialog } from './FileTabsDialog'
 import { FilingSummary } from './FilingSummary'
 import { AttentionBanner } from './AttentionBanner'
-import { FolderInput } from 'lucide-react'
 import { DriftReviewDialog } from './DriftReviewDialog'
 import { ActivationSummary } from './ActivationSummary'
 import { OpenAllSummary } from './OpenAllSummary'
@@ -21,11 +22,13 @@ import { CloseAllSummary } from './CloseAllSummary'
 import { tinykeys } from 'tinykeys'
 import { ContextMenu } from './ContextMenu'
 import { createExportZip, getExportZipFilename } from './export/createZip'
-import { downloadFile } from './export/downloadFile'
 import { parseImportFile, type ImportResult } from './export/parseImport'
 import { ConfirmImportDialog } from './ConfirmImportDialog'
 import { SettingsPanel } from './SettingsPanel'
+import { AnalyticsPanel } from './AnalyticsPanel'
 import { useSettings } from './useSettings'
+import { useAnalytics } from './useAnalytics'
+import { getDailyQuote } from '../domain/quotes'
 
 interface AppProps {
   client?: WorkspaceClient
@@ -56,15 +59,29 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'workspace' | 'settings'>('workspace')
+  const [viewMode, setViewMode] = useState<'workspace' | 'settings' | 'analytics'>('workspace')
+  const [renameDialogProjectId, setRenameDialogProjectId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState<string>()
+  const [deleteDialogProjectId, setDeleteDialogProjectId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string>()
   const [settings, updateSettings] = useSettings()
+  const analytics = useAnalytics()
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
   const isDraggingProject = useRef(false)
   const focusNotesRegistry = useRef<Map<string, () => void>>(new Map())
   const archiveActionRegistry = useRef<Map<string, () => void>>(new Map())
+  const openActionRegistry = useRef<Map<string, () => void>>(new Map())
   const activeProjectId = liveTabs.activeProjectId
 
-  // Project drag handlers
+  // Auto-open Settings when legacy data is detected
+  useEffect(() => {
+    if (liveTabs.legacyDataStatus?.available && viewMode !== 'settings') {
+      setViewMode('settings')
+    }
+  }, [liveTabs.legacyDataStatus, viewMode])
+
+  
   const handleProjectDragStart = useCallback((projectId: string, event: React.DragEvent) => {
     // Only start drag if mouse moved > 5px
     if (!dragStartPos.current) {
@@ -137,7 +154,26 @@ export function App({ client, liveTabsClient }: AppProps) {
     isDraggingProject.current = false
   }, [model])
 
-  // Global keyboard shortcuts (R for archive, N for notes) - scoped to hovered accordion
+  // Handle project deletion: select successor and close dialog
+  useEffect(() => {
+    if (!liveTabs.deletedProject || !deleteDialogProjectId) return
+    if (liveTabs.deletedProject.projectId !== deleteDialogProjectId) return
+    const currentState = model.state!
+    const deletedIndex = currentState.projects.findIndex((p) => p.id === deleteDialogProjectId)
+    const currentProjectIds = currentState.projects.map((p) => p.id)
+    const remainingIds = currentProjectIds.filter((id) => id !== deleteDialogProjectId)
+    const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
+    setDeleteDialogProjectId(null)
+    if (successorId) {
+      model.selectProject(successorId)
+      setFocusProjectId(successorId)
+    } else {
+      setCreating(false)
+      queueMicrotask(() => document.querySelector<HTMLButtonElement>('.new-project-button')?.focus())
+    }
+  }, [liveTabs.deletedProject, deleteDialogProjectId, model])
+
+  // Global keyboard shortcuts (R for archive, N for notes, O for open) - scoped to hovered accordion
   useEffect(() => {
     const unsubscribe = tinykeys(window, {
       'r': (event: KeyboardEvent) => {
@@ -146,6 +182,13 @@ export function App({ client, liveTabsClient }: AppProps) {
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
         event.preventDefault()
         archiveActionRegistry.current.get(hoveredRecordId)?.()
+      },
+      'o': (event: KeyboardEvent) => {
+        if (!hoveredRecordId) return
+        const target = event.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        event.preventDefault()
+        openActionRegistry.current.get(hoveredRecordId)?.()
       },
       'n': (event: KeyboardEvent) => {
         if (!hoveredRecordId) return
@@ -164,6 +207,10 @@ export function App({ client, liveTabsClient }: AppProps) {
 
   const registerArchiveAction = useCallback((recordId: string, archiveFn: () => void) => {
     archiveActionRegistry.current.set(recordId, archiveFn)
+  }, [])
+
+  const registerOpenAction = useCallback((recordId: string, openFn: () => void) => {
+    openActionRegistry.current.set(recordId, openFn)
   }, [])
 
   // Count eligible unassigned tabs for bulk filing
@@ -408,7 +455,6 @@ export function App({ client, liveTabsClient }: AppProps) {
   }
 
   const state = model.state!
-  const projectIds = state.projects.map((project) => project.id)
   const selected = state.projects.find((project) => project.id === model.selectedProjectId)
   const tagSuggestions = Array.from(new Map(state.projects.flatMap((project) => project.savedUrls.flatMap((record) => record.tags)).map((tag) => [tag.toLocaleLowerCase(), tag])).values()).sort((a, b) => a.localeCompare(b))
 
@@ -439,16 +485,16 @@ export function App({ client, liveTabsClient }: AppProps) {
         <div className="filing-dialog-backdrop" role="presentation">
           <section className="filing-dialog" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
             <div className="filing-dialog-header">
-              <h3 id="bulk-confirm-title">File all unassigned tabs</h3>
+              <h3 id="bulk-confirm-title">Add all current tabs</h3>
               <button className="icon-button" aria-label="Close" onClick={() => { liveTabs.dismissBulkSummary(); setBulkConfirmProjectId(undefined) }}><X size={18} /></button>
             </div>
             <div className="filing-dialog-body">
-              <p>File {liveTabs.bulkPrepared.eligible} unassigned tab{liveTabs.bulkPrepared.eligible !== 1 ? 's' : ''} to <strong>{liveTabs.bulkPrepared.projectName}</strong>?</p>
+              <p>Add {liveTabs.bulkPrepared.eligible} tab{liveTabs.bulkPrepared.eligible !== 1 ? 's' : ''} to <strong>{liveTabs.bulkPrepared.projectName}</strong>?</p>
               <p className="filing-honesty-note">Protab will save each URL and request Chrome to close the tab. Some pages may show a native warning.</p>
             </div>
             <div className="filing-dialog-actions">
               <button className="button secondary" onClick={() => { liveTabs.dismissBulkSummary(); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>Cancel</button>
-              <button className="button primary" onClick={() => { liveTabs.confirmBulkFile(liveTabs.bulkPrepared!.operationId, bulkConfirmProjectId); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>{liveTabs.bulkPending ? 'Filing…' : 'File all'}</button>
+              <button className="button primary" onClick={() => { liveTabs.confirmBulkFile(liveTabs.bulkPrepared!.operationId, bulkConfirmProjectId); setBulkConfirmProjectId(undefined) }} disabled={liveTabs.bulkPending}>{liveTabs.bulkPending ? 'Adding…' : 'Add all'}</button>
             </div>
           </section>
         </div>
@@ -514,10 +560,18 @@ export function App({ client, liveTabsClient }: AppProps) {
           />
         </div>
       )}
-      <aside className="project-sidebar" aria-label="Project navigation">
+      <aside className={`project-sidebar${settings.projectsPanePosition === 'right' ? ' order-right' : ''}`} aria-label="Project navigation">
         <div className="brand">
           <div className="brand-header">
             <span>Protab</span>
+            <button
+              className="icon-button settings-button"
+              onClick={() => setViewMode(viewMode === 'analytics' ? 'workspace' : 'analytics')}
+              aria-label="Analytics"
+              title="Analytics"
+            >
+              <BarChart3 size={16} />
+            </button>
             <button
               className="icon-button settings-button"
               onClick={() => setViewMode(viewMode === 'settings' ? 'workspace' : 'settings')}
@@ -554,6 +608,8 @@ export function App({ client, liveTabsClient }: AppProps) {
             const isSelected = project.id === selected?.id
             const isDragging = draggingProjectId === project.id
             const isDragOver = dragOverProjectIdForReorder === project.id
+            const activeCount = project.savedUrls.filter((u) => !u.archivedAt).length
+            const archivedCount = project.savedUrls.filter((u) => u.archivedAt).length
             return (
               <div
                 key={project.id}
@@ -590,12 +646,26 @@ export function App({ client, liveTabsClient }: AppProps) {
                 >
                   {isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span className="project-name">{project.name}</span>
+                  {settings.showTabCounts && project.savedUrls.length > 0 && (
+                    <span className="project-count">
+                      ({activeCount}{archivedCount > 0 && <span className="project-count-archived"> + {archivedCount}</span>})
+                    </span>
+                  )}
                   {isActive && <span className="active-indicator" title="Active in this window" aria-label="Active in this window">●</span>}
                 </button>
               </div>
             )
           })}
         </nav>
+        {settings.showSidebarQuotes && (() => {
+          const quote = getDailyQuote()
+          return (
+            <div className="sidebar-quote" aria-hidden="true">
+              <p className="sidebar-quote-text">"{quote.text}"</p>
+              <span className="sidebar-quote-author">— {quote.author}</span>
+            </div>
+          )
+        })()}
         {creating ? (
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
             <label htmlFor="new-project-name">Project name</label>
@@ -648,11 +718,33 @@ export function App({ client, liveTabsClient }: AppProps) {
         )}
         {model.error && <div className="error-banner" role="alert"><span>{model.error}</span><button onClick={model.dismissError}>Dismiss</button></div>}
         <div className="workspace-body">
-          {viewMode === 'settings' ? (
+          {viewMode === 'analytics' ? (
+            <AnalyticsPanel
+              analytics={analytics}
+              projectCount={state.projects.length}
+              totalSavedUrls={state.projects.reduce((sum, p) => sum + p.savedUrls.length, 0)}
+              focusThresholds={settings.focusThresholds}
+              onBack={() => setViewMode('workspace')}
+            />
+          ) : viewMode === 'settings' ? (
             <SettingsPanel
               settings={settings}
               onSave={updateSettings}
               onBack={() => setViewMode('workspace')}
+              migrationBackupStatus={liveTabs.migrationBackupStatus}
+              migrationRestoreResult={liveTabs.migrationRestoreResult}
+              migrationBackupExportedJson={liveTabs.migrationBackupExportedJson}
+              onCheckMigrationBackup={liveTabs.checkMigrationBackup}
+              onExportMigrationBackup={liveTabs.exportMigrationBackup}
+              onRestoreMigrationBackup={liveTabs.restoreMigrationBackup}
+              onDismissRestoreResult={liveTabs.dismissMigrationRestoreResult}
+              onClearExportedBackupJson={liveTabs.clearExportedBackupJson}
+              legacyDataStatus={liveTabs.legacyDataStatus}
+              legacyImportResult={liveTabs.legacyImportResult}
+              onCheckLegacyData={liveTabs.checkLegacyData}
+              onImportLegacyProjects={liveTabs.importLegacyProjects}
+              onDismissLegacyData={liveTabs.dismissLegacyData}
+              onDismissLegacyImportResult={liveTabs.dismissLegacyImportResult}
             />
           ) : (
           <section
@@ -677,23 +769,13 @@ export function App({ client, liveTabsClient }: AppProps) {
                         }
                       }}
                       disabled={liveTabs.bulkPending}
-                      aria-label={`File all unassigned tabs (${eligibleBulkCount})`}
+                      aria-label={`Add all current tabs (${eligibleBulkCount})`}
                     >
                       <FolderInput size={16} aria-hidden="true" />
-                      <span>File all unassigned ({eligibleBulkCount})</span>
+                      <span>Add all current tabs ({eligibleBulkCount})</span>
                     </button>
                   )}
-                  <AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /><ProjectActions project={selected} projectIndex={state.projects.findIndex((project) => project.id === selected.id)} projectCount={state.projects.length} model={model} liveTabs={liveTabs} ownedLiveCount={projectLiveCounts[selected.id] ?? 0} onDeleted={(deletedIndex) => {
-                  const remainingIds = projectIds.filter((id) => id !== selected.id)
-                  const successorId = remainingIds[deletedIndex] ?? remainingIds[deletedIndex - 1]
-                  if (successorId) {
-                    model.selectProject(successorId)
-                    setFocusProjectId(successorId)
-                  } else {
-                    setCreating(false)
-                    queueMicrotask(() => document.querySelector<HTMLButtonElement>('.new-project-button')?.focus())
-                  }
-                }} /></div></div>
+                  <AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /></div></div>
                 {selected.savedUrls.length === 0 ? (
                   <div className="empty-project">
                     <FolderOpen size={30} />
@@ -721,6 +803,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                             onHover={setHoveredRecordId}
                             registerFocusNotes={registerFocusNotes}
                             registerArchiveAction={registerArchiveAction}
+                            registerOpenAction={registerOpenAction}
                             onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })}
                             onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }}
                             onDeleted={(deletedIndex) => {
@@ -751,7 +834,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                         {archivedExpanded && (
                           <div className="url-list archived" aria-label={`Archived URLs in ${selected.name}`}>
                             {archivedUrls.map((record, index) => (
-                              <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={archivedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} archived onHover={setHoveredRecordId} registerFocusNotes={registerFocusNotes} registerArchiveAction={registerArchiveAction} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
+                              <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={archivedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} archived onHover={setHoveredRecordId} registerFocusNotes={registerFocusNotes} registerArchiveAction={registerArchiveAction} registerOpenAction={registerOpenAction} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
                                 const remaining = archivedUrls.filter((item) => item.id !== record.id)
                                 const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
                                 if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
@@ -779,7 +862,7 @@ export function App({ client, liveTabsClient }: AppProps) {
             )}
           </section>
           )}
-          {viewMode !== 'settings' && (
+          {viewMode === 'workspace' && (
           <CurrentTabsPane
             model={liveTabs}
             state={state}
@@ -816,26 +899,114 @@ export function App({ client, liveTabsClient }: AppProps) {
           </section>
         </div>
       )}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={[
-            {
-              label: state.projects.find((p) => p.id === contextMenu.projectId)?.id === activeProjectId ? 'Reactivate' : 'Activate',
-              icon: <Play size={14} />,
-              onClick: () => liveTabs.prepareActivateProject(contextMenu.projectId),
-            },
-            {
-              label: 'Deactivate (close tabs)',
-              icon: <StopCircle size={14} />,
-              onClick: () => liveTabs.prepareCloseAllProjectTabs(contextMenu.projectId),
-              disabled: state.projects.find((p) => p.id === contextMenu.projectId)?.id !== activeProjectId,
-            },
-          ]}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+      {renameDialogProjectId && (() => {
+        const renameProject = state.projects.find((p) => p.id === renameDialogProjectId)
+        if (!renameProject) return null
+        return (
+          <dialog open className="dialog" aria-labelledby="rename-project-title">
+            <form onSubmit={async (event) => {
+              event.preventDefault()
+              setRenameError(undefined)
+              try {
+                await model.execute({ type: 'RENAME_PROJECT', projectId: renameDialogProjectId, name: renameValue })
+                setRenameDialogProjectId(null)
+              } catch (reason) {
+                setRenameError(reason instanceof Error ? reason.message : 'Could not rename this project.')
+              }
+            }}>
+              <div className="dialog-header"><h2 id="rename-project-title">Rename project</h2></div>
+              <div className="dialog-body">
+                <label htmlFor="rename-project-name">Project name</label>
+                <input id="rename-project-name" autoFocus value={renameValue} maxLength={80} onChange={(event) => setRenameValue(event.target.value)} />
+                {renameError && <p role="alert" className="field-error dark-error">{renameError}</p>}
+              </div>
+              <div className="dialog-actions">
+                <button type="button" className="button secondary" onClick={() => setRenameDialogProjectId(null)}>Cancel</button>
+                <button type="submit" className="button primary" disabled={model.commandPending}>Rename</button>
+              </div>
+            </form>
+          </dialog>
+        )
+      })()}
+      {deleteDialogProjectId && (() => {
+        const deleteProject = state.projects.find((p) => p.id === deleteDialogProjectId)
+        if (!deleteProject) return null
+        const deleteOwnedLiveCount = projectLiveCounts[deleteDialogProjectId] ?? 0
+        return (
+          <ConfirmDialog
+            title={`Delete \u201c${deleteProject.name}\u201d?`}
+            confirmLabel="Delete project"
+            destructive
+            pending={model.commandPending}
+            onCancel={() => setDeleteDialogProjectId(null)}
+            onConfirm={async () => {
+              setDeleteError(undefined)
+              liveTabs.deleteProject(deleteDialogProjectId)
+            }}
+          >
+            <p>This permanently deletes the project and {deleteProject.savedUrls.length === 1 ? 'its 1 saved URL' : `its ${deleteProject.savedUrls.length} saved URLs`}. {deleteOwnedLiveCount === 1 ? 'Its 1 owned live tab will remain open and become Unassigned.' : `Its ${deleteOwnedLiveCount} owned live tabs will remain open and become Unassigned.`} Saved data deletion cannot be undone.</p>
+            {deleteError && <p role="alert" className="field-error dark-error">{deleteError}</p>}
+          </ConfirmDialog>
+        )
+      })()}
+      {contextMenu && (() => {
+        const contextProject = state.projects.find((p) => p.id === contextMenu.projectId)
+        if (!contextProject) return null
+        const isActive = contextProject.id === activeProjectId
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={[
+              {
+                label: isActive ? 'Reactivate' : 'Activate',
+                icon: <Play size={14} />,
+                onClick: () => liveTabs.prepareActivateProject(contextMenu.projectId),
+              },
+              {
+                label: 'Open all active',
+                icon: <FolderOpen size={14} />,
+                onClick: () => liveTabs.openAllProjectUrls(contextMenu.projectId),
+              },
+              {
+                label: 'Close all',
+                icon: <FolderInput size={14} />,
+                onClick: () => liveTabs.prepareCloseAllProjectTabs(contextMenu.projectId),
+                disabled: !isActive,
+              },
+              { separator: true, label: '' },
+              {
+                label: 'Rename',
+                icon: <Edit3 size={14} />,
+                onClick: () => {
+                  setRenameValue(contextProject.name)
+                  setRenameError(undefined)
+                  setRenameDialogProjectId(contextMenu.projectId)
+                },
+              },
+              {
+                label: 'Export',
+                icon: <Download size={14} />,
+                onClick: () => {
+                  const html = generateExportHtml(contextProject)
+                  downloadFile(`protab-${sanitizeFilename(contextProject.name)}.html`, new Blob([html], { type: 'text/html' }))
+                },
+              },
+              { separator: true, label: '' },
+              {
+                label: 'Delete project',
+                icon: <Trash2 size={14} />,
+                danger: true,
+                onClick: () => {
+                  setDeleteError(undefined)
+                  setDeleteDialogProjectId(contextMenu.projectId)
+                },
+              },
+            ]}
+            onClose={() => setContextMenu(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

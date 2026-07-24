@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { applyCommand } from '../domain/applyCommand'
@@ -84,7 +84,7 @@ describe('project workspace shell', () => {
     expect(screen.getByLabelText('Project name')).toBeInTheDocument()
   })
 
-  it('renames, reorders, and confirms project deletion', async () => {
+  it('renames, reorders, and confirms project deletion via context menu', async () => {
     const user = userEvent.setup()
     const client = new TestClient({
       schemaVersion: 2,
@@ -97,22 +97,26 @@ describe('project workspace shell', () => {
     await user.click(await screen.findByRole('button', { name: /Two/ }))
     // Move up/down removed in Phase 4B (drag-to-reorder)
 
-    await user.click(screen.getByRole('button', { name: 'Project actions for Two' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    // Right-click on the Two project row to open context menu
+    const twoButton = screen.getByRole('button', { name: /Two/ })
+    fireEvent.contextMenu(twoButton)
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }))
     const input = screen.getByLabelText('Project name')
     await user.clear(input)
     await user.type(input, 'Renamed')
     await user.click(screen.getByRole('button', { name: 'Rename' }))
     expect(await screen.findByRole('heading', { name: 'Renamed' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Project actions for Renamed' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+    // Right-click on the Renamed project row for delete
+    const renamedButton = screen.getByRole('button', { name: /Renamed/ })
+    fireEvent.contextMenu(renamedButton)
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete project' }))
     expect(screen.getByText(/its 1 saved URL/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.getByRole('button', { name: 'Project actions for Renamed' })).toHaveFocus()
+    expect(screen.getByRole('heading', { name: 'Renamed' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Project actions for Renamed' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }))
+    fireEvent.contextMenu(renamedButton)
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete project' }))
     await user.click(screen.getByRole('button', { name: 'Delete project' }))
     expect(await screen.findByRole('heading', { name: 'One' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Renamed/ })).not.toBeInTheDocument()
@@ -142,8 +146,9 @@ describe('project workspace shell', () => {
     await user.tab()
     expect(client.state.projects[0].savedUrls[0].title).toBe('Updated')
 
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for Updated' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Delete URL' }))
+    const accordion = document.querySelector('[data-record-id]')!
+    fireEvent.contextMenu(accordion)
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete URL' }))
     await user.click(screen.getByRole('button', { name: 'Delete URL' }))
     expect(await screen.findByText('No saved URLs yet')).toBeInTheDocument()
     expect(client.state.projects[0].savedUrls).toHaveLength(0)
@@ -170,11 +175,11 @@ describe('project workspace shell', () => {
     await user.click(screen.getByRole('button', { name: 'GlobalTag' }))
     expect(client.state.projects[0].savedUrls[0].tags).toEqual(['GlobalTag'])
 
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for Two URL' }))
-    // Move up/down removed in Phase 4B (drag-to-reorder)
+    // Context menu available via right-click (tested below)
 
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for One URL' }))
-    await user.click(screen.getByRole('menuitem', { name: /Copy to project/ }))
+    const oneAccordion = document.querySelector('[data-record-id="u1"]')!
+    fireEvent.contextMenu(oneAccordion)
+    await user.click(await screen.findByRole('menuitem', { name: /Copy to project/ }))
     await user.click(screen.getByRole('button', { name: 'Copy URL' }))
     expect(await screen.findByRole('heading', { name: 'Two' })).toBeInTheDocument()
     expect(client.state.projects[1].savedUrls[0]).toMatchObject({ url: 'https://one.test/', title: 'One URL', tags: ['GlobalTag'], notes: 'Source' })
@@ -194,8 +199,8 @@ describe('project workspace shell', () => {
     renderApp(new TestClient(), liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 12, windowId: 3, index: 0, active: true, title: 'A very useful reference', url: 'https://example.com/reference', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [] },
-      { tabId: 13, windowId: 3, index: 1, active: false, title: 'Chrome Settings', url: 'chrome://settings/', urlSummary: 'chrome:', supported: false, candidates: [] },
+      { tabId: 12, windowId: 3, index: 0, active: true, title: 'A very useful reference', url: 'https://example.com/reference', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
+      { tabId: 13, windowId: 3, index: 1, active: false, title: 'Chrome Settings', url: 'chrome://settings/', urlSummary: 'chrome:', supported: false, candidates: [], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     const row = screen.getByRole('button', { name: /A very useful reference.*Current tab/ })
     expect(row).toHaveAttribute('aria-current', 'page')
@@ -214,13 +219,15 @@ describe('project workspace shell', () => {
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 15, windowId: 3, index: 0, active: false, title: 'One URL', url: 'https://one.test/', urlSummary: 'one.test', hostname: 'one.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://one.test/', drifted: false } },
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'One URL', url: 'https://one.test/', urlSummary: 'one.test', hostname: 'one.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://one.test/', drifted: false }, chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByLabelText('1 open instance')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Open' }))
+    const accordion = document.querySelector('[data-record-id="u1"]')!
+    fireEvent.contextMenu(accordion)
+    await user.click(await screen.findByRole('menuitem', { name: 'Open' }))
     expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL', projectId: 'p1', savedUrlId: 'u1' })
-    await user.click(screen.getByRole('button', { name: 'Saved URL actions for One URL' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Open another copy' }))
+    fireEvent.contextMenu(accordion)
+    await user.click(await screen.findByRole('menuitem', { name: 'Open another copy' }))
     expect(liveTabs.sent).toContainEqual({ kind: 'OPEN_SAVED_URL_COPY', projectId: 'p1', savedUrlId: 'u1' })
   })
 
@@ -230,7 +237,7 @@ describe('project workspace shell', () => {
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Different page', url: 'https://different.test/', urlSummary: 'different.test', hostname: 'different.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://saved.test/', drifted: true } },
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Different page', url: 'https://different.test/', urlSummary: 'different.test', hostname: 'different.test', supported: true, candidates: [], ownership: { projectId: 'p1', savedUrlId: 'u1', establishedUrl: 'https://saved.test/', drifted: true }, chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByRole('button', { name: /Different page.*Navigated from saved URL.*Unassigned/ })).toBeInTheDocument()
     expect(document.getElementById('live-group-unassigned')).toHaveAttribute('aria-expanded', 'true')
@@ -247,7 +254,7 @@ describe('project workspace shell', () => {
     renderApp(client, liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
-      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Same live page', url: 'https://same.test/', urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [{ projectId: 'p1', savedUrlId: 'u1' }, { projectId: 'p2', savedUrlId: 'u2' }] },
+      { tabId: 15, windowId: 3, index: 0, active: false, title: 'Same live page', url: 'https://same.test/', urlSummary: 'same.test', hostname: 'same.test', supported: true, candidates: [{ projectId: 'p1', savedUrlId: 'u1' }, { projectId: 'p2', savedUrlId: 'u2' }], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByText('Matches 2 projects — assignment needed')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Assign to…' }))
@@ -262,7 +269,7 @@ describe('project workspace shell', () => {
     renderApp(new TestClient(), liveTabs)
     await screen.findByText('No ordinary tabs in this window')
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: true, error: 'Tabs permission unavailable', tabs: [
-      { tabId: 12, windowId: 3, index: 0, active: false, title: 'Last known tab', url: 'https://example.com/', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [] },
+      { tabId: 12, windowId: 3, index: 0, active: false, title: 'Last known tab', url: 'https://example.com/', urlSummary: 'example.com', hostname: 'example.com', supported: true, candidates: [], chromePinned: false, chromeAudible: false, protectionReasons: [], isProtected: false },
     ] } }))
     expect(screen.getByRole('alert')).toHaveTextContent('Tabs permission unavailable')
     expect(screen.getByText('Last known tab')).toBeInTheDocument()

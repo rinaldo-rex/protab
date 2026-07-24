@@ -43,7 +43,7 @@ Do not let React call Chrome tabs APIs, mutate durable project state directly, d
 
 ---
 
-## Feature 1: Safe automatic migration
+## Feature 1: Selective legacy data import
 
 ### Durable schema pipeline
 
@@ -86,9 +86,9 @@ Rules:
 - future version throws `StorageDataError(kind: 'unsupported-version')`
 - missing `schemaVersion` throws invalid rather than guessing
 
-### Write-through migration
+### Legacy data detection and backup
 
-`loadState(storage)` currently reads raw state and returns the parsed/migrated result. Phase 4D changes it to write migrated state back once migration succeeds.
+`loadState(storage)` currently reads raw state and returns the parsed/migrated result. Phase 4D changes it to detect old schemas and store them as legacy data for selective import.
 
 Suggested repository flow:
 
@@ -111,8 +111,11 @@ Extend `StorageAdapter` narrowly:
 interface StorageAdapter {
   get(): Promise<unknown | undefined>
   set(state: PersistedState): Promise<void>
-  getMigrationBackup?(): Promise<unknown | undefined>
-  setMigrationBackup?(backup: MigrationBackup): Promise<void>
+}
+
+interface MigrationStorageAdapter {
+  getMigrationBackup(): Promise<unknown | undefined>
+  setMigrationBackup(backup: MigrationBackup): Promise<void>
 }
 ```
 
@@ -124,37 +127,46 @@ For the Chrome adapter, `setMigrationBackup` writes to `chrome.storage.local` un
 2. return `emptyState()` when raw is absent
 3. parse/migrate with metadata
 4. if not migrated, return state
-5. create a backup object containing the original raw state
-6. write the backup
-7. write the migrated current state to `STORAGE_KEY`
-8. return the migrated state plus enough metadata for UI notification
+5. if migrated (old schema detected):
+   a. create a backup object containing the original raw state
+   b. write the backup (if this fails, do not proceed)
+   c. return `emptyState()` with `legacyData` info
+6. do NOT auto-migrate or write migrated state back
 
-If the backup write fails, do not replace `protab.state`; surface a storage error. A migration without a backup violates the Phase 4D recovery contract.
+The old data remains in the backup for selective import by the user.
 
-If the migrated-state write fails after backup succeeds, leave the original state as-is and surface an error. The presence of the backup is acceptable, but the app must not pretend migration completed.
+If the backup write fails, do not proceed; surface a storage error. The original `protab.state` must remain untouched.
 
 ### Loading result for UI notice
 
-The workspace needs to know when migration succeeded so it can show a brief banner/toast. Avoid coupling UI to raw storage details by adding one of these seams:
+The workspace needs to know when legacy data is available. Avoid coupling UI to raw storage details by adding:
 
 ```ts
 interface LoadedState {
   state: PersistedState
-  migration?: {
-    fromSchemaVersion: number
-    toSchemaVersion: number
-    backupAvailable: boolean
-  }
+  legacyData?: LegacyDataInfo
+}
+
+interface LegacyDataInfo {
+  available: boolean
+  schemaVersion: number
+  projectCount: number
+  projects: Array<{ name: string; urlCount: number; archivedCount: number }>
 }
 ```
 
-or a one-time background/state response flag:
+The legacy data info is used by the workspace to auto-open Settings and show the import UI.
 
-```ts
-{ ok: true; state, meta: { migrationCompleted: true } }
-```
+### Selective import
 
-The notice should be one-time per page load after migration. It does not need durable dismissal state.
+When the user selects projects to import:
+
+1. Read the migration backup raw state.
+2. Parse/migrate it through the current pipeline.
+3. Filter to selected projects only.
+4. Read current state and merge (skip projects with duplicate names).
+5. Write merged state back.
+6. Broadcast to all connected workspaces.
 
 ### Backup export and restore
 
@@ -604,29 +616,26 @@ Record Chrome version, OS, exact wording observed, and any Chrome differences in
 
 Keep every commit buildable and all existing checks green. Tests belong in the same commit as the behavior they verify.
 
-1. `feat: add write-through durable migrations with backup`
-2. `feat: add migration backup recovery in settings`
-3. `feat: add live tab protection model and manual pins`
-4. `feat: skip protected tabs in all close workflows`
-5. `feat: surface protected badges and skip summaries`
-6. `docs: add quickstart guide`
-7. `docs: add Phase 4D loading and test instructions`
+1. `feat: add selective legacy data import with backup`
+2. `feat: add live tab protection model and manual pins`
+3. `feat: skip protected tabs in all close workflows`
+4. `feat: surface protected badges and skip summaries`
+5. `docs: add quickstart guide`
+6. `docs: add Phase 4D loading and test instructions`
 
-Commit 1 changes only durable loading, migration metadata, backup writing, and tests. It must not alter tab close behavior.
+Commit 1 changes durable loading to detect old schemas and store them as legacy data for selective import. It adds the import UI in Settings and the backup recovery area. It must not alter tab close behavior.
 
-Commit 2 exposes backup export/restore through Settings and broadcasts restored state safely.
+Commit 2 adds live-tab protection data, session-only manual pin storage, inventory badges, and pin/unpin actions, but does not yet change close behavior except where tests require a no-op guard seam.
 
-Commit 3 adds live-tab protection data, session-only manual pin storage, inventory badges, and pin/unpin actions, but does not yet change close behavior except where tests require a no-op guard seam.
+Commit 3 wires the shared protected close guard into every workflow that can call `chrome.tabs.remove()`.
 
-Commit 4 wires the shared protected close guard into every workflow that can call `chrome.tabs.remove()`.
+Commit 4 completes user-facing summaries, row styling, accessible labels, and retry copy.
 
-Commit 5 completes user-facing summaries, row styling, accessible labels, and retry copy.
+Commit 5 adds `docs/quickstart.md` only.
 
-Commit 6 adds `docs/quickstart.md` only.
+Commit 6 adds manual loading/testing instructions for Phase 4D if a separate testing doc is desired.
 
-Commit 7 adds manual loading/testing instructions for Phase 4D if a separate testing doc is desired.
-
-If implementation proves that the protected close guard must land with commit 3 to avoid unsafe intermediate behavior, merge commits 3 and 4 and explain the deviation in completion evidence.
+If implementation proves that the protected close guard must land with commit 2 to avoid unsafe intermediate behavior, merge commits 2 and 3 and explain the deviation in completion evidence.
 
 ---
 
@@ -638,10 +647,12 @@ Before declaring Phase 4D complete, provide:
 - output of `npm test`, `npm run lint`, and `npm run build`
 - production build location and unpacked-loading steps
 - manual checklist results with Chrome version and OS
-- evidence that old durable state migrates and writes back automatically
-- evidence that backup write precedes migrated-state replacement
-- evidence that migration failure and future schema versions are non-destructive
+- evidence that old durable state is stored as legacy data for selective import
+- evidence that the import UI shows project-level selection with URL counts
+- evidence that importing merges selected projects and skips duplicate names
+- evidence that detection failure and future schema versions are non-destructive
 - evidence that backup export and restore work from Settings
+- evidence that old version warning is shown and dismissable
 - evidence that manual Protab pins are session-only live-tab state
 - evidence that Chrome-pinned and audible tabs are protected
 - evidence that every close workflow skips protected tabs with zero `tabs.remove()` calls for those tabs

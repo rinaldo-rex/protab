@@ -1,5 +1,5 @@
-import type { PersistedState } from '../domain/types'
-import type { StorageAdapter } from './repository'
+import type { PersistedState, MigrationBackup } from '../domain/types'
+import type { StorageAdapter, MigrationStorageAdapter } from './repository'
 
 export class MemoryStorageAdapter implements StorageAdapter {
   value: unknown | undefined
@@ -29,5 +29,29 @@ export class MemoryStorageAdapter implements StorageAdapter {
   subscribe(listener: (value: unknown) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+}
+
+export class MemoryMigrationStorageAdapter implements MigrationStorageAdapter {
+  backup: MigrationBackup | undefined
+  backupWrites = 0
+  failNextBackupWrite: Error | undefined
+
+  constructor(initial?: MigrationBackup) {
+    this.backup = initial
+  }
+
+  async getMigrationBackup(): Promise<unknown | undefined> {
+    return this.backup ? structuredClone(this.backup) : undefined
+  }
+
+  async setMigrationBackup(backup: MigrationBackup): Promise<void> {
+    if (this.failNextBackupWrite) {
+      const error = this.failNextBackupWrite
+      this.failNextBackupWrite = undefined
+      throw error
+    }
+    this.backup = structuredClone(backup)
+    this.backupWrites += 1
   }
 }

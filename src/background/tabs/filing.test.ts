@@ -20,6 +20,10 @@ function createTab(overrides: Partial<LiveTabView> = {}): LiveTabView {
     hostname: 'example.com',
     supported: true,
     candidates: [],
+    chromePinned: false,
+    chromeAudible: false,
+    protectionReasons: [],
+    isProtected: false,
     ...overrides,
   }
 }

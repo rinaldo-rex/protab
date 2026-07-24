@@ -12,11 +12,11 @@ Phase 4B is complete. The extension has durable V2 project storage, archive/expo
 
 ---
 
-## Feature 1: Safe automatic migration
+## Feature 1: Selective legacy data import
 
 ### Goal
 
-When users update Protab, existing projects, saved URLs, titles, tags, notes, ordering, and archive metadata must remain available. Older supported durable schemas are automatically migrated to the current schema, saved back once migration succeeds, and recoverable through a visible backup UI.
+When users update Protab from a version with an older durable schema, the old data is preserved as a backup and presented as an importable resource. Users review what’s in the old data, select which projects to import, and explicitly import them. This replaces silent automatic migration with a transparent, user-controlled flow.
 
 ### Durable data scope
 
@@ -34,7 +34,7 @@ Migration applies to the durable project state stored under `protab.state`:
 
 Migration does not treat live tab ownership, active project state, close attempts, or manual live-tab pins as durable project data. Those remain runtime/session state and may be reconstructed or cleared safely.
 
-### Migration behavior
+### Detection behavior
 
 On startup or state load:
 
@@ -42,12 +42,12 @@ On startup or state load:
 2. If no state exists, initialize the current empty state.
 3. If the state is already current, validate and continue.
 4. If the state uses an older supported schema, validate the old shape.
-5. Migrate step-by-step to the current schema.
-6. Validate the migrated result.
-7. Before replacing `protab.state`, save the pre-migration raw data as the latest migration backup.
-8. Write the migrated current-schema state back to `protab.state`.
-9. Continue with the migrated state.
-10. Show a brief success banner or toast: **Protab updated your saved data format.**
+5. Store the raw old data as a migration backup (without overwriting `protab.state`).
+6. Initialize with an empty current-schema state.
+7. Notify connected workspaces that legacy data is available.
+8. Auto-open the Settings panel with the legacy data import section visible.
+
+The old data is NOT silently migrated. It remains available as a backup for selective import.
 
 If migration or validation fails:
 
@@ -62,32 +62,49 @@ If the stored state has a future unsupported schema version:
 - do not overwrite it
 - show an unsupported-version error explaining that this Protab build cannot read newer data
 
-### Migration backup and recovery UI
+### Import UI in Settings
 
-Phase 4D adds a visible recovery area in Settings.
+When legacy data is detected, Settings shows a prominent import section at the top:
 
-If a migration backup exists, Settings provides:
+- **Old version warning**: A one-time dismissable warning that the old extension version should be removed to avoid storage conflicts.
+- **Project list**: Each project from the old data is shown with its name, URL count, and archived count. All projects are selected by default with checkboxes.
+- **Select all / deselect all**: Toggle all projects.
+- **Import selected**: Primary action button that imports the selected projects.
+- **Dismiss**: Secondary action that hides the import section (data remains available in Settings recovery area).
 
-- **Export migration backup** — downloads or copies the latest backup as JSON for manual safekeeping.
-- **Restore migration backup** — confirms and restores the latest backup into `protab.state`.
+After import:
+- Show a success message with the number of imported projects.
+- Projects with the same name as existing projects are skipped (not overwritten).
+- Merged state is broadcast to all connected workspaces.
 
-Restore must require explicit confirmation and must explain that restoring replaces the current project state with the backed-up state. Restored data is then parsed through the same migration pipeline before use if it is older than the current schema.
+### Import confirmation
 
-The backup is not cloud sync, account backup, or a replacement for project HTML/ZIP export. It is a local recovery aid for automatic schema migration.
+Before importing, a confirmation dialog shows:
+- The list of selected projects with URL counts.
+- A note that projects with duplicate names will be skipped.
+
+### Backup recovery area
+
+The migration backup is also available in the Settings recovery section:
+- **Export migration backup** — downloads the backup as JSON for manual safekeeping.
+- **Restore migration backup** — confirms and restores the backup into `protab.state` (parses through the migration pipeline).
 
 ### User-facing copy
 
-Success copy should be brief and non-alarming:
+Detection copy:
+> Previous version data found
 
-> Protab updated your saved data format.
+Warning copy:
+> If you still have the previous version of Protab installed, please remove it to avoid conflicts. Both versions share the same storage.
 
-Failure copy should emphasize non-destruction:
+Import description:
+> Protab found data from a previous version (schema vX). Select which projects to import into your current workspace.
 
-> Protab could not update your saved data. Your original data was left unchanged.
+Success copy:
+> Successfully imported N projects.
 
-Unsupported future-version copy should avoid implying corruption:
-
-> This Protab data was created by a newer version. Install the newer version to open it safely.
+Duplicate copy:
+> Projects with the same name as existing projects will be skipped.
 
 ---
 
@@ -197,12 +214,12 @@ Phase 4D creates the quickstart document only. Linking it from the README is def
 
 ## Acceptance criteria
 
-- **P4D-A1:** Loading an older supported durable schema automatically migrates it to the current schema and writes the migrated state back after successful validation.
-- **P4D-A2:** Before overwriting durable state during migration, Protab stores a latest migration backup.
-- **P4D-A3:** Migration failure leaves the original durable state untouched and shows a clear non-destructive error.
+- **P4D-A1:** Loading an older supported durable schema stores the old data as a backup and presents it as an importable resource with project-level selection.
+- **P4D-A2:** The migration backup contains the pre-migration raw state and is created before any state is overwritten.
+- **P4D-A3:** Detection failure leaves the original durable state untouched and shows a clear non-destructive error.
 - **P4D-A4:** Future unsupported schema versions are rejected non-destructively.
-- **P4D-A5:** Settings exposes migration backup export and restore when a backup exists.
-- **P4D-A6:** Successful automatic migration shows a brief banner or toast.
+- **P4D-A5:** Settings exposes the legacy data import section (when available) and migration backup export/restore.
+- **P4D-A6:** Legacy data import shows a project checklist with URL counts and allows selective import.
 - **P4D-A7:** Users can manually pin and unpin a live tab from the Current Tabs pane using mouse or keyboard.
 - **P4D-A8:** Manually pinned tabs are session-only live-tab state, not saved URL metadata and not URL-wide rules.
 - **P4D-A9:** Chrome-pinned tabs and audible tabs appear with protected styling and source-specific labels.
@@ -214,13 +231,16 @@ Phase 4D creates the quickstart document only. Linking it from the README is def
 
 ## Manual acceptance checklist
 
-1. Load a fixture using an older supported durable schema and verify Protab migrates it, preserves all project data, writes the current schema back, and shows the success banner/toast.
-2. Verify the latest migration backup exists after migration.
-3. Export the migration backup from Settings and inspect that it contains the pre-migration raw state.
-4. Restore the migration backup from Settings and verify Protab confirms before replacing current state.
-5. Simulate migration failure and verify the original `protab.state` is unchanged.
-6. Simulate a future schema version and verify Protab refuses to overwrite it.
-7. Pin an unassigned live tab in Protab and run **File all unassigned tabs**; verify the pinned tab is skipped and summarized.
+1. Load a fixture using an older supported durable schema and verify Protab detects the legacy data, stores it as a backup, and auto-opens Settings with the import section visible.
+2. Verify the import section shows all projects with URL counts and archived counts, all selected by default.
+3. Verify the old version warning is shown and can be dismissed.
+4. Select a subset of projects and click Import; verify only those projects appear in the workspace.
+5. Verify projects with duplicate names are skipped (existing projects are not overwritten).
+6. Export the migration backup from Settings and inspect that it contains the pre-migration raw state.
+7. Restore the migration backup from Settings and verify Protab confirms before replacing current state.
+8. Simulate detection failure and verify the original `protab.state` is unchanged.
+9. Simulate a future schema version and verify Protab refuses to overwrite it.
+10. Pin an unassigned live tab in Protab and run **File all unassigned tabs**; verify the pinned tab is skipped and summarized.
 8. Pin a project-owned live tab in Protab and run **Close all**; verify the pinned tab is skipped and summarized.
 9. Activate another project while a protected other-project tab is open; verify the protected tab remains open and the summary explains why.
 10. Chrome-pin a tab and verify Protab shows protected styling and skips it during all relevant close workflows.

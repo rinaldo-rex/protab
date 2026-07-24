@@ -22,6 +22,10 @@ describe('live tab normalization', () => {
       favIconUrl: 'https://example.com/favicon.ico',
       supported: true,
       candidates: [],
+      chromePinned: false,
+      chromeAudible: false,
+      protectionReasons: [],
+      isProtected: false,
     })
   })
 

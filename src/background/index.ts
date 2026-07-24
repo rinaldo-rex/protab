@@ -1,6 +1,6 @@
 import { DomainError } from '../domain/validation'
 import { StorageDataError } from '../storage/schema'
-import { ChromeStorageAdapter } from '../storage/repository'
+import { ChromeStorageAdapter, ChromeMigrationStorageAdapter, loadStateWithMetadata } from '../storage/repository'
 import { CommandQueue } from '../storage/commandQueue'
 import { MESSAGE_CHANNEL, STATE_COMMITTED, type BackgroundResponse, type ClientMessage, type StateCommittedMessage } from './messages'
 import { ChromeToolbarAdapter, serializedToolbarHandler } from './toolbar'
@@ -10,8 +10,11 @@ import { ChromeSessionStorageAdapter, OwnershipStore } from './tabs/ownershipSto
 import { CloseTrackerStore, ChromeSessionStorageAdapter as CloseTrackerSessionAdapter } from './tabs/closeTracker'
 import { FilingOrchestrator } from './tabs/filing'
 import { ActiveProjectStore, ChromeSessionStorageAdapter as ActiveProjectSessionAdapter } from './tabs/activeProjectStore'
+import { ProtectedTabsStore, ChromeSessionStorageAdapter as ProtectedTabsSessionAdapter } from './tabs/protectedTabsStore'
 
 const queue = new CommandQueue(new ChromeStorageAdapter())
+const chromeStorageAdapter = new ChromeStorageAdapter()
+const migrationStorage = new ChromeMigrationStorageAdapter()
 const ownership = new OwnershipStore(new ChromeSessionStorageAdapter())
 void ownership.initialize().catch((error: unknown) => console.error('Protab could not restrict live ownership storage access.', error))
 
@@ -20,6 +23,9 @@ void closeTracker.initialize().catch((error: unknown) => console.error('Protab c
 
 const activeProjectStore = new ActiveProjectStore(new ActiveProjectSessionAdapter())
 void activeProjectStore.initialize().catch((error: unknown) => console.error('Protab could not restrict active project storage access.', error))
+
+const protectedTabsStore = new ProtectedTabsStore(new ProtectedTabsSessionAdapter())
+void protectedTabsStore.initialize().catch((error: unknown) => console.error('Protab could not restrict protected tabs storage access.', error))
 
 const tabsApi = new ChromeTabsAdapter()
 
@@ -31,12 +37,36 @@ const filingOrchestrator = new FilingOrchestrator(
   () => queue.read(),
   () => {},
   () => liveTabs.scheduleAll(),
+  undefined,
+  protectedTabsStore,
 )
 
-const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore)
+const liveTabs = new LiveTabsCoordinator(tabsApi, ownership, () => queue.read(), queue, closeTracker, filingOrchestrator, activeProjectStore, chromeStorageAdapter, migrationStorage, protectedTabsStore)
 
-// Initialize coordinator and restore active state
-void queue.read().then((state) => liveTabs.initialize(state)).catch((error: unknown) => console.error('Protab could not initialize live tabs coordinator.', error))
+// Initialize coordinator with write-through migration
+void loadStateWithMetadata(chromeStorageAdapter, migrationStorage)
+  .then(async (loaded) => {
+    // Ensure Trash project exists
+    const trashExists = loaded.state.projects.some((p) => p.name === 'Trash')
+    if (!trashExists) {
+      const { state } = await queue.execute({ type: 'CREATE_PROJECT', name: 'Trash' })
+      loaded.state = state
+    }
+
+    await liveTabs.initialize(loaded.state)
+    if (loaded.legacyData) {
+      // Notify connected workspaces about legacy data
+      await chrome.runtime.sendMessage({
+        channel: 'protab',
+        kind: 'LEGACY_DATA_STATUS',
+        available: loaded.legacyData.available,
+        schemaVersion: loaded.legacyData.schemaVersion,
+        projectCount: loaded.legacyData.projectCount,
+        projects: loaded.legacyData.projects,
+      }).catch(() => undefined)
+    }
+  })
+  .catch((error: unknown) => console.error('Protab could not initialize live tabs coordinator.', error))
 
 chrome.runtime.onConnect.addListener((port) => liveTabs.connect(port))
 
@@ -46,14 +76,22 @@ chrome.commands.onCommand.addListener((command) => {
     // openPopup() is not supported in all Chromium browsers (e.g. Vivaldi, Edge).
     // Fall back to opening popup.html in a small centered window.
     void chrome.action.openPopup().catch(() => {
-      const width = 480
-      const height = 360
-      void chrome.windows.create({
-        url: chrome.runtime.getURL('popup.html'),
-        type: 'popup',
-        width,
-        height,
-        focused: true,
+      // Get the active tab in the window that triggered the command
+      // so we can pass it to the fallback popup window.
+      void chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([activeTab]) => {
+        const width = 480
+        const height = 360
+        let popupUrl = chrome.runtime.getURL('popup.html')
+        if (activeTab?.id) {
+          popupUrl += `?tabId=${activeTab.id}`
+        }
+        void chrome.windows.create({
+          url: popupUrl,
+          type: 'popup',
+          width,
+          height,
+          focused: true,
+        })
       })
     })
   }

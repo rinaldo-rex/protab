@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import type { LiveTabInventory } from '../domain/liveTabs'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../background/messages'
 import type { PreparedFilingOperation, FilingResult, FilingSummary } from '../background/tabs/filing'
 import type { CloseAttempt } from '../background/tabs/closeTracker'
 import type { PreparedActivationOperation, ActivationSummary, CloseAllSummary, OpenAllSummary } from '../background/messages'
+import { recordAnalyticsEvent } from '../storage/repository'
+import { ChromeAnalyticsStorageAdapter } from '../storage/repository'
 
 export interface LiveTabsClient {
   subscribe(listener: (message: LiveTabMessage) => void): () => void
@@ -60,6 +62,13 @@ export class ChromeLiveTabsClient implements LiveTabsClient {
   send(message: LiveTabRequest): void {
     this.port?.postMessage(message)
   }
+}
+
+export interface LegacyDataStatus {
+  available: boolean
+  schemaVersion?: number
+  projectCount?: number
+  projects?: Array<{ name: string; urlCount: number; archivedCount: number }>
 }
 
 export interface LiveTabsModel {
@@ -123,6 +132,28 @@ export interface LiveTabsModel {
   unarchive: (projectId: string, savedUrlId: string) => void
   // Phase 4B: Silent file
   silentFileTab: (tabId: number, projectId: string) => void
+  // Phase 4D: Silent file and archive
+  silentFileAndArchiveTab: (tabId: number, projectId: string) => void
+  // Phase 4D: Migration backup
+  migrationBackupStatus?: { available: boolean; fromSchemaVersion?: number; toSchemaVersion?: number; createdAt?: number }
+  migrationBackupExportedJson?: string
+  migrationRestoreResult?: { success: boolean; error?: string }
+  migrationNotice?: { fromSchemaVersion: number; toSchemaVersion: number }
+  checkMigrationBackup: () => void
+  exportMigrationBackup: () => void
+  restoreMigrationBackup: () => void
+  dismissMigrationNotice: () => void
+  dismissMigrationRestoreResult: () => void
+  clearExportedBackupJson: () => void
+  // Phase 4D: Protected tabs
+  toggleTabPin: (tabId: number) => void
+  // Phase 4D: Legacy data
+  legacyDataStatus?: LegacyDataStatus
+  legacyImportResult?: { success: boolean; importedCount?: number; error?: string }
+  checkLegacyData: () => void
+  importLegacyProjects: (projectNames: string[]) => void
+  dismissLegacyData: () => void
+  dismissLegacyImportResult: () => void
 }
 
 export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
@@ -148,6 +179,22 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
   const [closeAllPrepared, setCloseAllPrepared] = useState<LiveTabsModel['closeAllPrepared']>()
   const [closeAllSummary, setCloseAllSummary] = useState<CloseAllSummary>()
   const [closeAllPending, setCloseAllPending] = useState(false)
+  // Phase 4D state
+  const [migrationBackupStatus, setMigrationBackupStatus] = useState<LiveTabsModel['migrationBackupStatus']>()
+  const [migrationBackupExportedJson, setMigrationBackupExportedJson] = useState<string>()
+  const [migrationRestoreResult, setMigrationRestoreResult] = useState<LiveTabsModel['migrationRestoreResult']>()
+  const [migrationNotice, setMigrationNotice] = useState<LiveTabsModel['migrationNotice']>()
+  // Phase 4D: Legacy data state
+  const [legacyDataStatus, setLegacyDataStatus] = useState<LegacyDataStatus>()
+  const [legacyImportResult, setLegacyImportResult] = useState<LiveTabsModel['legacyImportResult']>()
+
+  // Track inventory count for analytics (using ref to avoid re-subscribing on every inventory change)
+  const inventoryCountRef = useRef<number>(0)
+  useEffect(() => {
+    if (inventory?.tabs.length !== undefined) {
+      inventoryCountRef.current = inventory.tabs.length
+    }
+  }, [inventory?.tabs.length])
 
   useEffect(() => client.subscribe((message) => {
     switch (message.kind) {
@@ -156,6 +203,12 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         // Update active project from inventory if available
         if ('activeProjectId' in message.inventory) {
           setActiveProjectId((message.inventory as { activeProjectId?: string }).activeProjectId)
+        }
+        // Record focus sample for analytics
+        if (!message.inventory.stale) {
+          import('../storage/repository').then(({ recordFocusSample }) => {
+            recordFocusSample(new ChromeAnalyticsStorageAdapter(), message.inventory.tabs.length).catch(() => {})
+          }).catch(() => {})
         }
         break
       case 'PROJECT_DELETED':
@@ -172,6 +225,14 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setFilingResult(message.result)
         setFilingPending(false)
         setPreparedFiling(undefined)
+        // Record analytics for successful single tab filing
+        if (message.result.closeState === 'closed' || message.result.closeState === 'requested') {
+          const tabCount = inventoryCountRef.current
+          void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+            tabsFiled: 1,
+            action: { type: 'file', tabsBefore: tabCount + 1, tabsAfter: tabCount, timestamp: Date.now() },
+          }).catch(() => {})
+        }
         break
       case 'BULK_FILING_PREPARED':
         setBulkPrepared({ operationId: message.operationId, eligible: message.eligible, projectName: message.projectName })
@@ -181,6 +242,17 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setBulkSummary(message.summary)
         setBulkPending(false)
         setBulkPrepared(undefined)
+        // Record analytics for bulk filing
+        {
+          const tabsFiled = message.summary.created + message.summary.reused
+          if (tabsFiled > 0) {
+            const tabCount = inventoryCountRef.current
+            void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+              tabsFiled,
+              action: { type: 'bulk-file', tabsBefore: tabCount + tabsFiled, tabsAfter: tabCount, timestamp: Date.now() },
+            }).catch(() => {})
+          }
+        }
         break
       // Phase 4: Activation
       case 'ACTIVATION_PREPARED':
@@ -193,6 +265,17 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setActivationPrepared(undefined)
         // Update active project ID
         setActiveProjectId(message.summary.projectId)
+        // Record analytics for activation
+        {
+          const tabsClosed = message.summary.closed + message.summary.requested
+          if (tabsClosed > 0) {
+            const tabCount = inventoryCountRef.current
+            void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+              tabsFiled: tabsClosed,
+              action: { type: 'activate', tabsBefore: tabCount + tabsClosed, tabsAfter: tabCount, timestamp: Date.now() },
+            }).catch(() => {})
+          }
+        }
         break
       // Phase 4: Open all
       case 'OPEN_ALL_SUMMARY':
@@ -208,9 +291,61 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
         setCloseAllSummary(message.summary)
         setCloseAllPending(false)
         setCloseAllPrepared(undefined)
+        // Record analytics for close all
+        {
+          const tabsClosed = message.summary.closed + message.summary.requested
+          if (tabsClosed > 0) {
+            const tabCount = inventoryCountRef.current
+            void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+              tabsFiled: tabsClosed,
+              action: { type: 'close-all', tabsBefore: tabCount + tabsClosed, tabsAfter: tabCount, timestamp: Date.now() },
+            }).catch(() => {})
+          }
+        }
         break
       case 'ARCHIVE_RESULT':
         // Archive/unarchive result is handled via STATE_COMMITTED
+        // Record analytics for archive
+        if (message.archived) {
+          void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+            urlsArchived: 1,
+          }).catch(() => {})
+        } else {
+          void recordAnalyticsEvent(new ChromeAnalyticsStorageAdapter(), {
+            urlsArchived: -1,
+          }).catch(() => {})
+        }
+        break
+      // Phase 4D: Migration backup
+      case 'MIGRATION_BACKUP_STATUS':
+        setMigrationBackupStatus({
+          available: message.available,
+          fromSchemaVersion: message.fromSchemaVersion,
+          toSchemaVersion: message.toSchemaVersion,
+          createdAt: message.createdAt,
+        })
+        break
+      case 'MIGRATION_BACKUP_EXPORTED':
+        setMigrationBackupExportedJson(message.json)
+        break
+      case 'MIGRATION_BACKUP_RESTORED':
+        setMigrationRestoreResult({ success: message.success, error: message.error })
+        break
+      case 'MIGRATION_COMPLETED':
+        setMigrationNotice({ fromSchemaVersion: message.fromSchemaVersion, toSchemaVersion: message.toSchemaVersion })
+        break
+      // Phase 4D: Legacy data
+      case 'LEGACY_DATA_STATUS':
+        setLegacyDataStatus({
+          available: message.available,
+          schemaVersion: message.schemaVersion,
+          projectCount: message.projectCount,
+          projects: message.projects,
+        })
+        break
+      case 'LEGACY_DATA_IMPORTED':
+        setLegacyImportResult({ success: message.success, importedCount: message.importedCount, error: message.error })
+        if (message.success) setLegacyDataStatus(undefined)
         break
     }
   }), [client])
@@ -371,5 +506,33 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
       setFilingResult(undefined)
       client.send({ kind: 'SILENT_FILE_TAB', tabId, projectId })
     },
+    // Phase 4D: Silent file and archive
+    silentFileAndArchiveTab: (tabId, projectId) => {
+      setFilingResult(undefined)
+      client.send({ kind: 'SILENT_FILE_AND_ARCHIVE_TAB', tabId, projectId })
+    },
+    // Phase 4D: Migration backup
+    migrationBackupStatus,
+    migrationBackupExportedJson,
+    migrationRestoreResult,
+    migrationNotice,
+    checkMigrationBackup: () => client.send({ kind: 'CHECK_MIGRATION_BACKUP' }),
+    exportMigrationBackup: () => client.send({ kind: 'EXPORT_MIGRATION_BACKUP' }),
+    restoreMigrationBackup: () => client.send({ kind: 'RESTORE_MIGRATION_BACKUP' }),
+    dismissMigrationNotice: () => setMigrationNotice(undefined),
+    dismissMigrationRestoreResult: () => setMigrationRestoreResult(undefined),
+    clearExportedBackupJson: () => setMigrationBackupExportedJson(undefined),
+    // Phase 4D: Protected tabs
+    toggleTabPin: (tabId: number) => client.send({ kind: 'TOGGLE_LIVE_TAB_PIN', tabId }),
+    // Phase 4D: Legacy data
+    legacyDataStatus,
+    legacyImportResult,
+    checkLegacyData: () => client.send({ kind: 'CHECK_LEGACY_DATA' }),
+    importLegacyProjects: (projectNames: string[]) => client.send({ kind: 'IMPORT_LEGACY_PROJECTS', projectNames }),
+    dismissLegacyData: () => {
+      setLegacyDataStatus(undefined)
+      client.send({ kind: 'DISMISS_LEGACY_DATA' })
+    },
+    dismissLegacyImportResult: () => setLegacyImportResult(undefined),
   }
 }
