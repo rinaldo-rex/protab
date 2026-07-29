@@ -271,6 +271,23 @@ export function SettingsPanel({
           </div>
           <div className="setting-row">
             <div className="setting-info">
+              <label htmlFor="enable-animations">Filing animations</label>
+              <p>Show a brief animation when tabs are filed into projects.</p>
+            </div>
+            <div className="setting-control">
+              <button
+                id="enable-animations"
+                role="switch"
+                aria-checked={settings.enableAnimations}
+                className={`toggle ${settings.enableAnimations ? 'active' : ''}`}
+                onClick={() => onSave({ enableAnimations: !settings.enableAnimations })}
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
               <label htmlFor="projects-pane-position">Projects pane position</label>
               <p>Move the project list to the side that works best for your flow.</p>
             </div>

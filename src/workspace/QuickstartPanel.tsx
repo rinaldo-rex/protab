@@ -89,6 +89,7 @@ const RECAP_ITEMS = [
   { shortcut: 'A', action: 'File hovered tab to selected project' },
   { shortcut: 'R', action: 'Archive / unarchive hovered URL' },
   { shortcut: 'O', action: 'Open hovered URL' },
+  { shortcut: 'Shift+N', action: 'Create new project' },
   { shortcut: 'N', action: 'Focus notes on hovered URL' },
   { shortcut: 'Right-click project', action: 'Activate, rename, export, delete' },
 ]

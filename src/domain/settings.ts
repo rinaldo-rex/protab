@@ -22,6 +22,7 @@ export interface ProtabSettings {
   showSidebarQuotes: boolean // Show daily inspiration quotes in the sidebar (default: true)
   allowQuickCaptureCreateProject: boolean // Allow creating new projects from quick capture (default: true)
   openAllThreshold: number // Warn before opening more than this many tabs at once (default: 15)
+  enableAnimations: boolean // Show filing animations when tabs are added to projects (default: false)
 }
 
 export const SETTINGS_STORAGE_KEY = 'protab.settings.v1'
@@ -38,6 +39,7 @@ export const DEFAULT_SETTINGS: ProtabSettings = {
   showSidebarQuotes: true,
   allowQuickCaptureCreateProject: true,
   openAllThreshold: 15,
+  enableAnimations: false,
 }
 
 export function parseSettings(raw: unknown): ProtabSettings {
@@ -75,6 +77,7 @@ export function parseSettings(raw: unknown): ProtabSettings {
     showSidebarQuotes: typeof obj.showSidebarQuotes === 'boolean' ? obj.showSidebarQuotes : DEFAULT_SETTINGS.showSidebarQuotes,
     allowQuickCaptureCreateProject: typeof obj.allowQuickCaptureCreateProject === 'boolean' ? obj.allowQuickCaptureCreateProject : DEFAULT_SETTINGS.allowQuickCaptureCreateProject,
     openAllThreshold: typeof obj.openAllThreshold === 'number' && obj.openAllThreshold >= 1 ? obj.openAllThreshold : DEFAULT_SETTINGS.openAllThreshold,
+    enableAnimations: typeof obj.enableAnimations === 'boolean' ? obj.enableAnimations : DEFAULT_SETTINGS.enableAnimations,
   }
 }
 

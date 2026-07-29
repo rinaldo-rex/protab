@@ -12,7 +12,7 @@ import type { LiveTabsClient } from './useLiveTabs'
 import { useLiveTabs } from './useLiveTabs'
 import { instanceCounts } from '../domain/ownership'
 import { useWorkspace } from './useWorkspace'
-import { FileTabsDialog } from './FileTabsDialog'
+
 import { FilingSummary } from './FilingSummary'
 import { AttentionBanner } from './AttentionBanner'
 import { DriftReviewDialog } from './DriftReviewDialog'
@@ -176,7 +176,7 @@ export function App({ client, liveTabsClient }: AppProps) {
     }
   }, [liveTabs.deletedProject, deleteDialogProjectId, model])
 
-  // Global keyboard shortcuts (R for archive, N for notes, O for open) - scoped to hovered accordion
+  // Global keyboard shortcuts (R for archive, N for notes, O for open, Shift+N for new project)
   useEffect(() => {
     const unsubscribe = tinykeys(window, {
       'r': (event: KeyboardEvent) => {
@@ -199,6 +199,13 @@ export function App({ client, liveTabsClient }: AppProps) {
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
         event.preventDefault()
         focusNotesRegistry.current.get(hoveredRecordId)?.()
+      },
+      'Shift+n': (event: KeyboardEvent) => {
+        const target = event.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        event.preventDefault()
+        setCreating(true)
+        queueMicrotask(() => document.querySelector<HTMLInputElement>('#new-project-name')?.focus())
       },
     })
     return unsubscribe
@@ -255,7 +262,7 @@ export function App({ client, liveTabsClient }: AppProps) {
       if (!raw) return
       const payload = JSON.parse(raw) as DragPayload
       if (payload.tabId) {
-        liveTabs.prepareFileTab(payload.tabId, projectId)
+        liveTabs.silentFileTab(payload.tabId, projectId)
       }
     } catch {
       // Invalid drag payload
@@ -475,15 +482,7 @@ export function App({ client, liveTabsClient }: AppProps) {
 
   return (
     <div className="app-shell">
-      {liveTabs.preparedFiling && (
-        <FileTabsDialog
-          operation={liveTabs.preparedFiling}
-          state={state}
-          pending={liveTabs.filingPending}
-          onConfirm={liveTabs.confirmFileTab}
-          onCancel={liveTabs.cancelFileOperation}
-        />
-      )}
+
       {liveTabs.bulkPrepared && bulkConfirmProjectId && (
         <div className="filing-dialog-backdrop" role="presentation">
           <section className="filing-dialog" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
@@ -687,7 +686,7 @@ export function App({ client, liveTabsClient }: AppProps) {
             </div>
           </form>
         ) : (
-          <button className="new-project-button" onClick={() => setCreating(true)}><Plus size={17} /> New project</button>
+          <button className="new-project-button" onClick={() => setCreating(true)}><Plus size={17} /> New project <kbd className="shortcut-badge" aria-hidden="true">↑N</kbd></button>
         )}
         <div
           className={`import-drop-zone${importDragOver ? ' import-drag-over' : ''}`}
@@ -768,7 +767,7 @@ export function App({ client, liveTabsClient }: AppProps) {
           >
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project{selected.id === activeProjectId ? ' · Active in this window' : ''}</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions">
+                <div className="canvas-header"><div><h2 id="project-title">{selected.name}</h2>{selected.id === activeProjectId && <span className="active-project-badge">Active in this window</span>}</div><div className="canvas-actions">
                   {eligibleBulkCount > 0 && (
                     <button
                       className="button secondary bulk-file-button"
@@ -864,8 +863,8 @@ export function App({ client, liveTabsClient }: AppProps) {
               <div className="first-use">
                 <div className="first-use-mark"><FolderOpen size={34} /></div>
                 <p className="eyebrow">A calmer browser starts here</p>
-                <h2 id="project-title">Turn temporary tabs into durable project context.</h2>
-                <p>Create your first project, then collect URLs, titles, tags, and notes that remain available after Chrome closes.</p>
+                <h2 id="project-title">Create a new project, and get focused!</h2>
+                <p>Projects let you collect URLs, titles, tags, and notes that remain available after Chrome closes.</p>
                 <p className="first-use-hint">Click the <HelpCircle size={12} style={{ verticalAlign: '-2px' }} /> icon in the sidebar header for a guided walkthrough.</p>
                 <div className="first-use-actions">
                   <button className="button primary" onClick={() => setCreating(true)}><Plus size={17} /> Create first project</button>
@@ -883,6 +882,7 @@ export function App({ client, liveTabsClient }: AppProps) {
             onDragEnd={() => { setDragOverProjectId(undefined); setDragOverCanvas(false) }}
             selectedProjectId={selected?.id}
             toastDuration={settings.toastDuration}
+            enableAnimations={settings.enableAnimations}
           />
           )}
         </div>

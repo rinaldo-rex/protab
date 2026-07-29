@@ -45,6 +45,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .project-row.selected::before { background: #f2f0ed; }
 .project-row.active { background: rgba(255,255,255,.04); }
 .project-row.active.selected { background: rgba(255,255,255,.10); }
+
+@keyframes pulse-active-bg {
+  0%, 100% { background: rgba(76, 175, 80, 0.08); }
+  50% { background: rgba(76, 175, 80, 0.16); }
+}
+
+.project-row.active.selected {
+  animation: pulse-active-bg 2s ease-in-out infinite;
+}
 .project-item .active-indicator { margin-left: auto; color: #7cb342; font-size: 14px; line-height: 1; }
 .project-item .project-name { flex: 1; min-width: 0; }
 .project-count {
@@ -79,6 +88,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .canvas-header { display: flex; justify-content: space-between; align-items: center; min-height: 50px; margin-bottom: 24px; }
 .eyebrow { margin: 0 0 5px; color: var(--on-surface-variant); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
 .canvas-header h2 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; }
+.active-project-badge { display: inline-block; margin-top: 4px; padding: 2px 8px; background: var(--primary-container); color: var(--on-primary-container); font-size: 11px; font-weight: 600; border-radius: 4px; }
 .canvas-actions { display: flex; align-items: center; gap: 8px; }
 .add-url-control { position: relative; }
 .add-url-control .add-url-form { position: absolute; z-index: 30; top: 42px; right: 0; width: min(560px, calc(100vw - 300px)); }
@@ -108,6 +118,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .shortcut-hints { display: none; gap: 6px; align-items: center; margin-left: auto; }
 .url-accordion:hover .shortcut-hints { display: flex; }
 .shortcut-hint { padding: 2px 5px; border: 1px solid var(--outline-variant); border-radius: 3px; color: var(--on-surface-variant); font-size: 9px; font-weight: 600; background: var(--surface-low); white-space: nowrap; }
+.shortcut-badge { margin-left: auto; padding: 2px 5px; border: 1px solid rgba(0,0,0,.15); border-radius: 3px; color: rgba(0,0,0,.45); font-size: 10px; font-weight: 600; font-family: inherit; white-space: nowrap; line-height: 1; }
 .accordion-body { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 16px; border-top: 1px solid var(--outline-variant); background: var(--surface-lowest); }
 .accordion-body label:first-child, .accordion-body label:nth-of-type(3), .accordion-body .autosave-note { grid-column: 1 / -1; }
 .accordion-body label small { color: var(--error); font-weight: 400; }
@@ -451,6 +462,45 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   white-space: nowrap;
   pointer-events: none;
   z-index: 10;
+}
+
+/* Flying tab animation for filing */
+.flying-tab {
+  position: fixed;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-container, #2a2a2a);
+  border: 1px solid var(--primary, #4CAF50);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 16px rgba(76, 175, 80, 0.15);
+  pointer-events: none;
+  will-change: transform, left, top;
+  max-width: 300px;
+}
+
+.flying-tab .flying-tab-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--primary, #4CAF50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.flying-tab .flying-tab-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--on-surface, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Drag handle for URL reordering */

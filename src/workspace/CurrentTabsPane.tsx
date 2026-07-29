@@ -29,7 +29,7 @@ function ProtectionBadges({ reasons }: { reasons: ProtectionReason[] }) {
   )
 }
 
-export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selectedProjectId, toastDuration }: { model: LiveTabsModel; state: PersistedState; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void; selectedProjectId?: string; toastDuration?: number }) {
+export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selectedProjectId, toastDuration, enableAnimations }: { model: LiveTabsModel; state: PersistedState; onDragStart?: (tab: LiveTabView) => void; onDragEnd?: () => void; selectedProjectId?: string; toastDuration?: number; enableAnimations?: boolean }) {
   const inventory = model.inventory
   const groups = useMemo(() => groupLiveTabs(state, inventory?.tabs ?? []), [state, inventory?.tabs])
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -62,6 +62,49 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tab: LiveTabView } | null>(null)
   const assignmentTrigger = useRef<HTMLButtonElement>(null)
 
+  // Animate a flying tab from source element to the workspace
+  const animateFiling = useCallback((sourceElement: HTMLElement, tabTitle: string) => {
+    // Skip animation if disabled
+    if (enableAnimations === false) return
+    
+    const sourceRect = sourceElement.getBoundingClientRect()
+    
+    // Find the workspace content area (url-list or empty-project area)
+    const workspaceTarget = document.querySelector('.url-list') || document.querySelector('.empty-project') || document.querySelector('.project-canvas')
+    if (!workspaceTarget) return
+    
+    const targetRect = workspaceTarget.getBoundingClientRect()
+    
+    // Create flying tab element
+    const flyingTab = document.createElement('div')
+    flyingTab.className = 'flying-tab'
+    flyingTab.innerHTML = `
+      <div class="flying-tab-favicon">${tabTitle.charAt(0).toUpperCase()}</div>
+      <span class="flying-tab-title">${tabTitle}</span>
+    `
+    
+    // Position at source
+    flyingTab.style.left = `${sourceRect.left}px`
+    flyingTab.style.top = `${sourceRect.top}px`
+    flyingTab.style.width = `${Math.min(sourceRect.width, 300)}px`
+    
+    document.body.appendChild(flyingTab)
+    
+    // Animate to target
+    requestAnimationFrame(() => {
+      flyingTab.style.transition = 'all 0.4s cubic-bezier(0.25, 0.1, 0.25, 1)'
+      flyingTab.style.left = `${targetRect.left + 24}px`
+      flyingTab.style.top = `${targetRect.top + 16}px`
+      flyingTab.style.opacity = '0.85'
+      flyingTab.style.transform = 'scale(0.92)'
+    })
+    
+    // Remove after animation
+    setTimeout(() => {
+      flyingTab.remove()
+    }, 450)
+  }, [enableAnimations])
+
   // Handle hover 'A' shortcut
   const handleSilentFile = useCallback((tabId: number) => {
     if (!selectedProjectId) {
@@ -82,10 +125,17 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
       }
     }
 
+    // Trigger animation
+    const tabElement = document.querySelector(`[data-tab-id="${tabId}"]`) as HTMLElement
+    const tab = inventory?.tabs.find((t) => t.tabId === tabId)
+    if (tabElement && tab) {
+      animateFiling(tabElement, tab.title)
+    }
+
     model.silentFileTab(tabId, selectedProjectId)
     setHoveredTabId(nextTabId)
     setToast({ message: 'Saved to project.', type: 'success' })
-  }, [selectedProjectId, model, groups])
+  }, [selectedProjectId, model, groups, inventory, animateFiling])
 
   // Handle hover 'P' shortcut - toggle pin
   const handleTogglePin = useCallback((tabId: number) => {
@@ -127,9 +177,15 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
       setToast({ message: 'Trash project not found.', type: 'error' })
       return
     }
+    // Trigger animation
+    const tabElement = document.querySelector(`[data-tab-id="${tabId}"]`) as HTMLElement
+    const tab = inventory?.tabs.find((t) => t.tabId === tabId)
+    if (tabElement && tab) {
+      animateFiling(tabElement, tab.title)
+    }
     model.silentFileTab(tabId, trashProject.id)
     setToast({ message: 'Saved to Trash.', type: 'success' })
-  }, [state, model])
+  }, [state, model, inventory, animateFiling])
 
   // Keyboard listener for 'A', 'P', 'R', 'D' shortcuts
   useEffect(() => {
@@ -211,6 +267,7 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
                   return (
                     <li key={tab.tabId}>
                       <div
+                        data-tab-id={tab.tabId}
                         className={`live-tab-row-container ${isDragging ? 'dragging' : ''} ${isHovered ? 'hovered' : ''} ${tab.isProtected ? 'protected' : ''}`}
                         onMouseEnter={() => setHoveredTabId(tab.tabId)}
                         onMouseLeave={() => setHoveredTabId(null)}
@@ -288,7 +345,14 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
             icon: <FolderInput size={14} />,
             submenu: state.projects.map((project) => ({
               label: project.name,
-              onClick: () => model.prepareFileTab(tab.tabId, project.id),
+              onClick: () => {
+                // Trigger animation
+                const tabElement = document.querySelector(`[data-tab-id="${tab.tabId}"]`) as HTMLElement
+                if (tabElement) {
+                  animateFiling(tabElement, tab.title)
+                }
+                model.silentFileTab(tab.tabId, project.id)
+              },
             })),
           })
         }
@@ -334,6 +398,11 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
             onClick: () => {
               const trashProject = state.projects.find((p) => p.name === 'Trash')
               if (trashProject) {
+                // Trigger animation
+                const tabElement = document.querySelector(`[data-tab-id="${tab.tabId}"]`) as HTMLElement
+                if (tabElement) {
+                  animateFiling(tabElement, tab.title)
+                }
                 model.silentFileTab(tab.tabId, trashProject.id)
               } else {
                 setToast({ message: 'Trash project not found.', type: 'error' })
