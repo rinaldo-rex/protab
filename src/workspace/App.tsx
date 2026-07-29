@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3 } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3, HelpCircle, AlertTriangle } from 'lucide-react'
 import type { WorkspaceClient } from './client'
 import { ConfirmDialog } from './ConfirmDialog'
 import { generateExportHtml } from './export/generateHtml'
@@ -12,7 +12,7 @@ import type { LiveTabsClient } from './useLiveTabs'
 import { useLiveTabs } from './useLiveTabs'
 import { instanceCounts } from '../domain/ownership'
 import { useWorkspace } from './useWorkspace'
-import { FileTabsDialog } from './FileTabsDialog'
+
 import { FilingSummary } from './FilingSummary'
 import { AttentionBanner } from './AttentionBanner'
 import { DriftReviewDialog } from './DriftReviewDialog'
@@ -26,6 +26,7 @@ import { parseImportFile, type ImportResult } from './export/parseImport'
 import { ConfirmImportDialog } from './ConfirmImportDialog'
 import { SettingsPanel } from './SettingsPanel'
 import { AnalyticsPanel } from './AnalyticsPanel'
+import { QuickstartPanel } from './QuickstartPanel'
 import { useSettings } from './useSettings'
 import { useAnalytics } from './useAnalytics'
 import { getDailyQuote } from '../domain/quotes'
@@ -59,12 +60,13 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'workspace' | 'settings' | 'analytics'>('workspace')
+  const [viewMode, setViewMode] = useState<'workspace' | 'settings' | 'analytics' | 'quickstart'>('workspace')
   const [renameDialogProjectId, setRenameDialogProjectId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renameError, setRenameError] = useState<string>()
   const [deleteDialogProjectId, setDeleteDialogProjectId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string>()
+  const [openAllConfirmProjectId, setOpenAllConfirmProjectId] = useState<string | null>(null)
   const [settings, updateSettings] = useSettings()
   const analytics = useAnalytics()
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
@@ -149,6 +151,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const handleProjectClick = useCallback((projectId: string) => {
     if (!isDraggingProject.current) {
       model.selectProject(projectId)
+      setViewMode('workspace')
     }
     dragStartPos.current = null
     isDraggingProject.current = false
@@ -173,7 +176,7 @@ export function App({ client, liveTabsClient }: AppProps) {
     }
   }, [liveTabs.deletedProject, deleteDialogProjectId, model])
 
-  // Global keyboard shortcuts (R for archive, N for notes, O for open) - scoped to hovered accordion
+  // Global keyboard shortcuts (R for archive, N for notes, O for open, Shift+N for new project)
   useEffect(() => {
     const unsubscribe = tinykeys(window, {
       'r': (event: KeyboardEvent) => {
@@ -196,6 +199,13 @@ export function App({ client, liveTabsClient }: AppProps) {
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
         event.preventDefault()
         focusNotesRegistry.current.get(hoveredRecordId)?.()
+      },
+      'Shift+n': (event: KeyboardEvent) => {
+        const target = event.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        event.preventDefault()
+        setCreating(true)
+        queueMicrotask(() => document.querySelector<HTMLInputElement>('#new-project-name')?.focus())
       },
     })
     return unsubscribe
@@ -252,7 +262,7 @@ export function App({ client, liveTabsClient }: AppProps) {
       if (!raw) return
       const payload = JSON.parse(raw) as DragPayload
       if (payload.tabId) {
-        liveTabs.prepareFileTab(payload.tabId, projectId)
+        liveTabs.silentFileTab(payload.tabId, projectId)
       }
     } catch {
       // Invalid drag payload
@@ -472,15 +482,7 @@ export function App({ client, liveTabsClient }: AppProps) {
 
   return (
     <div className="app-shell">
-      {liveTabs.preparedFiling && (
-        <FileTabsDialog
-          operation={liveTabs.preparedFiling}
-          state={state}
-          pending={liveTabs.filingPending}
-          onConfirm={liveTabs.confirmFileTab}
-          onCancel={liveTabs.cancelFileOperation}
-        />
-      )}
+
       {liveTabs.bulkPrepared && bulkConfirmProjectId && (
         <div className="filing-dialog-backdrop" role="presentation">
           <section className="filing-dialog" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
@@ -574,6 +576,14 @@ export function App({ client, liveTabsClient }: AppProps) {
             </button>
             <button
               className="icon-button settings-button"
+              onClick={() => setViewMode(viewMode === 'quickstart' ? 'workspace' : 'quickstart')}
+              aria-label="Quickstart guide"
+              title="Quickstart guide"
+            >
+              <HelpCircle size={16} />
+            </button>
+            <button
+              className="icon-button settings-button"
               onClick={() => setViewMode(viewMode === 'settings' ? 'workspace' : 'settings')}
               aria-label="Settings"
               title="Settings"
@@ -581,7 +591,6 @@ export function App({ client, liveTabsClient }: AppProps) {
               <Settings size={16} />
             </button>
           </div>
-          <small>LOCAL WORKSPACE</small>
         </div>
         <div className="sidebar-heading">
           <span>Projects</span>
@@ -644,7 +653,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                   onFocus={() => setFocusProjectId(undefined)}
                   onClick={() => handleProjectClick(project.id)}
                 >
-                  {isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
+                  {project.name === 'Trash' ? <Trash2 size={16} /> : isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span className="project-name">{project.name}</span>
                   {settings.showTabCounts && project.savedUrls.length > 0 && (
                     <span className="project-count">
@@ -677,7 +686,7 @@ export function App({ client, liveTabsClient }: AppProps) {
             </div>
           </form>
         ) : (
-          <button className="new-project-button" onClick={() => setCreating(true)}><Plus size={17} /> New project</button>
+          <button className="new-project-button" onClick={() => setCreating(true)}><Plus size={17} /> New project <kbd className="shortcut-badge" aria-hidden="true">↑N</kbd></button>
         )}
         <div
           className={`import-drop-zone${importDragOver ? ' import-drag-over' : ''}`}
@@ -706,7 +715,7 @@ export function App({ client, liveTabsClient }: AppProps) {
       </aside>
 
       <main className="workspace">
-        <header className="topbar"><h1>Project Workspace</h1><span className="local-status">Stored locally</span></header>
+        <header className="topbar"><h1>Project Workspace</h1></header>
         {liveTabs.attentionItems.length > 0 && (
           <AttentionBanner
             items={liveTabs.attentionItems}
@@ -746,6 +755,8 @@ export function App({ client, liveTabsClient }: AppProps) {
               onDismissLegacyData={liveTabs.dismissLegacyData}
               onDismissLegacyImportResult={liveTabs.dismissLegacyImportResult}
             />
+          ) : viewMode === 'quickstart' ? (
+            <QuickstartPanel onBack={() => setViewMode('workspace')} />
           ) : (
           <section
             className={`project-canvas ${dragOverCanvas && selected ? 'drag-over-valid' : ''}`}
@@ -756,7 +767,7 @@ export function App({ client, liveTabsClient }: AppProps) {
           >
             {selected ? (
               <>
-                <div className="canvas-header"><div><p className="eyebrow">Selected project{selected.id === activeProjectId ? ' · Active in this window' : ''}</p><h2 id="project-title">{selected.name}</h2></div><div className="canvas-actions">
+                <div className="canvas-header"><div><h2 id="project-title">{selected.name}</h2>{selected.id === activeProjectId && <span className="active-project-badge">Active in this window</span>}</div><div className="canvas-actions">
                   {eligibleBulkCount > 0 && (
                     <button
                       className="button secondary bulk-file-button"
@@ -852,8 +863,9 @@ export function App({ client, liveTabsClient }: AppProps) {
               <div className="first-use">
                 <div className="first-use-mark"><FolderOpen size={34} /></div>
                 <p className="eyebrow">A calmer browser starts here</p>
-                <h2 id="project-title">Turn temporary tabs into durable project context.</h2>
-                <p>Create your first project, then collect URLs, titles, tags, and notes that remain available after Chrome closes.</p>
+                <h2 id="project-title">Create a new project, and get focused!</h2>
+                <p>Projects let you collect URLs, titles, tags, and notes that remain available after Chrome closes.</p>
+                <p className="first-use-hint">Click the <HelpCircle size={12} style={{ verticalAlign: '-2px' }} /> icon in the sidebar header for a guided walkthrough.</p>
                 <div className="first-use-actions">
                   <button className="button primary" onClick={() => setCreating(true)}><Plus size={17} /> Create first project</button>
                   <button className="button secondary" onClick={() => document.getElementById('import-file-input')?.click()}><Upload size={17} /> Import from file</button>
@@ -870,6 +882,7 @@ export function App({ client, liveTabsClient }: AppProps) {
             onDragEnd={() => { setDragOverProjectId(undefined); setDragOverCanvas(false) }}
             selectedProjectId={selected?.id}
             toastDuration={settings.toastDuration}
+            enableAnimations={settings.enableAnimations}
           />
           )}
         </div>
@@ -949,6 +962,29 @@ export function App({ client, liveTabsClient }: AppProps) {
           </ConfirmDialog>
         )
       })()}
+      {openAllConfirmProjectId && (() => {
+        const openAllProject = state.projects.find((p) => p.id === openAllConfirmProjectId)
+        if (!openAllProject) return null
+        const activeCount = openAllProject.savedUrls.filter((u) => !u.archivedAt).length
+        return (
+          <ConfirmDialog
+            title={`Open ${activeCount} tabs?`}
+            confirmLabel={`Open ${activeCount} tabs`}
+            pending={liveTabs.openAllPending}
+            onCancel={() => setOpenAllConfirmProjectId(null)}
+            onConfirm={() => {
+              liveTabs.openAllProjectUrls(openAllConfirmProjectId)
+              setOpenAllConfirmProjectId(null)
+            }}
+          >
+            <p>This will open {activeCount} saved URLs from <strong>{openAllProject.name}</strong> in your current window. Already-open tabs will be focused instead of duplicated.</p>
+            <div className="open-all-warning">
+              <AlertTriangle size={16} />
+              <span>Too many tabs may slow down your device</span>
+            </div>
+          </ConfirmDialog>
+        )
+      })()}
       {contextMenu && (() => {
         const contextProject = state.projects.find((p) => p.id === contextMenu.projectId)
         if (!contextProject) return null
@@ -966,7 +1002,14 @@ export function App({ client, liveTabsClient }: AppProps) {
               {
                 label: 'Open all active',
                 icon: <FolderOpen size={14} />,
-                onClick: () => liveTabs.openAllProjectUrls(contextMenu.projectId),
+                onClick: () => {
+                  const activeCount = contextProject.savedUrls.filter((u) => !u.archivedAt).length
+                  if (activeCount > settings.openAllThreshold) {
+                    setOpenAllConfirmProjectId(contextMenu.projectId)
+                  } else {
+                    liveTabs.openAllProjectUrls(contextMenu.projectId)
+                  }
+                },
               },
               {
                 label: 'Close all',
@@ -997,6 +1040,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                 label: 'Delete project',
                 icon: <Trash2 size={14} />,
                 danger: true,
+                disabled: contextProject.name === 'Trash',
                 onClick: () => {
                   setDeleteError(undefined)
                   setDeleteDialogProjectId(contextMenu.projectId)

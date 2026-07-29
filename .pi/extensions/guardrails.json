@@ -1,10 +1,14 @@
 {
-  "$schema": "https://unpkg.com/@aliou/pi-guardrails@0.15.0/schema.json",
+  "$schema": "https://unpkg.com/@aliou/pi-guardrails@0.16.0/schema.json",
   "pathAccess": {
     "allowedPaths": [
       {
         "kind": "directory",
         "path": "~/.local/share/fnm/node-versions/v25.2.1/installation/lib/node_modules/@earendil-works"
+      },
+      {
+        "kind": "directory",
+        "path": "/tmp"
       }
     ]
   },

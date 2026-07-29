@@ -136,6 +136,47 @@ body {
   margin-bottom: 12px;
 }
 
+.popup-existing-projects {
+  padding: 8px 12px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.popup-existing-label {
+  display: block;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  margin-bottom: 6px;
+}
+
+.popup-existing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.popup-existing-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--surface-high);
+  border: 1px solid var(--outline-variant);
+  border-radius: 100px;
+  color: var(--on-surface);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.popup-existing-chip:hover {
+  background: var(--surface-highest);
+  border-color: var(--outline);
+}
+
 .popup-actions {
   display: flex;
   gap: 8px;

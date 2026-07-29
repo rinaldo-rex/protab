@@ -17,7 +17,9 @@ export interface WorkspaceModel {
 
 function chooseSelection(previousId: string | undefined, state: PersistedState): string | undefined {
   if (previousId && state.projects.some((project) => project.id === previousId)) return previousId
-  return state.projects[0]?.id
+  // Skip Trash when auto-selecting on first load
+  const firstNonTrash = state.projects.find((p) => p.name !== 'Trash')
+  return firstNonTrash?.id
 }
 
 export function useWorkspace(client: WorkspaceClient): WorkspaceModel {

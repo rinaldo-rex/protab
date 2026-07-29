@@ -55,9 +55,9 @@ describe('project workspace shell', () => {
     client.read = () => new Promise((resolve) => { release = resolve })
     renderApp(client)
     expect(screen.getByRole('heading', { name: 'Loading Protab' })).toBeInTheDocument()
-    expect(screen.queryByText('Turn temporary tabs into durable project context.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Create a new project, and get focused!')).not.toBeInTheDocument()
     await act(async () => release(emptyState()))
-    expect(await screen.findByText('Turn temporary tabs into durable project context.')).toBeInTheDocument()
+    expect(await screen.findByText('Create a new project, and get focused!')).toBeInTheDocument()
   })
 
   it('creates and selects projects with keyboard-accessible controls', async () => {

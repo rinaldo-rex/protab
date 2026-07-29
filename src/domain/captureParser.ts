@@ -92,10 +92,11 @@ export function getTagAutocomplete(partial: string, existingTags: string[]): Aut
 
 /**
  * Returns project suggestions matching the partial project name after @
+ * @param allowCreate - If true, adds a "create new" option when no exact match exists
  */
-export function getProjectAutocomplete(partial: string, projectNames: string[]): AutocompleteOption[] {
+export function getProjectAutocomplete(partial: string, projectNames: string[], allowCreate: boolean = false): AutocompleteOption[] {
   const lowerPartial = partial.toLowerCase()
-  return projectNames
+  const matches: AutocompleteOption[] = projectNames
     .filter((name) => name.toLowerCase().includes(lowerPartial))
     .slice(0, 8)
     .map((name) => ({
@@ -103,4 +104,18 @@ export function getProjectAutocomplete(partial: string, projectNames: string[]):
       label: name,
       value: name,
     }))
+
+  // Add "create new" option if create is allowed
+  if (allowCreate) {
+    const exactMatch = partial && projectNames.some((name) => name.toLowerCase() === lowerPartial)
+    if (!exactMatch) {
+      matches.push({
+        type: 'create-project',
+        label: partial ? `+ Create '${partial}'` : '+ New project',
+        value: partial,
+      })
+    }
+  }
+
+  return matches
 }
