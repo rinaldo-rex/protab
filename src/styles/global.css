@@ -80,6 +80,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .workspace { display: flex; flex: 1; min-width: 0; flex-direction: column; }
 .topbar { height: 48px; flex: 0 0 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--outline-variant); }
 .topbar h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.topbar-version { color: var(--on-surface-variant); font-size: 11px; font-weight: 600; letter-spacing: .02em; padding: 2px 8px; border: 1px solid var(--outline-variant); border-radius: 999px; }
 .local-status { color: var(--on-surface-variant); font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
 .error-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 24px; color: #700006; background: var(--error-container); border-bottom: 1px solid #e6a9a3; font-size: 13px; }
 .error-banner button { border: 0; background: transparent; color: #700006; font-weight: 600; text-decoration: underline; }

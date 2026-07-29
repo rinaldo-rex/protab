@@ -36,6 +36,10 @@ interface AppProps {
   liveTabsClient?: LiveTabsClient
 }
 
+const APP_VERSION = typeof chrome !== 'undefined' && chrome.runtime?.getManifest
+  ? chrome.runtime.getManifest().version
+  : ''
+
 export function App({ client, liveTabsClient }: AppProps) {
   const resolvedClient = useMemo(() => client ?? new ChromeWorkspaceClient(), [client])
   const model = useWorkspace(resolvedClient)
@@ -715,7 +719,7 @@ export function App({ client, liveTabsClient }: AppProps) {
       </aside>
 
       <main className="workspace">
-        <header className="topbar"><h1>Project Workspace</h1></header>
+        <header className="topbar"><h1>Project Workspace</h1>{APP_VERSION && <span className="topbar-version">v{APP_VERSION}</span>}</header>
         {liveTabs.attentionItems.length > 0 && (
           <AttentionBanner
             items={liveTabs.attentionItems}
