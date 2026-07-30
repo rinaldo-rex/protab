@@ -71,6 +71,7 @@ export interface StateCommittedMessage {
 export type LiveTabRequest =
   | { kind: 'RETRY_TAB_INVENTORY' }
   | { kind: 'FOCUS_LIVE_TAB'; tabId: number }
+  | { kind: 'CLOSE_LIVE_TAB'; tabId: number }
   | { kind: 'ASSIGN_LIVE_TAB'; tabId: number; projectId: string; savedUrlId: string }
   | { kind: 'OPEN_SAVED_URL'; projectId: string; savedUrlId: string }
   | { kind: 'OPEN_SAVED_URL_COPY'; projectId: string; savedUrlId: string }
@@ -106,6 +107,8 @@ export type LiveTabRequest =
   | { kind: 'RESTORE_MIGRATION_BACKUP' }
   // Phase 4D: Protected tabs
   | { kind: 'TOGGLE_LIVE_TAB_PIN'; tabId: number }
+  // Archive project
+  | { kind: 'ARCHIVE_PROJECT'; projectId: string; archived: boolean }
   // Phase 4D: Legacy data import
   | { kind: 'CHECK_LEGACY_DATA' }
   | { kind: 'IMPORT_LEGACY_PROJECTS'; projectNames: string[] }
@@ -129,6 +132,7 @@ export type LiveTabMessage =
   | { kind: 'CLOSE_ALL_SUMMARY'; summary: CloseAllSummary }
   // Phase 4A: Archive
   | { kind: 'ARCHIVE_RESULT'; projectId: string; savedUrlId: string; archived: boolean }
+  | { kind: 'ARCHIVE_PROJECT_RESULT'; projectId: string; archived: boolean }
   // Phase 4B: Quick capture
   | { kind: 'QUICK_CAPTURE_RESULT'; success: boolean; projectName: string; error?: string }
   // Phase 4D: Migration backup

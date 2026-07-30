@@ -60,6 +60,7 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [importDragOver, setImportDragOver] = useState(false)
   const [importPending, setImportPending] = useState(false)
   const [hoveredRecordId, setHoveredRecordId] = useState<string | null>(null)
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null)
   const [draggingUrlId, setDraggingUrlId] = useState<string | null>(null)
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
@@ -211,9 +212,16 @@ export function App({ client, liveTabsClient }: AppProps) {
         setCreating(true)
         queueMicrotask(() => document.querySelector<HTMLInputElement>('#new-project-name')?.focus())
       },
+      'Shift+a': (event: KeyboardEvent) => {
+        const target = event.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        if (!hoveredProjectId) return
+        event.preventDefault()
+        liveTabs.archiveProject(hoveredProjectId)
+      },
     })
     return unsubscribe
-  }, [hoveredRecordId])
+  }, [hoveredRecordId, hoveredProjectId, liveTabs])
 
   const registerFocusNotes = useCallback((recordId: string, focusFn: () => void) => {
     focusNotesRegistry.current.set(recordId, focusFn)
@@ -616,7 +624,7 @@ export function App({ client, liveTabsClient }: AppProps) {
           </div>
         </div>
         <nav className="project-list" aria-label="Projects">
-          {state.projects.map((project) => {
+          {state.projects.filter(p => !p.archivedAt).map((project) => {
             const isActive = project.id === activeProjectId
             const isSelected = project.id === selected?.id
             const isDragging = draggingProjectId === project.id
@@ -629,6 +637,8 @@ export function App({ client, liveTabsClient }: AppProps) {
                 className={`${isSelected ? 'project-row selected' : 'project-row'} ${isActive ? 'active' : ''} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
                 draggable="true"
                 onMouseDown={handleProjectMouseDown}
+                onMouseEnter={() => setHoveredProjectId(project.id)}
+                onMouseLeave={() => setHoveredProjectId(null)}
                 onMouseMove={(e) => handleProjectMouseMove(project.id, e)}
                 onDragStart={(e) => handleProjectDragStart(project.id, e)}
                 onDragOver={(e) => {
@@ -670,6 +680,47 @@ export function App({ client, liveTabsClient }: AppProps) {
             )
           })}
         </nav>
+        {state.projects.some(p => p.archivedAt) && (
+          <div className="archived-section">
+            <button
+              className="archived-header"
+              onClick={() => setArchivedExpanded(!archivedExpanded)}
+              aria-expanded={archivedExpanded}
+            >
+              <ChevronDown size={14} className={`archived-chevron ${archivedExpanded ? '' : 'collapsed'}`} />
+              <Archive size={14} />
+              <span>Archived</span>
+              <span className="project-count">{state.projects.filter(p => p.archivedAt).length}</span>
+            </button>
+            {archivedExpanded && (
+              <div className="archived-list">
+                {state.projects.filter(p => p.archivedAt).map((project) => {
+                  const isSelected = project.id === selected?.id
+                  return (
+                    <div
+                      key={project.id}
+                      className={`project-row archived ${isSelected ? 'selected' : ''}`}
+                      onMouseEnter={() => setHoveredProjectId(project.id)}
+                      onMouseLeave={() => setHoveredProjectId(null)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setContextMenu({ x: e.clientX, y: e.clientY, projectId: project.id })
+                      }}
+                    >
+                      <button
+                        className="project-item"
+                        onClick={() => handleProjectClick(project.id)}
+                      >
+                        <Folder size={16} />
+                        <span className="project-name">{project.name}</span>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {settings.showSidebarQuotes && (() => {
           const quote = getDailyQuote()
           return (
@@ -1040,6 +1091,18 @@ export function App({ client, liveTabsClient }: AppProps) {
                 },
               },
               { separator: true, label: '' },
+              {
+                label: contextProject.archivedAt ? 'Unarchive' : 'Archive',
+                icon: <Archive size={14} />,
+                shortcut: '⇧A',
+                onClick: () => {
+                  if (contextProject.archivedAt) {
+                    liveTabs.unarchiveProject(contextMenu.projectId)
+                  } else {
+                    liveTabs.archiveProject(contextMenu.projectId)
+                  }
+                },
+              },
               {
                 label: 'Delete project',
                 icon: <Trash2 size={14} />,

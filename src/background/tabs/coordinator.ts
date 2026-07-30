@@ -216,6 +216,10 @@ export class LiveTabsCoordinator {
       this.enqueueWindow(client.windowId, () => this.unarchiveSavedUrl(client, message.projectId!, message.savedUrlId!))
       return
     }
+    if (message.kind === 'ARCHIVE_PROJECT' && typeof message.projectId === 'string' && typeof message.archived === 'boolean') {
+      this.enqueueWindow(client.windowId, () => this.archiveProject(client, message.projectId!, message.archived!))
+      return
+    }
     // Phase 4B: Quick capture
     if (message.kind === 'QUICK_CAPTURE_TAB' && typeof message.projectId === 'string' && Array.isArray(message.tags)) {
       this.enqueueWindow(client.windowId, () => this.quickCaptureTab(client, message.projectId!, message.note ?? '', message.tags!))
@@ -260,6 +264,20 @@ export class LiveTabsCoordinator {
     }
     if (message.kind === 'DISMISS_LEGACY_DATA') {
       await this.handleDismissLegacyData()
+      return
+    }
+
+    if (message.kind === 'CLOSE_LIVE_TAB' && typeof message.tabId === 'number') {
+      try {
+        await this.api.remove(message.tabId)
+        this.scheduleWindow(client.windowId)
+      } catch (reason) {
+        this.post(client, {
+          kind: 'LIVE_TAB_ACTION_ERROR',
+          tabId: message.tabId,
+          message: reason instanceof Error ? reason.message : 'Chrome could not close that tab.',
+        })
+      }
       return
     }
 
@@ -1130,6 +1148,19 @@ export class LiveTabsCoordinator {
       await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
     } catch (reason) {
       this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : 'Could not unarchive this URL.' })
+    }
+  }
+
+  // Archive/unarchive a project
+  private async archiveProject(client: ClientSubscription, projectId: string, archived: boolean): Promise<void> {
+    if (!this.durableQueue) return
+    try {
+      await this.durableQueue.execute({ type: 'ARCHIVE_PROJECT', projectId, archived })
+      this.post(client, { kind: 'ARCHIVE_PROJECT_RESULT', projectId, archived })
+      await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state: await this.readState() }).catch(() => undefined)
+      this.scheduleWindow(client.windowId)
+    } catch (reason) {
+      this.post(client, { kind: 'LIVE_TAB_ACTION_ERROR', message: reason instanceof Error ? reason.message : archived ? 'Could not archive this project.' : 'Could not unarchive this project.' })
     }
   }
 

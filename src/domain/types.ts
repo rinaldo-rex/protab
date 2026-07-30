@@ -27,6 +27,7 @@ export interface ProjectV2 {
   id: string
   name: string
   savedUrls: SavedUrlV2[]
+  archivedAt?: number | null
 }
 
 export interface SavedUrlV2 {

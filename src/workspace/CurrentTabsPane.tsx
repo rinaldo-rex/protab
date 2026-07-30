@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { AlertTriangle, Archive, ChevronDown, FileText, FolderInput, Globe2, Pin, RefreshCw, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, ChevronDown, FileText, FolderInput, Globe2, Pin, RefreshCw, Trash2, X } from 'lucide-react'
 import { groupLiveTabs } from '../domain/ownership'
 import { isSupportedTabUrl } from '../domain/liveTabs'
 import { PROTECTION_LABELS } from '../domain/tabProtection'
@@ -187,6 +187,12 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
     setToast({ message: 'Saved to Trash.', type: 'success' })
   }, [state, model, inventory, animateFiling])
 
+  // Handle hover 'C' shortcut - close tab
+  const handleCloseTab = useCallback((tabId: number) => {
+    model.closeTab(tabId)
+    setToast({ message: 'Tab closed.', type: 'success' })
+  }, [model])
+
   // Keyboard listener for 'A', 'P', 'R', 'D' shortcuts
   useEffect(() => {
     if (!hoveredTabId) return
@@ -207,12 +213,15 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
       } else if (event.key === 'd' || event.key === 'D') {
         event.preventDefault()
         handleDeleteToTrash(hoveredTabId!)
+      } else if (event.key === 'c' || event.key === 'C') {
+        event.preventDefault()
+        handleCloseTab(hoveredTabId!)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hoveredTabId, handleSilentFile, handleTogglePin, handleArchive, handleDeleteToTrash])
+  }, [hoveredTabId, handleSilentFile, handleTogglePin, handleArchive, handleDeleteToTrash, handleCloseTab])
 
   const handleDragStart = (tab: LiveTabView, event: React.DragEvent) => {
     const payload: DragPayload = { tabId: tab.tabId, tabTitle: tab.title }
@@ -415,6 +424,13 @@ export function CurrentTabsPane({ model, state, onDragStart, onDragEnd, selected
             icon: <Pin size={14} />,
             shortcut: 'P',
             onClick: () => model.toggleTabPin(tab.tabId),
+          })
+          // Close tab
+          items.push({
+            label: 'Close tab',
+            icon: <X size={14} />,
+            shortcut: 'C',
+            onClick: () => model.closeTab(tab.tabId),
           })
         }
         if (items.length === 0) return null

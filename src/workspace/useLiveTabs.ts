@@ -147,6 +147,11 @@ export interface LiveTabsModel {
   clearExportedBackupJson: () => void
   // Phase 4D: Protected tabs
   toggleTabPin: (tabId: number) => void
+  // Close tab
+  closeTab: (tabId: number) => void
+  // Archive project
+  archiveProject: (projectId: string) => void
+  unarchiveProject: (projectId: string) => void
   // Phase 4D: Legacy data
   legacyDataStatus?: LegacyDataStatus
   legacyImportResult?: { success: boolean; importedCount?: number; error?: string }
@@ -524,6 +529,11 @@ export function useLiveTabs(providedClient?: LiveTabsClient): LiveTabsModel {
     clearExportedBackupJson: () => setMigrationBackupExportedJson(undefined),
     // Phase 4D: Protected tabs
     toggleTabPin: (tabId: number) => client.send({ kind: 'TOGGLE_LIVE_TAB_PIN', tabId }),
+    // Close tab
+    closeTab: (tabId: number) => client.send({ kind: 'CLOSE_LIVE_TAB', tabId }),
+    // Archive project
+    archiveProject: (projectId: string) => client.send({ kind: 'ARCHIVE_PROJECT', projectId, archived: true }),
+    unarchiveProject: (projectId: string) => client.send({ kind: 'ARCHIVE_PROJECT', projectId, archived: false }),
     // Phase 4D: Legacy data
     legacyDataStatus,
     legacyImportResult,

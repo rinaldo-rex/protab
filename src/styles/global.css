@@ -547,6 +547,55 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   cursor: grabbing;
 }
 
+/* Sidebar archived section */
+.project-sidebar .archived-section {
+  border-top: 1px solid rgba(255,255,255,.1);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.project-sidebar .archived-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,.45);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.project-sidebar .archived-header:hover {
+  color: rgba(255,255,255,.7);
+  background: rgba(255,255,255,.05);
+}
+.project-sidebar .archived-chevron {
+  transition: transform 0.2s;
+}
+.project-sidebar .archived-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+.project-sidebar .archived-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+.project-sidebar .project-row.archived {
+  opacity: 0.6;
+}
+.project-sidebar .project-row.archived:hover {
+  opacity: 0.8;
+}
+.project-sidebar .project-row.archived .project-item {
+  padding-left: 32px;
+  color: rgba(255,255,255,.45);
+}
+.project-sidebar .project-row.archived .project-item:hover {
+  color: rgba(255,255,255,.7);
+}
+
 /* Toast */
 .toast {
   position: fixed;
