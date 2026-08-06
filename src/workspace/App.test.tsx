@@ -87,10 +87,10 @@ describe('project workspace shell', () => {
   it('renames, reorders, and confirms project deletion via context menu', async () => {
     const user = userEvent.setup()
     const client = new TestClient({
-      schemaVersion: 2,
+      schemaVersion: 3,
       projects: [
-        { id: 'p1', name: 'One', savedUrls: [] },
-        { id: 'p2', name: 'Two', savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
+        { id: 'p1', name: 'One', parentId: null, savedUrls: [], archivedAt: null },
+        { id: 'p2', name: 'Two', parentId: null, savedUrls: [{ id: 'u1', url: 'https://example.com/', title: 'Example', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }], archivedAt: null },
       ],
     })
     renderApp(client)
@@ -124,7 +124,7 @@ describe('project workspace shell', () => {
 
   it('creates, expands, autosaves, validates, and deletes saved URLs', async () => {
     const user = userEvent.setup()
-    const client = new TestClient({ schemaVersion: 2, projects: [{ id: 'p1', name: 'Research', savedUrls: [] }] })
+    const client = new TestClient({ schemaVersion: 3, projects: [{ id: 'p1', name: 'Research', parentId: null, savedUrls: [], archivedAt: null }] })
     renderApp(client)
     await screen.findByRole('heading', { name: 'Research' })
     await user.click(screen.getByRole('button', { name: 'Add URL' }))
@@ -157,13 +157,13 @@ describe('project workspace shell', () => {
   it('reorders URLs, suggests global tags, and copies metadata snapshots', async () => {
     const user = userEvent.setup()
     const client = new TestClient({
-      schemaVersion: 2,
+      schemaVersion: 3,
       projects: [
-        { id: 'p1', name: 'One', savedUrls: [
+        { id: 'p1', name: 'One', parentId: null, savedUrls: [
           { id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'custom', tags: [], notes: 'Source', archivedAt: null },
           { id: 'u2', url: 'https://two.test/', title: 'Two URL', titleSource: 'automatic', tags: ['GlobalTag'], notes: '', archivedAt: null },
-        ] },
-        { id: 'p2', name: 'Two', savedUrls: [] },
+        ], archivedAt: null },
+        { id: 'p2', name: 'Two', parentId: null, savedUrls: [], archivedAt: null },
       ],
     })
     renderApp(client)
@@ -215,7 +215,7 @@ describe('project workspace shell', () => {
   it('opens saved URL records and displays owned instance counts', async () => {
     const user = userEvent.setup()
     const liveTabs = new TestLiveTabsClient()
-    const client = new TestClient({ schemaVersion: 2, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] }] })
+    const client = new TestClient({ schemaVersion: 3, projects: [{ id: 'p1', name: 'One', parentId: null, savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One URL', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }], archivedAt: null }] })
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
@@ -233,7 +233,7 @@ describe('project workspace shell', () => {
 
   it('moves a navigated owned tab into Unassigned while retaining its drift label', async () => {
     const liveTabs = new TestLiveTabsClient()
-    const client = new TestClient({ schemaVersion: 2, projects: [{ id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://saved.test/', title: 'Saved page', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] }] })
+    const client = new TestClient({ schemaVersion: 3, projects: [{ id: 'p1', name: 'One', parentId: null, savedUrls: [{ id: 'u1', url: 'https://saved.test/', title: 'Saved page', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }], archivedAt: null }] })
     renderApp(client, liveTabs)
     await screen.findByRole('heading', { name: 'One' })
     act(() => liveTabs.emit({ kind: 'LIVE_TAB_INVENTORY', inventory: { windowId: 3, stale: false, tabs: [
@@ -247,9 +247,9 @@ describe('project workspace shell', () => {
   it('assigns an ambiguous matching tab without changing saved metadata', async () => {
     const user = userEvent.setup()
     const liveTabs = new TestLiveTabsClient()
-    const client = new TestClient({ schemaVersion: 2, projects: [
-      { id: 'p1', name: 'One', savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'One copy', titleSource: 'custom', tags: ['Keep'], notes: 'Untouched', archivedAt: null }] },
-      { id: 'p2', name: 'Two', savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Two copy', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }] },
+    const client = new TestClient({ schemaVersion: 3, projects: [
+      { id: 'p1', name: 'One', parentId: null, savedUrls: [{ id: 'u1', url: 'https://same.test/', title: 'One copy', titleSource: 'custom', tags: ['Keep'], notes: 'Untouched', archivedAt: null }], archivedAt: null },
+      { id: 'p2', name: 'Two', parentId: null, savedUrls: [{ id: 'u2', url: 'https://same.test/', title: 'Two copy', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }], archivedAt: null },
     ] })
     renderApp(client, liveTabs)
     await screen.findByText('No ordinary tabs in this window')
@@ -283,5 +283,117 @@ describe('project workspace shell', () => {
     renderApp(client)
     expect(await screen.findByRole('alert')).toHaveTextContent('left untouched')
     expect(screen.queryByRole('button', { name: 'New project' })).not.toBeInTheDocument()
+  })
+})
+
+describe('nested project tree', () => {
+  function nestedState() {
+    return {
+      schemaVersion: 3 as const,
+      projects: [
+        { id: 'p1', name: 'Client work', parentId: null as string | null, savedUrls: [], archivedAt: null as number | null },
+        { id: 'p2', name: 'API docs', parentId: 'p1', savedUrls: [], archivedAt: null },
+        { id: 'p3', name: 'Personal', parentId: null, savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic' as const, tags: [], notes: '', archivedAt: null }], archivedAt: null },
+      ],
+    }
+  }
+
+  it('renders the tree and lets folders collapse and expand', async () => {
+    const client = new TestClient(nestedState() as PersistedState)
+    renderApp(client)
+    await screen.findByRole('button', { name: 'Client work' })
+    const apiDocsButtons = () => screen.getAllByRole('button', { name: /API docs/ })
+    // Sidebar row + folder-canvas child row.
+    expect(apiDocsButtons().length).toBeGreaterThanOrEqual(2)
+    const chevron = screen.getByRole('button', { name: 'Collapse Client work' })
+    await act(async () => { fireEvent.click(chevron) })
+    // Sidebar row is hidden; the folder canvas row remains.
+    expect(apiDocsButtons()).toHaveLength(1)
+    const expand = screen.getByRole('button', { name: 'Expand Client work' })
+    await act(async () => { fireEvent.click(expand) })
+    expect(apiDocsButtons().length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('creates a sub-project from the context menu and wraps a parent URL-holding project into Misc', async () => {
+    const user = userEvent.setup()
+    const client = new TestClient({
+      schemaVersion: 3,
+      projects: [
+        { id: 'p1', name: 'Client work', parentId: null, savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }], archivedAt: null },
+      ],
+    } as PersistedState)
+    renderApp(client)
+    await screen.findByRole('button', { name: 'Client work' })
+    const row = screen.getByRole('button', { name: 'Client work' })
+    fireEvent.contextMenu(row)
+    await user.click(await screen.findByRole('menuitem', { name: 'New sub-project' }))
+    const input = screen.getByLabelText(/Sub-project name/)
+    await user.type(input, 'Reporting{Enter}')
+    // The parent now has a Misc leaf (wrapped URL) and the new child.
+    expect((await screen.findAllByRole('button', { name: /Reporting/ })).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByRole('button', { name: /Misc/ }).length).toBeGreaterThanOrEqual(1)
+    const p1 = client.state.projects.find((p) => p.id === 'p1')!
+    expect(p1.savedUrls).toEqual([])
+    expect(client.state.projects.some((p) => p.name === 'Misc' && p.parentId === 'p1')).toBe(true)
+  })
+
+  it('nests a dragged project under a target via REPARENT_PROJECT', async () => {
+    // jsdom lacks the DragEvent/DataTransfer globals used by the drag affordance.
+    if (typeof (globalThis as unknown as Record<string, unknown>).DragEvent === 'undefined') {
+      class DragEventStub {
+        type: string
+        bubbles: boolean
+        dataTransfer: DataTransfer
+        constructor(type: string, init: { bubbles?: boolean } = {}) {
+          this.type = type
+          this.bubbles = Boolean(init.bubbles)
+          this.dataTransfer = new DataTransferStatic() as unknown as DataTransfer
+        }
+      }
+      class DataTransferStatic {
+        effectAllowed = ''
+        dropEffect = ''
+        data = new Map<string, string>()
+        setData(k: string, v: string) { this.data.set(k, v) }
+        getData(k: string) { return this.data.get(k) ?? '' }
+      }
+      ;(globalThis as unknown as Record<string, unknown>).DragEvent = DragEventStub
+      ;(globalThis as unknown as Record<string, unknown>).DataTransfer = DataTransferStatic
+    }
+    const client = new TestClient(nestedState() as PersistedState)
+    renderApp(client)
+    await screen.findByRole('button', { name: 'Personal' })
+    const source = screen.getByRole('button', { name: 'Personal' })
+    const target = screen.getByRole('button', { name: 'Client work' })
+    // Start a project drag via mousedown + mousemove past the 5px threshold.
+    fireEvent.mouseDown(source, { clientX: 10, clientY: 10 })
+    await act(async () => { fireEvent.mouseMove(source, { clientX: 40, clientY: 10 }) })
+    // jsdom cannot synthesize a dataTransfer-backed drop event, so dispatch a
+    // native MouseEvent (React's delegation picks it up; handleDrop's try/catch
+    // covers the absent payload).
+    const targetRow = target.closest('.project-row') ?? target
+    await act(async () => { targetRow.dispatchEvent(new MouseEvent('drop', { bubbles: true, cancelable: true })) })
+    await act(async () => { source.dispatchEvent(new MouseEvent('dragend', { bubbles: true, cancelable: true })) })
+    expect(client.state.projects.find((p) => p.id === 'p3')!.parentId).toBe('p1')
+    expect(client.state.projects.find((p) => p.id === 'p3')!.name).toBe('Personal')
+  })
+
+  it('shows a folder canvas with sub-project rows and Misc URLs aggregated', async () => {
+    const user = userEvent.setup()
+    const client = new TestClient({
+      schemaVersion: 3,
+      projects: [
+        { id: 'p1', name: 'Client work', parentId: null, savedUrls: [], archivedAt: null },
+        { id: 'misc', name: 'Misc', parentId: 'p1', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }], archivedAt: null },
+        { id: 'p2', name: 'API docs', parentId: 'p1', savedUrls: [], archivedAt: null },
+      ],
+    } as PersistedState)
+    renderApp(client)
+    await screen.findByRole('button', { name: 'Client work' })
+    await user.click(screen.getByRole('button', { name: 'Client work' }))
+    // Folder canvas shows its Misc URLs and child rows.
+    expect(await screen.findByText('Misc (this folder\'s URLs)')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /API docs/ }).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByRole('button', { name: /One/ }).length).toBeGreaterThanOrEqual(1)
   })
 })

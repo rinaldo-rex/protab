@@ -63,6 +63,28 @@ To activate a project, use the project's action menu and choose **Activate**. Un
 
 Activation never opens tabs automatically — it only closes others. You open what you need from the saved URLs.
 
+## Nested projects (folders)
+
+Projects can hold sub-projects, so you can build a folder structure instead of one long flat list.
+
+### Create a sub-project
+
+Right-click a project and choose **New sub-project**, then type a name. The new project appears nested under its parent in the sidebar.
+
+**The `Misc` rule.** A project either holds URLs or holds sub-projects. When you add the first sub-project under a project that already has URLs, those URLs are moved into a new `Misc` sub-project inside it. If you save or file a URL *into* a folder, it lands in that folder's `Misc` sub-project. This keeps every URL reachable without ever making a folder itself carry URLs — and it's fully documented, never a silent surprise.
+
+### Find your way around
+
+- Each project is addressed by its colon-separated path, e.g. `@Client work:API docs`. Sibling projects need unique names; `:` is reserved.
+- Quick capture autocompletes along the path: type `@Client work` and it suggests `@Client work:API docs`, `@Client work:Design`, …
+- Activating, opening all, closing all, archiving, deleting, and exporting treat a folder and its descendants as one unit. Deleting a folder deletes its whole subtree after a confirmation that shows the total saved-URL count.
+
+### Arrange by dragging
+
+- Drag a project **onto** another project to nest it underneath (its URLs, if any, auto-wrap to a `Misc` leaf).
+- Drag to a **gap** between rows to reorder within the same group.
+- Collapse/expand folders with the chevron next to the folder name.
+
 ## Reopening saved URLs
 
 In the project canvas, each saved URL shows an **Open** button. Click it to open that URL in the current window. If it's already open, Protab focuses the existing tab instead of opening a duplicate.

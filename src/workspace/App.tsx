@@ -1,8 +1,10 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import { AddUrlForm } from './AddUrlForm'
 import { SavedUrlAccordion } from './SavedUrlAccordion'
-import { Folder, FolderOpen, Plus, X, Play, ChevronDown, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3, HelpCircle, AlertTriangle } from 'lucide-react'
+import { Folder, FolderOpen, Plus, X, Play, ChevronDown, ChevronRight, FolderPlus, Archive, Download, Upload, Settings, FolderInput, Edit3, Trash2, BarChart3, HelpCircle, AlertTriangle } from 'lucide-react'
 import type { WorkspaceClient } from './client'
+import type { Project } from '../domain/types'
+import { childrenOf, MISC_LEAF_NAME, pathOf, subtreeIds, subtreeSavedUrls } from '../domain/tree'
 import { ConfirmDialog } from './ConfirmDialog'
 import { generateExportHtml } from './export/generateHtml'
 import { downloadFile, sanitizeFilename } from './export/downloadFile'
@@ -22,7 +24,7 @@ import { CloseAllSummary } from './CloseAllSummary'
 import { tinykeys } from 'tinykeys'
 import { ContextMenu } from './ContextMenu'
 import { createExportZip, getExportZipFilename } from './export/createZip'
-import { parseImportFile, type ImportResult } from './export/parseImport'
+import { parseImportFile, type ImportResult, type ImportedProject } from './export/parseImport'
 import { ConfirmImportDialog } from './ConfirmImportDialog'
 import { SettingsPanel } from './SettingsPanel'
 import { AnalyticsPanel } from './AnalyticsPanel'
@@ -64,7 +66,10 @@ export function App({ client, liveTabsClient }: AppProps) {
   const [draggingUrlId, setDraggingUrlId] = useState<string | null>(null)
   const [dragOverUrlId, setDragOverUrlId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
-  const [dragOverProjectIdForReorder, setDragOverProjectIdForReorder] = useState<string | null>(null)
+  const [dragOverProjectIdForNest, setDragOverProjectIdForNest] = useState<string | null>(null)
+  const [dragOverGutter, setDragOverGutter] = useState<{ parentId: string | null; index: number } | null>(null)
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(new Set())
+  const [subprojectParentId, setSubprojectParentId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'workspace' | 'settings' | 'analytics' | 'quickstart'>('workspace')
   const [renameDialogProjectId, setRenameDialogProjectId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -101,39 +106,53 @@ export function App({ client, liveTabsClient }: AppProps) {
     isDraggingProject.current = true
   }, [])
 
-  const handleProjectDragOver = useCallback((projectId: string, event: React.DragEvent) => {
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    setDragOverProjectIdForReorder(projectId)
+  const clearProjectDrag = useCallback(() => {
+    setDraggingProjectId(null)
+    setDragOverProjectIdForNest(null)
+    setDragOverGutter(null)
   }, [])
 
-  const handleProjectDrop = useCallback(async (targetProjectId: string) => {
-    if (!draggingProjectId || draggingProjectId === targetProjectId || !model.state) {
-      setDraggingProjectId(null)
-      setDragOverProjectIdForReorder(null)
-      return
-    }
-
-    const fromIndex = model.state.projects.findIndex((p) => p.id === draggingProjectId)
-    const toIndex = model.state.projects.findIndex((p) => p.id === targetProjectId)
-
-    if (fromIndex >= 0 && toIndex >= 0) {
-      await model.execute({
-        type: 'REORDER_PROJECT',
-        projectId: draggingProjectId,
-        toIndex,
-      })
-    }
-
-    setDraggingProjectId(null)
-    setDragOverProjectIdForReorder(null)
-  }, [draggingProjectId, model])
+  /**
+   * Project-row drop: a project payload nests under the target row; a gutter
+   * payload repositions the project within the destination sibling group.
+   */
+  const handleProjectDrop = useCallback(
+    async (targetProjectId: string | undefined, gutter?: { parentId: string | null; index: number }) => {
+      if (!draggingProjectId) {
+        clearProjectDrag()
+        return
+      }
+      if (targetProjectId && targetProjectId === draggingProjectId) {
+        clearProjectDrag()
+        return
+      }
+      try {
+        await model.execute(
+          gutter
+            ? { type: 'REPARENT_PROJECT', projectId: draggingProjectId, newParentId: gutter.parentId, toIndex: gutter.index }
+            : { type: 'REPARENT_PROJECT', projectId: draggingProjectId, newParentId: targetProjectId ?? null },
+        )
+      } catch {
+        // Cycle/collision failures surface through the model error banner.
+      }
+      clearProjectDrag()
+    },
+    [draggingProjectId, model, clearProjectDrag],
+  )
 
   const handleProjectDragEnd = useCallback(() => {
-    setDraggingProjectId(null)
-    setDragOverProjectIdForReorder(null)
+    clearProjectDrag()
     isDraggingProject.current = false
     dragStartPos.current = null
+  }, [clearProjectDrag])
+
+  const toggleProjectCollapsed = useCallback((projectId: string) => {
+    setCollapsedProjectIds((current) => {
+      const next = new Set(current)
+      if (next.has(projectId)) next.delete(projectId)
+      else next.add(projectId)
+      return next
+    })
   }, [])
 
   const handleProjectMouseDown = useCallback((event: React.MouseEvent) => {
@@ -209,6 +228,7 @@ export function App({ client, liveTabsClient }: AppProps) {
         const target = event.target as HTMLElement
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
         event.preventDefault()
+        setSubprojectParentId(null)
         setCreating(true)
         queueMicrotask(() => document.querySelector<HTMLInputElement>('#new-project-name')?.focus())
       },
@@ -305,39 +325,56 @@ export function App({ client, liveTabsClient }: AppProps) {
     await handleImportFile(files[0])
   }, [handleImportFile])
 
+  const writeImportedUrls = useCallback(async (projectId: string, savedUrls: Array<{ url: string; title: string; tags: string[]; notes: string }>): Promise<void> => {
+    for (const url of savedUrls) {
+      try {
+        await model.execute({ type: 'CREATE_SAVED_URL', projectId, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
+      } catch {
+        // Skip duplicate URLs
+      }
+    }
+  }, [model])
+
+  /** Recursively create an imported project node and its subtree. */
+  const createImportedNode = useCallback(async (node: ImportedProject, parentId: string | null): Promise<void> => {
+    const meta = parentId
+      ? await model.execute({ type: 'CREATE_SUBPROJECT', parentId, name: node.name })
+      : await model.execute({ type: 'CREATE_PROJECT', name: node.name })
+    const projectId = meta.affectedProjectId!
+    await writeImportedUrls(projectId, node.savedUrls)
+    for (const child of node.children) await createImportedNode(child, projectId)
+  }, [model, writeImportedUrls])
+
+  /** Merge an imported node into an existing project (or create it), recursively by path. */
+  const mergeImportedNode = useCallback(async (node: ImportedProject, parentId: string | null): Promise<void> => {
+    const current = model.state!
+    const existing = current.projects.find(
+      (p) => p.parentId === parentId && p.name.toLocaleLowerCase() === node.name.toLocaleLowerCase(),
+    )
+    if (existing) {
+      await writeImportedUrls(existing.id, node.savedUrls)
+      for (const child of node.children) await mergeImportedNode(child, existing.id)
+    } else {
+      await createImportedNode(node, parentId)
+    }
+  }, [model, writeImportedUrls, createImportedNode])
+
   const handleImportAllFromZip = useCallback(async () => {
     if (!importResult || importResult.kind !== 'zip') return
     setImportPending(true)
     try {
       for (const project of importResult.projects) {
-        const existing = model.state?.projects.find((p) => p.name === project.name)
-        if (existing) {
-          // Merge into existing
-          for (const url of project.savedUrls) {
-            try {
-              await model.execute({ type: 'CREATE_SAVED_URL', projectId: existing.id, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
-            } catch {
-              // Skip duplicates
-            }
-          }
-        } else {
-          // Create new
-          const meta = await model.execute({ type: 'CREATE_PROJECT', name: project.name })
-          const projectId = meta.affectedProjectId!
-          for (const url of project.savedUrls) {
-            try {
-              await model.execute({ type: 'CREATE_SAVED_URL', projectId, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
-            } catch {
-              // Skip duplicates
-            }
-          }
-        }
+        const existingRoot = model.state!.projects.find(
+          (p) => p.parentId === null && p.name.toLocaleLowerCase() === project.name.toLocaleLowerCase(),
+        )
+        if (existingRoot) await mergeImportedNode(project, null)
+        else await createImportedNode(project, null)
       }
       setImportResult(null)
     } finally {
       setImportPending(false)
     }
-  }, [importResult, model])
+  }, [importResult, model, mergeImportedNode, createImportedNode])
 
   const handleMergeImport = useCallback(async () => {
     if (!importResult || importResult.kind === 'error') return
@@ -345,21 +382,12 @@ export function App({ client, liveTabsClient }: AppProps) {
     if (!project || !model.state) return
     setImportPending(true)
     try {
-      const existingProject = model.state.projects.find((p) => p.name === project.name)
-      if (existingProject) {
-        for (const url of project.savedUrls) {
-          try {
-            await model.execute({ type: 'CREATE_SAVED_URL', projectId: existingProject.id, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
-          } catch {
-            // Skip duplicate URLs
-          }
-        }
-      }
+      await mergeImportedNode(project, null)
       setImportResult(null)
     } finally {
       setImportPending(false)
     }
-  }, [importResult, model])
+  }, [importResult, model, mergeImportedNode])
 
   const handleCreateNewImport = useCallback(async (suffix: string) => {
     if (!importResult || importResult.kind === 'error') return
@@ -367,20 +395,12 @@ export function App({ client, liveTabsClient }: AppProps) {
     if (!project) return
     setImportPending(true)
     try {
-      const meta = await model.execute({ type: 'CREATE_PROJECT', name: `${project.name}${suffix}` })
-      const projectId = meta.affectedProjectId!
-      for (const url of project.savedUrls) {
-        try {
-          await model.execute({ type: 'CREATE_SAVED_URL', projectId, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
-        } catch {
-          // Skip duplicate URLs
-        }
-      }
+      await createImportedNode({ ...project, name: `${project.name}${suffix}` }, null)
       setImportResult(null)
     } finally {
       setImportPending(false)
     }
-  }, [importResult, model])
+  }, [importResult, createImportedNode])
 
   // Auto-import when no conflicts
   useEffect(() => {
@@ -388,21 +408,13 @@ export function App({ client, liveTabsClient }: AppProps) {
     if (!projects || !importResult || importResult.kind === 'error' || importPending) return
     if (importResult.kind === 'html') {
       const project = importResult.project
-      const existing = projects.find((p) => p.name === project.name)
+      const existing = projects.find((p) => p.parentId === null && p.name.toLocaleLowerCase() === project.name.toLocaleLowerCase())
       if (!existing) {
-        // Create new project
+        // Create new project tree
         void (async () => {
           setImportPending(true)
           try {
-            const meta = await model.execute({ type: 'CREATE_PROJECT', name: project.name })
-            const projectId = meta.affectedProjectId!
-            for (const url of project.savedUrls) {
-              try {
-                await model.execute({ type: 'CREATE_SAVED_URL', projectId, url: url.url, title: url.title === url.url ? undefined : url.title, tags: url.tags, notes: url.notes })
-              } catch {
-                // Skip duplicates
-              }
-            }
+            await createImportedNode(project, null)
             setImportResult(null)
           } finally {
             setImportPending(false)
@@ -415,7 +427,7 @@ export function App({ client, liveTabsClient }: AppProps) {
         void handleImportAllFromZip()
       }
     }
-  }, [importResult, importPending, model, handleImportAllFromZip])
+  }, [importResult, importPending, model, handleImportAllFromZip, createImportedNode])
 
   // Drag handlers for URL reordering
   const handleUrlDragStart = useCallback((recordId: string) => {
@@ -462,6 +474,43 @@ export function App({ client, liveTabsClient }: AppProps) {
     setDragOverUrlId(null)
   }, [])
 
+  /** Safe project snapshot for hooks that run before `state` is non-null. */
+  const readyState = model.state
+
+  /** Flattened tree for the sidebar: gutter drop targets + project rows with depth. */
+  const treeRows = useMemo(() => {
+    const snapshot = readyState ?? { schemaVersion: 3, projects: [] }
+    const rows: Array<
+      { type: 'gutter'; parentId: string | null; index: number; depth: number }
+      | { type: 'project'; project: Project; depth: number }
+    > = []
+    const visit = (parentId: string | null, depth: number) => {
+      const children = childrenOf(snapshot, parentId)
+      children.forEach((child, index) => {
+        rows.push({ type: 'gutter', parentId, index, depth })
+        rows.push({ type: 'project', project: child, depth })
+        if (childrenOf(snapshot, child.id).length > 0 && !collapsedProjectIds.has(child.id)) {
+          visit(child.id, depth + 1)
+        }
+      })
+      rows.push({ type: 'gutter', parentId, index: children.length, depth })
+    }
+    visit(null, 0)
+    return rows
+  }, [readyState, collapsedProjectIds])
+
+  /** Subtree URL counts per project, used for folder badges and dialogs. */
+  const subtreeUrlCounts = useMemo(() => {
+    const snapshot = readyState ?? { schemaVersion: 3, projects: [] }
+    const counts = new Map<string, { active: number; archived: number; total: number }>()
+    for (const project of snapshot.projects) {
+      const all = subtreeSavedUrls(snapshot, project.id)
+      const active = all.filter((u) => !u.archivedAt).length
+      counts.set(project.id, { active, archived: all.length - active, total: all.length })
+    }
+    return counts
+  }, [readyState])
+
   if (model.status === 'loading') {
     return <main className="centered-state" aria-live="polite"><div className="loader" /><h1>Loading Protab</h1><p>Preparing your local workspace…</p></main>
   }
@@ -478,15 +527,26 @@ export function App({ client, liveTabsClient }: AppProps) {
 
   const state = model.state!
   const selected = state.projects.find((project) => project.id === model.selectedProjectId)
+  const selectedIsFolder = selected ? childrenOf(state, selected.id).length > 0 : false
+  const miscLeaf = selected && selectedIsFolder
+    ? childrenOf(state, selected.id).find((child) => child.name.toLocaleLowerCase() === MISC_LEAF_NAME.toLocaleLowerCase())
+    : undefined
+  // URL rendering targets the folder's Misc leaf; the header still targets the folder.
+  const urlProject = miscLeaf ?? selected
   const tagSuggestions = Array.from(new Map(state.projects.flatMap((project) => project.savedUrls.flatMap((record) => record.tags)).map((tag) => [tag.toLocaleLowerCase(), tag])).values()).sort((a, b) => a.localeCompare(b))
 
   async function createProject(event: FormEvent) {
     event.preventDefault()
     setFormError(undefined)
     try {
-      await model.execute({ type: 'CREATE_PROJECT', name: projectName })
+      if (subprojectParentId) {
+        await model.execute({ type: 'CREATE_SUBPROJECT', parentId: subprojectParentId, name: projectName })
+      } else {
+        await model.execute({ type: 'CREATE_PROJECT', name: projectName })
+      }
       setProjectName('')
       setCreating(false)
+      setSubprojectParentId(null)
     } catch (reason) {
       setFormError(reason instanceof Error ? reason.message : 'Could not create this project.')
     }
@@ -624,17 +684,41 @@ export function App({ client, liveTabsClient }: AppProps) {
           </div>
         </div>
         <nav className="project-list" aria-label="Projects">
-          {state.projects.filter(p => !p.archivedAt).map((project) => {
+          {treeRows.map((entry) => {
+            if (entry.type === 'gutter') {
+              const gutterKey = `${entry.parentId ?? 'root'}:${entry.index}`
+              const activeGutter = dragOverGutter?.parentId === entry.parentId && dragOverGutter.index === entry.index
+              return (
+                <div
+                  key={`gutter-${gutterKey}`}
+                  className={`project-gutter${activeGutter ? ' gutter-active' : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDragOverGutter(entry)
+                  }}
+                  onDragLeave={() => setDragOverGutter((current) => (current && current.parentId === entry.parentId && current.index === entry.index ? null : current))}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    void handleProjectDrop(undefined, entry)
+                  }}
+                />
+              )
+            }
+            const project = entry.project
+            const depth = entry.depth
+            const projectPath = pathOf(state, project.id)
+            const isFolder = childrenOf(state, project.id).length > 0
+            const collapsed = isFolder && collapsedProjectIds.has(project.id)
             const isActive = project.id === activeProjectId
             const isSelected = project.id === selected?.id
             const isDragging = draggingProjectId === project.id
-            const isDragOver = dragOverProjectIdForReorder === project.id
-            const activeCount = project.savedUrls.filter((u) => !u.archivedAt).length
-            const archivedCount = project.savedUrls.filter((u) => u.archivedAt).length
+            const counts = subtreeUrlCounts.get(project.id)
+            const isNestOver = dragOverProjectIdForNest === project.id
             return (
               <div
                 key={project.id}
-                className={`${isSelected ? 'project-row selected' : 'project-row'} ${isActive ? 'active' : ''} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                className={`${isSelected ? 'project-row selected' : 'project-row'} ${isActive ? 'active' : ''} ${dragOverProjectId === project.id ? 'drag-over-valid' : ''} ${isDragging ? 'dragging' : ''} ${isNestOver ? 'nest-target' : ''}`}
                 draggable="true"
                 onMouseDown={handleProjectMouseDown}
                 onMouseEnter={() => setHoveredProjectId(project.id)}
@@ -643,11 +727,11 @@ export function App({ client, liveTabsClient }: AppProps) {
                 onDragStart={(e) => handleProjectDragStart(project.id, e)}
                 onDragOver={(e) => {
                   handleDragOver(e, project.id)
-                  handleProjectDragOver(project.id, e)
+                  if (draggingProjectId && draggingProjectId !== project.id) setDragOverProjectIdForNest(project.id)
                 }}
                 onDragLeave={() => {
                   handleDragLeave(project.id)
-                  if (dragOverProjectIdForReorder === project.id) setDragOverProjectIdForReorder(null)
+                  if (dragOverProjectIdForNest === project.id) setDragOverProjectIdForNest(null)
                 }}
                 onDrop={(e) => {
                   handleDrop(e, project.id)
@@ -659,19 +743,37 @@ export function App({ client, liveTabsClient }: AppProps) {
                   setContextMenu({ x: e.clientX, y: e.clientY, projectId: project.id })
                 }}
               >
+                {isFolder ? (
+                  <button
+                    className={`tree-chevron${collapsed ? '' : ' open'}`}
+                    aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${project.name}`}
+                    aria-expanded={!collapsed}
+                    style={{ marginLeft: 8 + depth * 14 }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleProjectCollapsed(project.id)
+                    }}
+                  >
+                    <ChevronRight size={14} className="tree-chevron-icon" />
+                  </button>
+                ) : (
+                  <span className="tree-chevron-spacer" style={{ marginLeft: 8 + depth * 14 }} />
+                )}
                 <button
                   className="project-item"
                   aria-current={isSelected ? 'page' : undefined}
                   aria-label={`${project.name}${isActive ? ' (active in this window)' : ''}`}
+                  title={projectPath}
                   autoFocus={project.id === focusProjectId}
                   onFocus={() => setFocusProjectId(undefined)}
                   onClick={() => handleProjectClick(project.id)}
                 >
                   {project.name === 'Trash' ? <Trash2 size={16} /> : isSelected ? <FolderOpen size={16} /> : <Folder size={16} />}
+                  {isFolder && <span className="project-folder-badge" title="Folder">({projectPath})</span>}
                   <span className="project-name">{project.name}</span>
-                  {settings.showTabCounts && project.savedUrls.length > 0 && (
+                  {settings.showTabCounts && counts && counts.total > 0 && (
                     <span className="project-count">
-                      ({activeCount}{archivedCount > 0 && <span className="project-count-archived"> + {archivedCount}</span>})
+                      ({counts.active}{counts.archived > 0 && <span className="project-count-archived"> + {counts.archived}</span>})
                     </span>
                   )}
                   {isActive && <span className="active-indicator" title="Active in this window" aria-label="Active in this window">●</span>}
@@ -680,7 +782,12 @@ export function App({ client, liveTabsClient }: AppProps) {
             )
           })}
         </nav>
-        {state.projects.some(p => p.archivedAt) && (
+        {state.projects.some(p => p.archivedAt) && (() => {
+          // Only the top-most archived nodes; their archived descendants ride along.
+          const archivedRoots = state.projects.filter(
+            (p) => p.archivedAt && !(p.parentId && state.projects.find((x) => x.id === p.parentId)?.archivedAt),
+          )
+          return (
           <div className="archived-section">
             <button
               className="archived-header"
@@ -690,11 +797,11 @@ export function App({ client, liveTabsClient }: AppProps) {
               <ChevronDown size={14} className={`archived-chevron ${archivedExpanded ? '' : 'collapsed'}`} />
               <Archive size={14} />
               <span>Archived</span>
-              <span className="project-count">{state.projects.filter(p => p.archivedAt).length}</span>
+              <span className="project-count">{archivedRoots.length}</span>
             </button>
             {archivedExpanded && (
               <div className="archived-list">
-                {state.projects.filter(p => p.archivedAt).map((project) => {
+                {archivedRoots.map((project) => {
                   const isSelected = project.id === selected?.id
                   return (
                     <div
@@ -720,7 +827,8 @@ export function App({ client, liveTabsClient }: AppProps) {
               </div>
             )}
           </div>
-        )}
+          )
+        })()}
         {settings.showSidebarQuotes && (() => {
           const quote = getDailyQuote()
           return (
@@ -732,16 +840,20 @@ export function App({ client, liveTabsClient }: AppProps) {
         })()}
         {creating ? (
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
-            <label htmlFor="new-project-name">Project name</label>
-            <input id="new-project-name" autoFocus value={projectName} maxLength={80} onChange={(event) => setProjectName(event.target.value)} />
+            <label htmlFor="new-project-name">
+              {subprojectParentId
+                ? `Sub-project name (inside ${state.projects.find((p) => p.id === subprojectParentId)?.name ?? '…'})`
+                : 'Project name'}
+            </label>
+            <input id="new-project-name" autoFocus value={projectName} maxLength={80} placeholder={subprojectParentId ? 'e.g. API docs' : undefined} onChange={(event) => setProjectName(event.target.value)} />
             {formError && <p className="field-error" role="alert">{formError}</p>}
             <div className="form-actions">
-              <button type="button" className="button secondary" onClick={() => { setCreating(false); setFormError(undefined) }}>Cancel</button>
+              <button type="button" className="button secondary" onClick={() => { setCreating(false); setFormError(undefined); setSubprojectParentId(null) }}>Cancel</button>
               <button type="submit" className="button primary" disabled={model.commandPending}>Create</button>
             </div>
           </form>
         ) : (
-          <button className="new-project-button" onClick={() => setCreating(true)}><Plus size={17} /> New project <kbd className="shortcut-badge" aria-hidden="true">↑N</kbd></button>
+          <button className="new-project-button" onClick={() => { setCreating(true); setSubprojectParentId(null) }}><Plus size={17} /> New project <kbd className="shortcut-badge" aria-hidden="true">↑N</kbd></button>
         )}
         <div
           className={`import-drop-zone${importDragOver ? ' import-drag-over' : ''}`}
@@ -842,28 +954,65 @@ export function App({ client, liveTabsClient }: AppProps) {
                     </button>
                   )}
                   <AddUrlForm projectId={selected.id} model={model} onCreated={(id) => { setExpandedUrlIds((current) => new Set(current).add(id)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${id}"] .accordion-toggle`)?.focus()) }} /></div></div>
-                {selected.savedUrls.length === 0 ? (
+                {selectedIsFolder && childrenOf(state, selected.id).length > 0 && (
+                  <div className="folder-children" aria-label={`Sub-projects in ${selected.name}`}>
+                    <h3 className="folder-children-heading">Sub-projects ({childrenOf(state, selected.id).length})</h3>
+                    {childrenOf(state, selected.id).map((child) => {
+                      const childCounts = subtreeUrlCounts.get(child.id)
+                      const hasGrandchildren = childrenOf(state, child.id).length > 0
+                      return (
+                        <button
+                          key={child.id}
+                          className="folder-child-row"
+                          onClick={() => handleProjectClick(child.id)}
+                        >
+                          {hasGrandchildren ? <ChevronRight size={14} className="tree-chevron-icon" /> : <span className="tree-chevron-spacer" />}
+                          {child.id === activeProjectId ? <FolderOpen size={15} /> : <Folder size={15} />}
+                          <span className="project-name">{child.name}</span>
+                          {childCounts && childCounts.total > 0 && <span className="project-count">({childCounts.active}{childCounts.archived > 0 ? `+${childCounts.archived}` : ''})</span>}
+                        </button>
+                      )
+                    })}
+                    <button className="folder-child-add" onClick={() => { setSubprojectParentId(selected.id); setCreating(true) }}><Plus size={14} /> New sub-project</button>
+                  </div>
+                )}
+                {selectedIsFolder && miscLeaf && (
+                  <h3 className="misc-heading">Misc (this folder&apos;s URLs)</h3>
+                )}
+                {(urlProject?.savedUrls.length ?? 0) === 0 && !selectedIsFolder ? (
                   <div className="empty-project">
                     <FolderOpen size={30} />
                     <h3>No saved URLs yet</h3>
                     <p>Add URLs manually to build durable project context. Live-tab filing arrives in a later phase.</p>
                   </div>
+                ) : (urlProject?.savedUrls.length ?? 0) === 0 && selectedIsFolder && childrenOf(state, selected.id).length === 0 ? (
+                  <div className="empty-project">
+                    <FolderInput size={30} />
+                    <h3>This folder is empty</h3>
+                    <p>Add a sub-project to organize, or add URLs — they are kept in this folder's “Misc” sub-project.</p>
+                  </div>
                 ) : (
                   <>
+                    {selectedIsFolder && (urlProject?.savedUrls.length ?? 0) === 0 && childrenOf(state, selected.id).length > 0 && (
+                      <div className="empty-project misc-empty">
+                        <h3>No URLs in Misc yet</h3>
+                        <p>URLs you add or file into this folder are kept in its “Misc” sub-project.</p>
+                      </div>
+                    )}
                     {/* Active URLs */}
-                    {(() => { const activeUrls = selected.savedUrls.filter((u) => !u.archivedAt); return activeUrls.length === 0 ? null : (
-                      <div className="url-list" aria-label={`Active URLs in ${selected.name}`}>
+                    {(() => { const activeUrls = (urlProject ?? selected)!.savedUrls.filter((u) => !u.archivedAt); return activeUrls.length === 0 ? null : (
+                      <div className="url-list" aria-label={`Active URLs in ${(urlProject ?? selected)!.name}`}>
                         {activeUrls.map((record, index) => (
                           <SavedUrlAccordion
                             key={record.id}
-                            projectId={selected.id}
+                            projectId={(urlProject ?? selected)!.id}
                             record={record}
                             index={index}
                             count={activeUrls.length}
                             expanded={expandedUrlIds.has(record.id)}
                             model={model}
                             liveTabs={liveTabs}
-                            instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0}
+                            instanceCount={openInstanceCounts[`${(urlProject ?? selected)!.id}:${record.id}`] ?? 0}
                             projects={state.projects}
                             tagSuggestions={tagSuggestions}
                             onHover={setHoveredRecordId}
@@ -890,7 +1039,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                     ); })()}
 
                     {/* Archived URLs */}
-                    {(() => { const archivedUrls = selected.savedUrls.filter((u) => u.archivedAt); return archivedUrls.length === 0 ? null : (
+                    {(() => { const archivedUrls = (urlProject ?? selected)!.savedUrls.filter((u) => u.archivedAt); return archivedUrls.length === 0 ? null : (
                       <div className="archived-section">
                         <button className="archived-heading" aria-expanded={archivedExpanded} onClick={() => setArchivedExpanded(!archivedExpanded)}>
                           <Archive size={14} />
@@ -898,9 +1047,9 @@ export function App({ client, liveTabsClient }: AppProps) {
                           <ChevronDown size={16} className={archivedExpanded ? 'chevron expanded' : 'chevron'} />
                         </button>
                         {archivedExpanded && (
-                          <div className="url-list archived" aria-label={`Archived URLs in ${selected.name}`}>
+                          <div className="url-list archived" aria-label={`Archived URLs in ${(urlProject ?? selected)!.name}`}>
                             {archivedUrls.map((record, index) => (
-                              <SavedUrlAccordion key={record.id} projectId={selected.id} record={record} index={index} count={archivedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${selected.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} archived onHover={setHoveredRecordId} registerFocusNotes={registerFocusNotes} registerArchiveAction={registerArchiveAction} registerOpenAction={registerOpenAction} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
+                              <SavedUrlAccordion key={record.id} projectId={(urlProject ?? selected)!.id} record={record} index={index} count={archivedUrls.length} expanded={expandedUrlIds.has(record.id)} model={model} liveTabs={liveTabs} instanceCount={openInstanceCounts[`${(urlProject ?? selected)!.id}:${record.id}`] ?? 0} projects={state.projects} tagSuggestions={tagSuggestions} archived onHover={setHoveredRecordId} registerFocusNotes={registerFocusNotes} registerArchiveAction={registerArchiveAction} registerOpenAction={registerOpenAction} onToggle={(id, open) => setExpandedUrlIds((current) => { const next = new Set(current); if (open) next.add(id); else next.delete(id); return next })} onNavigate={(targetProjectId, targetRecordId) => { model.selectProject(targetProjectId); setExpandedUrlIds((current) => new Set(current).add(targetRecordId)); queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${targetRecordId}"] .accordion-toggle`)?.focus()) }} onDeleted={(deletedIndex) => {
                                 const remaining = archivedUrls.filter((item) => item.id !== record.id)
                                 const nearest = remaining[deletedIndex] ?? remaining[deletedIndex - 1]
                                 if (nearest) queueMicrotask(() => document.querySelector<HTMLButtonElement>(`[data-record-id="${nearest.id}"] .accordion-toggle`)?.focus())
@@ -999,7 +1148,11 @@ export function App({ client, liveTabsClient }: AppProps) {
       {deleteDialogProjectId && (() => {
         const deleteProject = state.projects.find((p) => p.id === deleteDialogProjectId)
         if (!deleteProject) return null
-        const deleteOwnedLiveCount = projectLiveCounts[deleteDialogProjectId] ?? 0
+        const deleteSubtreeIds = subtreeIds(state, deleteProject.id)
+        const deleteUrlCount = subtreeSavedUrls(state, deleteProject.id).length
+        const deleteSubprojectCount = deleteSubtreeIds.length - 1
+        const deleteOwnedLiveCount = deleteSubtreeIds.reduce((sum, id) => sum + (projectLiveCounts[id] ?? 0), 0)
+        const scope = deleteSubprojectCount > 0 ? ` and its ${deleteSubprojectCount} sub-project${deleteSubprojectCount === 1 ? '' : 's'}` : ''
         return (
           <ConfirmDialog
             title={`Delete \u201c${deleteProject.name}\u201d?`}
@@ -1012,7 +1165,7 @@ export function App({ client, liveTabsClient }: AppProps) {
               liveTabs.deleteProject(deleteDialogProjectId)
             }}
           >
-            <p>This permanently deletes the project and {deleteProject.savedUrls.length === 1 ? 'its 1 saved URL' : `its ${deleteProject.savedUrls.length} saved URLs`}. {deleteOwnedLiveCount === 1 ? 'Its 1 owned live tab will remain open and become Unassigned.' : `Its ${deleteOwnedLiveCount} owned live tabs will remain open and become Unassigned.`} Saved data deletion cannot be undone.</p>
+            <p>This permanently deletes “{deleteProject.name}”{scope}, including {deleteUrlCount === 1 ? 'its 1 saved URL' : `its ${deleteUrlCount} saved URLs`}. {deleteOwnedLiveCount === 1 ? 'Its 1 owned live tab will remain open and become Unassigned.' : `Its ${deleteOwnedLiveCount} owned live tabs will remain open and become Unassigned.`} Saved data deletion cannot be undone.</p>
             {deleteError && <p role="alert" className="field-error dark-error">{deleteError}</p>}
           </ConfirmDialog>
         )
@@ -1050,6 +1203,14 @@ export function App({ client, liveTabsClient }: AppProps) {
             y={contextMenu.y}
             items={[
               {
+                label: 'New sub-project',
+                icon: <FolderPlus size={14} />,
+                onClick: () => {
+                  setSubprojectParentId(contextMenu.projectId)
+                  setCreating(true)
+                },
+              },
+              {
                 label: isActive ? 'Reactivate' : 'Activate',
                 icon: <Play size={14} />,
                 onClick: () => liveTabs.prepareActivateProject(contextMenu.projectId),
@@ -1086,7 +1247,7 @@ export function App({ client, liveTabsClient }: AppProps) {
                 label: 'Export',
                 icon: <Download size={14} />,
                 onClick: () => {
-                  const html = generateExportHtml(contextProject)
+                  const html = generateExportHtml(contextProject, state.projects)
                   downloadFile(`protab-${sanitizeFilename(contextProject.name)}.html`, new Blob([html], { type: 'text/html' }))
                 },
               },

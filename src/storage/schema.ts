@@ -1,7 +1,7 @@
-import type { PersistedStateV1, PersistedState, ParsePersistedStateResult } from '../domain/types'
-import { migrateV1ToV2 } from '../domain/migration'
+import type { PersistedStateV1, PersistedStateV2, PersistedState, ParsePersistedStateResult } from '../domain/types'
+import { migrateV1ToV3, migrateV2ToV3 } from '../domain/migration'
 
-const CURRENT_SCHEMA_VERSION = 2
+const CURRENT_SCHEMA_VERSION = 3
 
 export class StorageDataError extends Error {
   constructor(
@@ -64,29 +64,65 @@ export function parsePersistedState(raw: unknown): PersistedState {
   return parsePersistedStateWithMetadata(raw).state
 }
 
+/**
+ * Structural tree validation. Only structural invariants live here (ids
+ * unique, parent refs resolve, no cycles, no self-parent). Sibling-name
+ * uniqueness and the reserved ':' policy are write-time rules enforced by
+ * applyCommand/validation so that legacy flat data (which may contain
+ * duplicate root names) always loads and migrates safely.
+ */
+function validateTree(state: PersistedState): void {
+  const byId = new Map(state.projects.map((project) => [project.id, project]))
+  for (const project of state.projects) {
+    if (project.parentId !== null && !byId.has(project.parentId)) {
+      throw new StorageDataError('A stored project references a missing parent.', 'invalid')
+    }
+  }
+  for (const project of state.projects) {
+    const seen = new Set<string>()
+    let current: PersistedState['projects'][number] | undefined = project
+    while (current?.parentId) {
+      if (seen.has(current.id)) throw new StorageDataError('Stored project nesting contains a cycle.', 'invalid')
+      if (current.parentId === current.id) throw new StorageDataError('A stored project is its own parent.', 'invalid')
+      seen.add(current.id)
+      current = byId.get(current.parentId)
+      if (!current) throw new StorageDataError('A stored project references a missing parent.', 'invalid')
+    }
+  }
+}
+
 export function parsePersistedStateWithMetadata(raw: unknown): ParsePersistedStateResult {
   if (!isRecord(raw)) throw new StorageDataError('Stored Protab data is not a valid object.', 'invalid')
-  if (raw.schemaVersion === CURRENT_SCHEMA_VERSION) {
+  const version = raw.schemaVersion
+  if (version === CURRENT_SCHEMA_VERSION) {
     validateProjects(raw.projects)
+    const state = structuredClone(raw) as unknown as PersistedState
+    validateTree(state)
     return {
-      state: structuredClone(raw) as unknown as PersistedState,
+      state,
       migrated: false,
       originalSchemaVersion: CURRENT_SCHEMA_VERSION,
       currentSchemaVersion: CURRENT_SCHEMA_VERSION,
     }
   }
-  if (raw.schemaVersion === 1) {
+  if (version === 1 || version === 2) {
     validateProjects(raw.projects)
-    const migratedState = migrateV1ToV2(structuredClone(raw) as unknown as PersistedStateV1)
+    const migratedState = migrateToCurrent(structuredClone(raw) as unknown as PersistedStateV1 | PersistedStateV2)
+    validateTree(migratedState)
     return {
       state: migratedState,
       migrated: true,
-      originalSchemaVersion: 1,
+      originalSchemaVersion: version as 1 | 2,
       currentSchemaVersion: CURRENT_SCHEMA_VERSION,
     }
   }
-  if (typeof raw.schemaVersion === 'number') {
-    throw new StorageDataError(`Protab data uses unsupported schema version ${raw.schemaVersion}.`, 'unsupported-version')
+  if (typeof version === 'number') {
+    throw new StorageDataError(`Protab data uses unsupported schema version ${version}.`, 'unsupported-version')
   }
   throw new StorageDataError('Stored Protab data has no valid schema version.', 'invalid')
+}
+
+function migrateToCurrent(raw: PersistedStateV1 | PersistedStateV2): PersistedState {
+  if (raw.schemaVersion === 1) return migrateV1ToV3(raw as PersistedStateV1)
+  return migrateV2ToV3(raw as PersistedStateV2)
 }

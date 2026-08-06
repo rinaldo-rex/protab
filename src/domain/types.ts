@@ -40,12 +40,41 @@ export interface SavedUrlV2 {
   archivedAt: number | null
 }
 
-export type PersistedState = PersistedStateV2
-export type Project = ProjectV2
-export type SavedUrl = SavedUrlV2
+export interface PersistedStateV3 {
+  schemaVersion: 3
+  projects: ProjectV3[]
+}
+
+/**
+ * A project node in the nested tree. `parentId` is null for root projects and
+ * otherwise references an existing project id. A node is either a leaf (holds
+ * saved URLs) or a folder (holds children); see design_decisions.md for the
+ * documented Misc-leaf rules that keep folders free of direct URLs.
+ */
+export interface ProjectV3 {
+  id: string
+  name: string
+  parentId: string | null
+  savedUrls: SavedUrlV3[]
+  archivedAt: number | null
+}
+
+export interface SavedUrlV3 {
+  id: string
+  url: string
+  title: string
+  titleSource: 'automatic' | 'custom'
+  tags: string[]
+  notes: string
+  archivedAt: number | null
+}
+
+export type PersistedState = PersistedStateV3
+export type Project = ProjectV3
+export type SavedUrl = SavedUrlV3
 
 export const emptyState = (): PersistedState => ({
-  schemaVersion: 2,
+  schemaVersion: 3,
   projects: [],
 })
 

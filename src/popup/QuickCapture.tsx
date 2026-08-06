@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { parseCaptureInput, getTagAutocomplete, getProjectAutocomplete, type AutocompleteOption } from '../domain/captureParser'
+import { parseCaptureInput, getTagAutocomplete, getProjectPathAutocomplete, type AutocompleteOption } from '../domain/captureParser'
 import type { PersistedState } from '../domain/types'
+import type { Command } from '../domain/commands'
+import { ownerProjectId, pathOf, resolvePath } from '../domain/tree'
 import { MESSAGE_CHANNEL, type ClientMessage, type BackgroundResponse } from '../background/messages'
 import { ExternalLink } from 'lucide-react'
 import { readSettings, DEFAULT_SETTINGS, type ProtabSettings, type WorkspaceShortcut } from '../domain/settings'
@@ -98,7 +100,7 @@ export function QuickCapture() {
     for (const project of state.projects) {
       for (const savedUrl of project.savedUrls) {
         if (savedUrl.url.replace(/\/$/, '') === normalizedUrl && !savedUrl.archivedAt) {
-          found.push({ name: project.name, savedUrlId: savedUrl.id })
+          found.push({ name: pathOf(state, project.id), savedUrlId: savedUrl.id })
           break
         }
       }
@@ -142,8 +144,7 @@ export function QuickCapture() {
       // We're in a project context
       const partial = text.slice(lastAt + 1)
       if (!partial.includes(' ')) {
-        const projectNames = state.projects.map((p) => p.name)
-        const suggestions = getProjectAutocomplete(partial, projectNames, settings.allowQuickCaptureCreateProject)
+        const suggestions = getProjectPathAutocomplete(partial, state, settings.allowQuickCaptureCreateProject)
         setAutocomplete(suggestions)
         setAutocompleteVisible(suggestions.length > 0)
         setAutocompleteIndex(-1)
@@ -204,7 +205,7 @@ export function QuickCapture() {
       return
     }
 
-    let project = state.projects.find((p) => p.name === parsed.projectName)
+    let project = resolvePath(state, parsed.projectName)
     if (!project) {
       if (!settings.allowQuickCaptureCreateProject) {
         setErrorMessage(`Project '${parsed.projectName}' not found.`)
@@ -212,36 +213,39 @@ export function QuickCapture() {
         return
       }
 
-      // Create the project first
-      const createMessage: ClientMessage = {
-        channel: MESSAGE_CHANNEL,
-        kind: 'COMMAND',
-        command: {
-          type: 'CREATE_PROJECT',
-          name: parsed.projectName,
-        },
-      }
+      // Auto-create the missing path (mkdir -p style). Each created project
+      // returns its id, which feeds the next CREATE_SUBPROJECT.
       try {
-        const createResponse: BackgroundResponse = await chrome.runtime.sendMessage(createMessage)
-        if (!createResponse.ok) {
-          setErrorMessage(createResponse.error?.message || 'Failed to create project.')
-          setStatus('error')
-          return
+        const segments = parsed.projectName.split(':').map((segment) => segment.trim()).filter(Boolean)
+        let parentId: string | null = null
+        for (let index = 0; index < segments.length; index++) {
+          const isRoot = index === 0
+          const command: Command = isRoot
+            ? { type: 'CREATE_PROJECT', name: segments[0] }
+            : { type: 'CREATE_SUBPROJECT', parentId: parentId ?? '', name: segments[index] }
+          const createMessage: ClientMessage = { channel: MESSAGE_CHANNEL, kind: 'COMMAND', command }
+          const createResponse: BackgroundResponse = await chrome.runtime.sendMessage(createMessage)
+          if (!createResponse.ok) {
+            setErrorMessage(createResponse.error?.message || 'Failed to create that project path.')
+            setStatus('error')
+            return
+          }
+          parentId = createResponse.meta?.affectedProjectId ?? parentId
         }
         // Re-read state to get the new project
         const stateMessage: ClientMessage = { channel: MESSAGE_CHANNEL, kind: 'READ_STATE' }
         const stateResponse: BackgroundResponse = await chrome.runtime.sendMessage(stateMessage)
         if (stateResponse.ok) {
           setState(stateResponse.state)
-          project = stateResponse.state.projects.find((p) => p.name === parsed.projectName)
+          project = resolvePath(stateResponse.state, parsed.projectName)
         }
         if (!project) {
-          setErrorMessage('Project was created but could not be found.')
+          setErrorMessage('That project path was created but could not be found.')
           setStatus('error')
           return
         }
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to create project.')
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to create that project path.')
         setStatus('error')
         return
       }
@@ -293,7 +297,11 @@ export function QuickCapture() {
         // If URL already exists, update tags and notes
         const existingSavedUrlId = response.meta?.existingSavedUrlId
         if (existingSavedUrlId && parsed.note) {
-          const existingRecord = project.savedUrls.find((u) => u.id === existingSavedUrlId)
+          // The record may live in a folder's Misc leaf; use the committed
+          // response state to find its actual owner project.
+          const committedState = response.state
+          const existingRecord = committedState.projects.flatMap((p) => p.savedUrls).find((u) => u.id === existingSavedUrlId)
+          const ownerId = ownerProjectId(committedState, existingSavedUrlId) ?? project.id
           if (existingRecord) {
             const newTags = [...new Set([...existingRecord.tags, ...parsed.tags])]
             const newNotes = parsed.note
@@ -307,7 +315,7 @@ export function QuickCapture() {
               kind: 'COMMAND',
               command: {
                 type: 'UPDATE_SAVED_URL',
-                projectId: project.id,
+                projectId: ownerId,
                 savedUrlId: existingSavedUrlId,
                 changes: { tags: newTags, notes: newNotes },
               },

@@ -69,6 +69,30 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .project-item:hover, .project-row.selected .project-item { color: #fff; }
 .project-row.selected .project-item { font-weight: 600; }
 .project-item span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Nested project tree */
+.project-gutter { position: relative; flex: 0 0 8px; }
+.project-gutter.gutter-active::after { content: ''; position: absolute; inset: 3px 6px 3px 6px; border-top: 2px solid #f2f0ed; border-radius: 2px; }
+.project-row.nest-target { box-shadow: inset 0 0 0 2px rgba(242,240,237,.7); border-radius: 4px; }
+.tree-chevron { display: inline-flex; flex: 0 0 26px; width: 26px; align-items: center; justify-content: center; align-self: stretch; padding: 0; border: 0; background: transparent; color: rgba(255,255,255,.5); }
+.tree-chevron:hover { color: #fff; }
+.tree-chevron-icon { transition: transform .15s ease; }
+.tree-chevron.open .tree-chevron-icon { transform: rotate(90deg); }
+.tree-chevron-spacer { flex: 0 0 26px; width: 26px; }
+.project-folder-badge { display: none; color: rgba(255,255,255,.35); font-size: 10px; font-weight: 400; }
+.project-folder-badge span { overflow: hidden; text-overflow: ellipsis; }
+.project-row:hover .project-folder-badge { display: inline; }
+
+/* Folder canvas */
+.folder-children { margin-bottom: 20px; }
+.folder-children-heading { margin: 0 0 8px; color: var(--on-surface-variant); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.folder-child-row { display: flex; width: 100%; min-height: 38px; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--outline-variant); border-radius: 6px; background: var(--surface-lowest); color: var(--on-surface); text-align: left; }
+.folder-child-row + .folder-child-row { margin-top: 6px; }
+.folder-child-row:hover { background: var(--surface-low); }
+.folder-child-row .project-name { flex: 1; min-width: 0; }
+.folder-child-add { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 8px; border: 0; background: transparent; color: var(--on-surface-variant); font-size: 12px; font-weight: 600; }
+.folder-child-add:hover { color: var(--primary); }
+.misc-heading { margin: 0 0 8px; color: var(--on-surface-variant); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .new-project-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 38px; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; background: #f2f0ed; color: #1b1c1a; font-size: 13px; font-weight: 600; }
 .new-project-button:hover { background: #fff; }
 .new-project-form { padding-top: 12px; border-top: 1px solid rgba(255,255,255,.12); }

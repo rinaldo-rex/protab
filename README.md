@@ -8,6 +8,17 @@ Protab is a local-first Chrome extension for turning temporary browser tabs into
 - **Live tabs are temporary.** They're working instances of saved URLs (or unassigned pages you haven't filed yet).
 - **Protab never syncs or uploads.** Everything stays in your browser's local storage.
 
+## Nested projects (folders)
+
+Projects can form a tree, so you can organize ("Client work" → "API docs") as well as collect.
+
+- **Folders vs leaves.** A project that contains sub-projects is a *folder*; a project that holds URLs is a *leaf*. Every saved URL lives in a leaf.
+- **Address a project by path.** Quick capture and other references use `:`-separated names, e.g. `@Client work:API docs`. Sibling projects must have unique names; `:` is reserved and can't appear in a project name.
+- **The `Misc` leaf is a documented contract, not a hidden transformation.** Adding a sub-project under a project that already has URLs moves those URLs into a `Misc` leaf inside it. Saving or filing *into* a folder stores the URL in that folder's `Misc` leaf (created on demand). This is spelled out in `design_decisions.md` so the behavior is predictable.
+- **Subtree operations.** Activating, opening all, closing all, archiving, deleting, and exporting treat a folder and all its descendants as one unit. Deleting a folder deletes the whole subtree after an explicit confirmation that includes its saved-URL count.
+- **Quick-capture autocomplete** expands a folder into its sub-projects with the `:` split: typing `@TestProj` suggests `@TestProj:SubA`, `@TestProj:SubB`.
+- **Arrange by dragging.** Drag a project onto another project to nest it under that project; drag to a gap between rows to reorder within the same group.
+
 ## Quick capture from anywhere
 
 Press `Ctrl+Shift+X` (`Cmd+Shift+X` on Mac) from any tab to open the quick-capture popup. Type your capture using this format:

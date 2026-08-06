@@ -91,7 +91,7 @@ Programmatic close is intentionally fixed for V0 because it implements the core 
 
 ## Deferred features
 
-Settings UI, pinning, task statuses, advanced search/filtering, nested projects, cloud sync, and Chrome Web Store publishing are not part of V0.
+Settings UI, pinning, task statuses, advanced search/filtering, cloud sync, and Chrome Web Store publishing are not part of V0. **Nested projects** were formerly deferred and are now part of the V1/Phase 6 work (see Nested projects below).
 
 ## Quick capture and shortcuts
 
@@ -119,6 +119,18 @@ Settings UI, pinning, task statuses, advanced search/filtering, nested projects,
 
 - **New permission:** `activeTab` is added to allow the quick-capture popup to access the current tab's URL and title. This permission is granted temporarily when the user invokes the shortcut.
 - **Manifest changes:** The manifest adds `activeTab` to permissions and a `commands` entry for the shortcut.
+
+## Nested projects (Phase 6 / V1)
+
+Projects form a single-rooted tree. The following decisions are product rules, documented here so they are never a silent surprise.
+
+- **Folders and leaves.** A project node is either a *leaf* (holds saved URLs) or a *folder* (holds sub-projects). A node that has children holds no saved URLs of its own.
+- **Subtree semantics.** Ownership, activation, Open all, Close all, archive, counts, and delete are **subtree-scoped**: a folder and all of its descendants behave as one unit. Activating a folder keeps tabs owned anywhere inside its subtree and closes tabs owned outside it. Deleting a folder deletes its entire subtree after an explicit confirm showing subtree totals.
+- **Path identity.** Every project is addressed by its colon-joined sibling names from the root (`Client work:API docs`). Sibling names must be unique (case-insensitive); other branches may reuse names. The `:` character is reserved and cannot appear in a project name.
+- **The `Misc` leaf (documented, not magic).** Because folders never hold their own URLs, the product must decide where a folder's URLs live. The rule: **when a child is added to a project that has saved URLs, those URLs are first moved into a leaf child named `Misc` (created if needed, or merged into an existing `Misc` child), and only then is the new child created.** Likewise, saving or filing a URL *into* a folder stores it in that folder's `Misc` leaf, creating one on demand. This is a documented contract so users can predict why a folder shows a `Misc` leaf after they add a sub-project or file into it. Every save into a folder lands in `Misc`; `Misc` is a normal leaf for all other purposes (it exports, archives, round-trips, and occupies a sibling name).
+- **Quick-capture paths.** Quick capture addresses projects by `@Parent:Child` path. When the typed fragment names a folder, autocomplete surfaces that folder's sub-projects with the `:` split (e.g. typing `@TestProj` offers `@TestProj:SubA`, `@TestProj:SubB`). If the referenced path does not exist and project creation is allowed, the missing chain is auto-created and the capture files into the deepest node.
+- **Referencing a folder in capture/files.** Resolving a save target to a folder routes the URL to that folder's `Misc` leaf (rule above), never to the folder node itself.
+- **Migration.** The V2 flat state migrates to V3 by making every existing project a root (`parentId: null`), preserving all records and ordering.
 
 ## Decisions required after V0
 

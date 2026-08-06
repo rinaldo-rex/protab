@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCaptureInput, getTagAutocomplete, getProjectAutocomplete } from './captureParser'
+import { parseCaptureInput, getTagAutocomplete, getProjectAutocomplete, getProjectPathAutocomplete } from './captureParser'
 
 describe('parseCaptureInput', () => {
   it('parses single tag and single project', () => {
@@ -272,5 +272,54 @@ describe('getProjectAutocomplete', () => {
       const result = getProjectAutocomplete('NewProject', projectNames, false)
       expect(result).toEqual([])
     })
+  })
+})
+
+describe('getProjectPathAutocomplete', () => {
+  const state = {
+    projects: [
+      { id: 'r1', name: 'Client work', parentId: null },
+      { id: 'r2', name: 'Personal', parentId: null },
+      { id: 'a', name: 'API docs', parentId: 'r1' },
+      { id: 'b', name: 'Design', parentId: 'r1' },
+      { id: 'c', name: 'Books', parentId: 'r2' },
+      { id: 'd', name: 'Auth', parentId: 'a' },
+    ],
+  }
+
+  it('surfaces a folder\u2019s sub-projects with the colon split when typing the folder', () => {
+    const result = getProjectPathAutocomplete('Client work', state, false)
+    expect(result.map((option) => option.value)).toContain('Client work:API docs')
+    expect(result.map((option) => option.value)).toContain('Client work:Design')
+  })
+
+  it('matches canonical paths that contain the fragment (case-insensitive)', () => {
+    const result = getProjectPathAutocomplete('auth', state, false)
+    expect(result.map((option) => option.value)).toEqual(['Client work:API docs:Auth'])
+  })
+
+  it('expands deeper as the fragment grows', () => {
+    const result = getProjectPathAutocomplete('Client work:API docs', state, false)
+    expect(result.map((option) => option.value)).toEqual(['Client work:API docs', 'Client work:API docs:Auth'])
+  })
+
+  it('adds a create option for a missing path when allowed', () => {
+    const result = getProjectPathAutocomplete('Client work:New Sub', state, true)
+    expect(result.some((option) => option.type === 'create-project')).toBe(true)
+    expect(result[result.length - 1]).toMatchObject({ type: 'create-project', value: 'Client work:New Sub' })
+    const off = getProjectPathAutocomplete('Client work:New Sub', state, false)
+    expect(off.every((option) => option.type === 'project')).toBe(true)
+  })
+
+  it('deduplicates repeated paths and caps suggestions', () => {
+    const wide = {
+      projects: Array.from({ length: 30 }, (_, index) => ({
+        id: `p${index}`,
+        name: `Item ${index}`,
+        parentId: null as string | null,
+      })),
+    }
+    const result = getProjectPathAutocomplete('Item 1', wide, false)
+    expect(result.length).toBeLessThanOrEqual(8)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { migrateV1ToV2 } from './migration'
-import type { PersistedStateV1 } from './types'
+import { migrateV1ToV2, migrateV1ToV3, migrateV2ToV3 } from './migration'
+import type { PersistedStateV1, PersistedStateV2 } from './types'
 
 describe('V1 to V2 migration', () => {
   it('migrates empty state', () => {
@@ -77,5 +77,48 @@ describe('V1 to V2 migration', () => {
     const v2 = migrateV1ToV2(v1)
     expect(v2.projects[0]).toMatchObject({ id: 'proj-1', name: 'My Project' })
     expect(v2.projects[1]).toMatchObject({ id: 'proj-2', name: 'Another' })
+  })
+})
+
+describe('V2 to V3 migration', () => {
+  it('migrates empty state', () => {
+    const v2: PersistedStateV2 = { schemaVersion: 2, projects: [] }
+    expect(migrateV2ToV3(v2)).toEqual({ schemaVersion: 3, projects: [] })
+  })
+
+  it('makes every project a root (parentId: null)', () => {
+    const v2: PersistedStateV2 = {
+      schemaVersion: 2,
+      projects: [
+        { id: 'p1', name: 'One', savedUrls: [], archivedAt: null },
+        { id: 'p2', name: 'Two', savedUrls: [], archivedAt: Date.now() },
+      ],
+    }
+    const v3 = migrateV2ToV3(v2)
+    expect(v3.schemaVersion).toBe(3)
+    expect(v3.projects.map((p) => p.parentId)).toEqual([null, null])
+    expect(v3.projects[0].archivedAt).toBeNull()
+    expect(v3.projects[1].archivedAt).toBeTypeOf('number')
+  })
+
+  it('preserves URLs, names, ids, and ordering', () => {
+    const v2: PersistedStateV2 = {
+      schemaVersion: 2,
+      projects: [
+        {
+          id: 'p1',
+          name: 'Research',
+          savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic', tags: ['a'], notes: 'note', archivedAt: null }],
+          archivedAt: null,
+        },
+      ],
+    }
+    const v3 = migrateV2ToV3(v2)
+    expect(v3.projects[0]).toMatchObject({ id: 'p1', name: 'Research' })
+    expect(v3.projects[0].savedUrls[0]).toMatchObject({ id: 'u1', url: 'https://one.test/', tags: ['a'] })
+    const chain = migrateV1ToV3({ schemaVersion: 1, projects: [{ id: 'p1', name: 'Old', savedUrls: [{ id: 'u1', url: 'https://one.test/', title: 'One', titleSource: 'automatic', tags: [], notes: '' }] }] })
+    expect(chain.schemaVersion).toBe(3)
+    expect(chain.projects[0].parentId).toBeNull()
+    expect(chain.projects[0].savedUrls[0].archivedAt).toBeNull()
   })
 })

@@ -3,10 +3,15 @@ import type { Project } from '../../domain/types'
 import { generateExportHtml } from './generateHtml'
 import { sanitizeFilename } from './downloadFile'
 
+/**
+ * Exports one self-contained HTML per ROOT project (each including its whole
+ * subtree). `projects` is the flat project list; nodes with a parent are
+ * included inside their root's file.
+ */
 export function createExportZip(projects: Project[]): Blob {
   const files: Record<string, Uint8Array> = {}
-  for (const project of projects) {
-    const html = generateExportHtml(project)
+  for (const project of projects.filter((p) => p.parentId === null)) {
+    const html = generateExportHtml(project, projects)
     const filename = `protab-${sanitizeFilename(project.name)}.html`
     files[filename] = strToU8(html)
   }

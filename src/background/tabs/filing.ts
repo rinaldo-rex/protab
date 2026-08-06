@@ -4,6 +4,7 @@ import { reconcileOwnership } from '../../domain/ownership'
 import type { LiveTabView } from '../../domain/liveTabs'
 import { isSupportedTabUrl, summarizeTabUrl } from '../../domain/liveTabs'
 import { suggestTags } from '../../domain/tagSuggestions'
+import { targetLeafId } from '../../domain/tree'
 import type { ChromeTabsApi } from './chromeTabs'
 import { queryOrdinaryTabs } from './chromeTabs'
 import type { OwnershipStore } from './ownershipStore'
@@ -127,7 +128,11 @@ export class FilingOrchestrator {
     }
 
     const capturedUrl = liveTab.url!
-    const existingRecord = project.savedUrls.find((r) => r.url === capturedUrl)
+    // Folder targets resolve to their Misc leaf (documented Rule B); a read-only
+    // resolver avoids creating a Misc leaf during prepare.
+    const existingRecord = state.projects
+      .find((p) => p.id === targetLeafId(state, projectId))
+      ?.savedUrls.find((r) => r.url === capturedUrl)
 
     const operationId = this.createId()
     const operation: PreparedFilingOperation = {
@@ -223,6 +228,9 @@ export class FilingOrchestrator {
 
       const savedUrlId = meta.affectedSavedUrlId!
       const filing = meta.filing!
+      // Folder targets resolve to their Misc leaf; ownership must reference the
+      // leaf that actually owns the record so reconciliation keeps it intact.
+      const ownedProjectId = meta.affectedProjectId ?? projectId
 
       // Step 7: Re-read tab for URL recheck
       const tabAfterPersist = await this.api.get(tabId).catch(() => null)
@@ -264,7 +272,7 @@ export class FilingOrchestrator {
           {
             tabId,
             windowId,
-            projectId,
+            projectId: ownedProjectId,
             savedUrlId,
             establishedUrl: persistedUrl,
           },
@@ -288,7 +296,7 @@ export class FilingOrchestrator {
         operationId,
         tabId,
         windowId,
-        projectId,
+        projectId: ownedProjectId,
         savedUrlId,
         persistedUrl,
         requestedAt: Date.now(),
@@ -479,6 +487,7 @@ export class FilingOrchestrator {
 
       const savedUrlId = meta.affectedSavedUrlId!
       const filing = meta.filing!
+      const ownedProjectId = meta.affectedProjectId ?? projectId
 
       // Tab disappeared after persist?
       const tabAfterPersist = await this.api.get(tabId).catch(() => null)
@@ -495,7 +504,7 @@ export class FilingOrchestrator {
       try {
         await this.ownership.update((current) => [
           ...current.filter((entry) => entry.tabId !== tabId),
-          { tabId, windowId, projectId, savedUrlId, establishedUrl: persistedUrl },
+          { tabId, windowId, projectId: ownedProjectId, savedUrlId, establishedUrl: persistedUrl },
         ])
       } catch {
         return {
@@ -514,7 +523,7 @@ export class FilingOrchestrator {
         operationId,
         tabId,
         windowId,
-        projectId,
+        projectId: ownedProjectId,
         savedUrlId,
         persistedUrl,
         requestedAt: Date.now(),

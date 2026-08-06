@@ -1,4 +1,5 @@
 import type { Project, SavedUrl } from '../../domain/types'
+import { childrenOf, subtreeSavedUrls } from '../../domain/tree'
 import { fontData } from './font-data'
 
 const icons = {
@@ -93,24 +94,54 @@ function generateStyles(): string {
   `
 }
 
-export function generateExportHtml(project: Project): string {
-  const activeUrls = project.savedUrls.filter((u) => !u.archivedAt)
-  const archivedUrls = project.savedUrls.filter((u) => u.archivedAt)
-  const timestamp = formatTimestamp()
-
+function ownUrlSections(node: Project): string {
+  const activeUrls = node.savedUrls.filter((u) => !u.archivedAt)
+  const archivedUrls = node.savedUrls.filter((u) => u.archivedAt)
   const activeSection = activeUrls.length > 0
     ? `<section class="export-section">
         <h2>Active URLs (${activeUrls.length})</h2>
         ${activeUrls.map(renderUrlCard).join('')}
       </section>`
     : ''
-
   const archivedSection = archivedUrls.length > 0
     ? `<section class="export-section">
         <h2>${icons.archive} Archived (${archivedUrls.length})</h2>
         ${archivedUrls.map(renderUrlCard).join('')}
       </section>`
     : ''
+  return `${activeSection}${archivedSection}`
+}
+
+/** Recursively renders a project node (name + its own URLs + its sub-projects). */
+function renderNode(node: Project, state: PersistedProjects): string {
+  const childrenHtml = childrenOf(state, node.id).map((child) => renderNode(child, state)).join('')
+  return `
+  <section class="subproject">
+    <h2 class="export-project-name">${icons.folder} ${escapeHtml(node.name)}</h2>
+    ${ownUrlSections(node)}
+    ${childrenHtml}
+  </section>`
+}
+
+/** Minimal read-only project container satisfying the domain tree helpers. */
+type PersistedProjects = { schemaVersion: 3; projects: Project[] }
+
+function projectsState(allProjects: Project[]): PersistedProjects {
+  return { schemaVersion: 3, projects: allProjects }
+}
+
+/**
+ * Exports a project and its whole subtree as a self-contained, offline HTML
+ * file. `allProjects` is the flat project list that lets the serializer find
+ * descendants by `parentId`.
+ */
+export function generateExportHtml(project: Project, allProjects: Project[]): string {
+  const timestamp = formatTimestamp()
+  const state = projectsState(allProjects)
+  const subtree = subtreeSavedUrls(state, project.id)
+  const totalActive = subtree.filter((u) => !u.archivedAt).length
+  const totalArchived = subtree.length - totalActive
+  const childrenHtml = childrenOf(state, project.id).map((child) => renderNode(child, state)).join('')
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -123,10 +154,12 @@ export function generateExportHtml(project: Project): string {
 <body>
   <header class="export-header">
     <h1>${icons.folder} ${escapeHtml(project.name)}</h1>
-    <p class="meta">Exported ${timestamp} · ${activeUrls.length} active · ${archivedUrls.length} archived</p>
+    <p class="meta">Exported ${timestamp} · ${totalActive} active · ${totalArchived} archived</p>
   </header>
-  ${activeSection}
-  ${archivedSection}
+  <main class="export-content">
+  ${ownUrlSections(project)}
+  ${childrenHtml}
+  </main>
   <footer class="footer">
     Exported by Protab — Local-first tab management
   </footer>

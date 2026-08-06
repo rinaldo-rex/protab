@@ -10,9 +10,61 @@ function readFileAsText(file: File): Promise<string> {
   })
 }
 
-interface ImportedProject {
+export interface ImportedProject {
   name: string
   savedUrls: Array<Omit<SavedUrl, 'id'>>
+  children: ImportedProject[]
+}
+
+function parseUrlCards(container: ParentNode): Array<Omit<SavedUrl, 'id'>> {
+  const savedUrls: Array<Omit<SavedUrl, 'id'>> = []
+  const cards = container.querySelectorAll(':scope > .export-section > .url-card')
+  for (const card of cards) {
+    const link = card.querySelector('a[href]')
+    if (!link) continue
+    const url = link.getAttribute('href') || ''
+    const title = link.textContent?.trim() || ''
+
+    // Parse tags
+    const tags: string[] = []
+    const tagEls = card.querySelectorAll('.tag')
+    for (const tagEl of tagEls) {
+      // Remove SVG content, get just text
+      const text = tagEl.textContent?.trim() || ''
+      if (text) tags.push(text)
+    }
+
+    // Parse notes
+    const notesEl = card.querySelector('.notes')
+    const notes = notesEl?.textContent?.trim() || ''
+
+    // Parse archived date
+    const archivedEl = card.querySelector('.archived-date')
+    let archivedAt: number | null = null
+    if (archivedEl) {
+      const dateText = archivedEl.textContent || ''
+      const match = dateText.match(/Archived\s+(.+)/)
+      if (match) {
+        const parsed = new Date(match[1])
+        if (!isNaN(parsed.getTime())) {
+          archivedAt = parsed.getTime()
+        }
+      }
+    }
+
+    savedUrls.push({ url, title, titleSource: 'automatic', tags, notes, archivedAt })
+  }
+  return savedUrls
+}
+
+function parseSubproject(container: Element): ImportedProject | null {
+  const nameEl = container.querySelector(':scope > .export-project-name')
+  const name = nameEl?.textContent?.trim() ?? ''
+  if (!name) return null
+  const children = Array.from(container.querySelectorAll(':scope > .subproject'))
+    .map((child) => parseSubproject(child))
+    .filter((project): project is ImportedProject => project !== null)
+  return { name, savedUrls: parseUrlCards(container), children }
 }
 
 function parseExportedHtml(html: string): ImportedProject | null {
@@ -26,54 +78,12 @@ function parseExportedHtml(html: string): ImportedProject | null {
     const projectName = titleEl.textContent.replace(' — Protab Export', '').trim()
     if (!projectName) return null
 
-    const savedUrls: Array<Omit<SavedUrl, 'id'>> = []
-
-    // Parse all URL cards
-    const cards = doc.querySelectorAll('.url-card')
-    for (const card of cards) {
-      const link = card.querySelector('a[href]')
-      if (!link) continue
-      const url = link.getAttribute('href') || ''
-      const title = link.textContent?.trim() || ''
-
-      // Parse tags
-      const tags: string[] = []
-      const tagEls = card.querySelectorAll('.tag')
-      for (const tagEl of tagEls) {
-        // Remove SVG content, get just text
-        const text = tagEl.textContent?.trim() || ''
-        if (text) tags.push(text)
-      }
-
-      // Parse notes
-      const notesEl = card.querySelector('.notes')
-      const notes = notesEl?.textContent?.trim() || ''
-
-      // Parse archived date
-      const archivedEl = card.querySelector('.archived-date')
-      let archivedAt: number | null = null
-      if (archivedEl) {
-        const dateText = archivedEl.textContent || ''
-        const match = dateText.match(/Archived\s+(.+)/)
-        if (match) {
-          const parsed = new Date(match[1])
-          if (!isNaN(parsed.getTime())) {
-            archivedAt = parsed.getTime()
-          }
-        }
-      }
-
-      savedUrls.push({
-        url,
-        title,
-        titleSource: 'automatic',
-        tags,
-        notes,
-        archivedAt,
-      })
-    }
-
-    return { name: projectName, savedUrls }
+    const main = doc.querySelector('main.export-content') ?? doc.body
+    if (!main) return null
+    const children = Array.from(main.querySelectorAll(':scope > .subproject'))
+      .map((child) => parseSubproject(child))
+      .filter((project): project is ImportedProject => project !== null)
+    return { name: projectName, savedUrls: parseUrlCards(main), children }
   } catch {
     return null
   }

@@ -234,6 +234,10 @@ The V0 programmatic-close policy and initial domain-to-tag mapping are recorded.
 - Exercise the workflow using keyboard-only navigation and a screen reader's basic announcements.
 - Repeat the restart and activation matrix with two windows, duplicate URLs across projects, changed URLs, unassigned tabs, and forced Chrome API failures.
 
+## Phase 6 — Nested projects (V1)
+
+Projects form a single-rooted tree of folders and leaves (see `spec/phase-6/what.md` and `how.md`). Highlights: **folders vs leaves** (folders hold sub-projects, leaves hold URLs; the documented `Misc` leaf keeps folders free of direct URLs), **`:`-separated project paths** (`@Client work:API docs`) with descendant autocomplete, **subtree semantics** for activation/Open all/Close all/archive/delete/export/import, **drag-to-nest** plus sibling reordering in the sidebar, and a **V3 schema** with a pure V2→V3 migration. Schema bumps continue to route old data through the existing legacy-backup + selective-import flow.
+
 ## Out of scope for these phases
 
-Settings UI remains post-V0. A future automatic-close preference may default on and offer user-close handoff, but its scope across filing, activation, and Close all requires a later product decision. Pinning, task statuses, advanced search/filtering, nested projects, cloud sync, and Chrome Web Store publishing also remain post-V0 work.
+Settings UI remains post-V0. A future automatic-close preference may default on and offer user-close handoff, but its scope across filing, activation, and Close all requires a later product decision. Pinning, task statuses, advanced search/filtering, cloud sync, and Chrome Web Store publishing, together with (post-V1) deeper outliner features such as keyboard tree reordering, also remain out of scope.

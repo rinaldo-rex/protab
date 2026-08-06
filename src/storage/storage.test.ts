@@ -5,8 +5,8 @@ import { loadState, loadStateWithMetadata, readMigrationBackup, restoreMigration
 import { parsePersistedStateWithMetadata } from './schema'
 
 const valid = {
-  schemaVersion: 2 as const,
-  projects: [{ id: 'p1', name: 'Research', savedUrls: [] }],
+  schemaVersion: 3 as const,
+  projects: [{ id: 'p1', name: 'Research', parentId: null, savedUrls: [], archivedAt: null }],
 }
 
 const validV1 = {
@@ -17,11 +17,11 @@ const validV1 = {
 describe('versioned storage', () => {
   it('initializes absent storage without writing', async () => {
     const storage = new MemoryStorageAdapter()
-    await expect(loadState(storage)).resolves.toEqual({ schemaVersion: 2, projects: [] })
+    await expect(loadState(storage)).resolves.toEqual({ schemaVersion: 3, projects: [] })
     expect(storage.writes).toBe(0)
   })
 
-  it('loads a valid V2 value as a clone', async () => {
+  it('loads a valid V3 value as a clone', async () => {
     const storage = new MemoryStorageAdapter(valid)
     const loaded = await loadState(storage)
     expect(loaded).toEqual(valid)
@@ -33,7 +33,7 @@ describe('versioned storage', () => {
     const migrationStorage = new MemoryMigrationStorageAdapter()
     const result = await loadStateWithMetadata(storage, migrationStorage)
     // Should return empty state with legacy data info
-    expect(result.state.schemaVersion).toBe(2)
+    expect(result.state.schemaVersion).toBe(3)
     expect(result.state.projects).toEqual([])
     expect(result.legacyData).toBeDefined()
     expect(result.legacyData!.available).toBe(true)
@@ -50,7 +50,7 @@ describe('versioned storage', () => {
     expect(invalidStorage.value).toEqual(invalid)
     expect(invalidStorage.writes).toBe(0)
 
-    const future = { schemaVersion: 3, projects: [] }
+    const future = { schemaVersion: 4, projects: [] }
     const futureStorage = new MemoryStorageAdapter(future)
     await expect(loadState(futureStorage)).rejects.toMatchObject({ kind: 'unsupported-version' })
     expect(futureStorage.value).toEqual(future)
@@ -83,8 +83,8 @@ describe('parsePersistedStateWithMetadata', () => {
   it('returns migrated: false for current schema', () => {
     const result = parsePersistedStateWithMetadata(valid)
     expect(result.migrated).toBe(false)
-    expect(result.originalSchemaVersion).toBe(2)
-    expect(result.currentSchemaVersion).toBe(2)
+    expect(result.originalSchemaVersion).toBe(3)
+    expect(result.currentSchemaVersion).toBe(3)
     expect(result.state).toEqual(valid)
   })
 
@@ -92,8 +92,9 @@ describe('parsePersistedStateWithMetadata', () => {
     const result = parsePersistedStateWithMetadata(validV1)
     expect(result.migrated).toBe(true)
     expect(result.originalSchemaVersion).toBe(1)
-    expect(result.currentSchemaVersion).toBe(2)
-    expect(result.state.schemaVersion).toBe(2)
+    expect(result.currentSchemaVersion).toBe(3)
+    expect(result.state.schemaVersion).toBe(3)
+    expect(result.state.projects[0].parentId).toBeNull()
     expect(result.state.projects[0].savedUrls[0]).toMatchObject({ archivedAt: null })
   })
 
@@ -103,6 +104,51 @@ describe('parsePersistedStateWithMetadata', () => {
 
   it('throws unsupported-version for future schema', () => {
     expect(() => parsePersistedStateWithMetadata({ schemaVersion: 99, projects: [] })).toThrow()
+  })
+
+  it('rejects a tree with a dangling parent', () => {
+    expect(() => parsePersistedStateWithMetadata({
+      schemaVersion: 3,
+      projects: [{ id: 'p1', name: 'A', parentId: 'ghost', savedUrls: [], archivedAt: null }],
+    })).toThrowError(expect.objectContaining({ kind: 'invalid' }))
+  })
+
+  it('rejects a tree with a cycle and a self-parent', () => {
+    expect(() => parsePersistedStateWithMetadata({
+      schemaVersion: 3,
+      projects: [
+        { id: 'a', name: 'A', parentId: 'b', savedUrls: [], archivedAt: null },
+        { id: 'b', name: 'B', parentId: 'a', savedUrls: [], archivedAt: null },
+      ],
+    })).toThrowError(expect.objectContaining({ kind: 'invalid' }))
+    expect(() => parsePersistedStateWithMetadata({
+      schemaVersion: 3,
+      projects: [{ id: 'a', name: 'A', parentId: 'a', savedUrls: [], archivedAt: null }],
+    })).toThrowError(expect.objectContaining({ kind: 'invalid' }))
+  })
+
+  it('accepts a valid nested tree and migrates it into the current schema', () => {
+    const nested = {
+      schemaVersion: 3,
+      projects: [
+        { id: 'a', name: 'A', parentId: null, savedUrls: [], archivedAt: null },
+        { id: 'b', name: 'B', parentId: 'a', savedUrls: [], archivedAt: null },
+      ],
+    }
+    const result = parsePersistedStateWithMetadata(nested)
+    expect(result.migrated).toBe(false)
+    expect(result.state.projects[1].parentId).toBe('a')
+    // A V2 flat tree migrates into a V3 root tree regardless of duplicate root names
+    const legacyV2 = {
+      schemaVersion: 2,
+      projects: [
+        { id: 'p1', name: 'Work', savedUrls: [] },
+        { id: 'p2', name: 'Work', savedUrls: [] },
+      ],
+    }
+    const migrated = parsePersistedStateWithMetadata(legacyV2)
+    expect(migrated.state.schemaVersion).toBe(3)
+    expect(migrated.state.projects.map((p) => p.parentId)).toEqual([null, null])
   })
 })
 
@@ -114,7 +160,7 @@ describe('write-through migration', () => {
     const result = await loadStateWithMetadata(storage, migrationStorage)
 
     // Returns empty state with legacy data info
-    expect(result.state.schemaVersion).toBe(2)
+    expect(result.state.schemaVersion).toBe(3)
     expect(result.state.projects).toEqual([])
     expect(result.legacyData).toBeDefined()
     expect(result.legacyData!.available).toBe(true)
@@ -129,7 +175,7 @@ describe('write-through migration', () => {
     expect(migrationStorage.backup).toBeDefined()
     expect(migrationStorage.backup!.rawState).toEqual(validV1)
     expect(migrationStorage.backup!.fromSchemaVersion).toBe(1)
-    expect(migrationStorage.backup!.toSchemaVersion).toBe(2)
+    expect(migrationStorage.backup!.toSchemaVersion).toBe(3)
   })
 
   it('does not store legacy data when backup write fails', async () => {
@@ -160,13 +206,13 @@ describe('write-through migration', () => {
 
     const result = await loadStateWithMetadata(storage, migrationStorage)
 
-    expect(result.state).toEqual({ schemaVersion: 2, projects: [] })
+    expect(result.state).toEqual({ schemaVersion: 3, projects: [] })
     expect(result.migration).toBeUndefined()
     expect(storage.writes).toBe(0)
   })
 
   it('throws for future unsupported schema without writing', async () => {
-    const future = { schemaVersion: 3, projects: [] }
+    const future = { schemaVersion: 4, projects: [] }
     const storage = new MemoryStorageAdapter(future)
     const migrationStorage = new MemoryMigrationStorageAdapter()
 
@@ -252,7 +298,8 @@ describe('migration backup recovery', () => {
 
     const result = await restoreMigrationBackup(storage, migrationStorage)
 
-    expect(result.state.schemaVersion).toBe(2)
+    expect(result.state.schemaVersion).toBe(3)
+    expect(result.state.projects[0].parentId).toBeNull()
     expect(result.state.projects[0].savedUrls[0].archivedAt).toBeNull()
     expect(storage.writes).toBe(1)
   })
@@ -327,7 +374,7 @@ describe('legacy data extraction and import', () => {
 
     // Import
     const result = await importLegacyProjects(storage, migrationStorage, ['Research'])
-    expect(result.schemaVersion).toBe(2)
+    expect(result.schemaVersion).toBe(3)
     expect(result.projects.length).toBe(1)
     expect(result.projects[0].name).toBe('Research')
     expect(result.projects[0].savedUrls[0].archivedAt).toBe(null)
@@ -336,8 +383,8 @@ describe('legacy data extraction and import', () => {
   it('skips projects with duplicate names', async () => {
     const { importLegacyProjects } = await import('./repository')
     const existingState = {
-      schemaVersion: 2 as const,
-      projects: [{ id: 'p1', name: 'Research', savedUrls: [] }],
+      schemaVersion: 3 as const,
+      projects: [{ id: 'p1', name: 'Research', parentId: null, savedUrls: [], archivedAt: null }],
     }
     const storage = new MemoryStorageAdapter(existingState)
     const backup = {
@@ -357,8 +404,8 @@ describe('legacy data extraction and import', () => {
   it('merges with existing projects', async () => {
     const { importLegacyProjects } = await import('./repository')
     const existingState = {
-      schemaVersion: 2 as const,
-      projects: [{ id: 'p1', name: 'Existing', savedUrls: [] }],
+      schemaVersion: 3 as const,
+      projects: [{ id: 'p1', name: 'Existing', parentId: null, savedUrls: [], archivedAt: null }],
     }
     const storage = new MemoryStorageAdapter(existingState)
     const backup = {

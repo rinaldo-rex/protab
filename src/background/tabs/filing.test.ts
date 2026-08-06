@@ -29,11 +29,11 @@ function createTab(overrides: Partial<LiveTabView> = {}): LiveTabView {
 }
 
 function createState(projects: PersistedState['projects'] = []): PersistedState {
-  return { schemaVersion: 2, projects }
+  return { schemaVersion: 3, projects }
 }
 
 function createProject(id: string, name: string, urls: PersistedState['projects'][0]['savedUrls'] = []) {
-  return { id, name, savedUrls: urls }
+  return { id, name, parentId: null, savedUrls: urls, archivedAt: null }
 }
 
 function createSavedUrl(id: string, url: string, overrides: Record<string, unknown> = {}) {
@@ -242,6 +242,25 @@ describe('FilingOrchestrator', () => {
 
       expect(durableQueue.execute).toHaveBeenCalledWith(expect.objectContaining({ type: 'FILE_LIVE_TAB' }))
       expect(ownership.update).toHaveBeenCalled()
+    })
+
+    it('establishes ownership against the folder Misc leaf when filing into a folder', async () => {
+      vi.mocked(api.get).mockResolvedValue({ id: 100, windowId: 1, url: 'https://example.com/' } as chrome.tabs.Tab)
+      vi.mocked(api.query).mockResolvedValue([{ id: 100, windowId: 1, url: 'https://example.com/', title: 'Example', index: 0 }] as chrome.tabs.Tab[])
+      // The durable queue (real applyCommand) resolves a folder target to its Misc leaf.
+      vi.mocked(durableQueue.execute).mockResolvedValue({
+        state: createState([]),
+        meta: { didWrite: true, affectedSavedUrlId: 'u1', affectedProjectId: 'misc1', filing: 'created' },
+      } as never)
+      ownership.update = vi.fn().mockImplementation(async (fn: (entries: OwnershipEntry[]) => OwnershipEntry[]) => fn([]))
+
+      await orchestrator.prepare(100, 'p1', 1)
+      const result = await orchestrator.executeFiling('op-1', 1)
+      expect(result.filing).toBe('created')
+      expect(result.closeState).toBe('requested')
+      const updater = vi.mocked(ownership.update).mock.calls[0][0]
+      const next = updater([])
+      expect(next[0]).toMatchObject({ tabId: 100, projectId: 'misc1', savedUrlId: 'u1' })
       expect(closeTracker.set).toHaveBeenCalled()
       expect(api.remove).toHaveBeenCalledWith(100)
       expect(inventoryChanges).toBeGreaterThan(0)

@@ -1,9 +1,10 @@
-import type { PersistedState } from '../../domain/types'
+import { emptyState, type PersistedState } from '../../domain/types'
 import type { CommandQueue } from '../../storage/commandQueue'
 import type { StorageAdapter } from '../../storage/repository'
 import { restoreMigrationBackup, exportMigrationBackup, readMigrationBackup, readLegacyData, extractLegacyDataInfo, importLegacyProjects } from '../../storage/repository'
 import type { MigrationStorageAdapter } from '../../storage/repository'
 import { reconcileOwnership } from '../../domain/ownership'
+import { ownerProjectId, subtreeIds, subtreeSavedUrls } from '../../domain/tree'
 import type { LiveTabInventory } from '../../domain/liveTabs'
 import { computeProtectionReasons } from '../../domain/tabProtection'
 import { LIVE_TAB_PORT, type LiveTabMessage, type LiveTabRequest } from '../messages'
@@ -33,7 +34,7 @@ export class LiveTabsCoordinator {
   constructor(
     private readonly api: ChromeTabsApi,
     private readonly ownership?: OwnershipStore,
-    private readonly readState: () => Promise<PersistedState> = async () => ({ schemaVersion: 2, projects: [] }),
+    private readonly readState: () => Promise<PersistedState> = async () => emptyState(),
     private readonly durableQueue?: CommandQueue,
     private readonly closeTracker?: CloseTrackerStore,
     private readonly filingOrchestrator?: FilingOrchestrator,
@@ -301,11 +302,13 @@ export class LiveTabsCoordinator {
   private async deleteProject(client: ClientSubscription, projectId: string): Promise<void> {
     if (!this.durableQueue || !this.ownership) return
     try {
-      const { state } = await this.durableQueue.execute({ type: 'DELETE_PROJECT', projectId })
+      const { state, meta } = await this.durableQueue.execute({ type: 'DELETE_PROJECT', projectId })
       this.post(client, { kind: 'PROJECT_DELETED', projectId, state })
       await chrome.runtime.sendMessage({ channel: 'protab', kind: 'STATE_COMMITTED', state }).catch(() => undefined)
       try {
-        await this.ownership.update((entries) => entries.filter((entry) => entry.projectId !== projectId))
+        // Deleting a folder removes its whole subtree; clear ownership for every deleted project.
+        const deletedIds = new Set(meta?.deletedProjectIds ?? [projectId])
+        await this.ownership.update((entries) => entries.filter((entry) => !deletedIds.has(entry.projectId)))
       } catch (error) {
         console.error('Protab deleted a project but could not immediately clear its live ownership.', { projectId, error })
       }
@@ -536,12 +539,14 @@ export class LiveTabsCoordinator {
         throw new Error('That project no longer exists.')
       }
 
+      // Activation is subtree-scoped: tabs owned anywhere inside the subtree are kept.
+      const activatedIds = new Set(subtreeIds(state, projectId))
       const reconciled = reconcileOwnership(state, rawTabs, entries)
       const tabs = reconciled.tabs
 
-      // Find tabs owned by other projects
+      // Find tabs owned by other projects (outside the activated subtree)
       const otherProjectTabs = tabs.filter(
-        (tab) => tab.ownership && tab.ownership.projectId !== projectId && !tab.ownership.drifted
+        (tab) => tab.ownership && !activatedIds.has(tab.ownership.projectId) && !tab.ownership.drifted
       )
 
       // Find drifted tabs with provenance pointing to other projects
@@ -550,7 +555,7 @@ export class LiveTabsCoordinator {
           if (!tab.ownership?.drifted) return false
           // Check if the ownership entry points to another project
           const entry = entries.find((e) => e.tabId === tab.tabId)
-          return entry && entry.projectId !== projectId
+          return entry && !activatedIds.has(entry.projectId)
         })
         .map((tab) => {
           const entry = entries.find((e) => e.tabId === tab.tabId)
@@ -685,17 +690,18 @@ export class LiveTabsCoordinator {
 
     // Open saved URLs that aren't already open (no duplicates)
     const state = await this.readState()
-    const project = state.projects.find((p) => p.id === projectId)
-    if (project) {
+    if (subtreeIds(state, projectId).length > 0) {
       const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
       const entries = this.ownership ? await this.ownership.read() : []
       const reconciled = reconcileOwnership(state, rawTabs, entries)
 
-      for (const record of project.savedUrls.filter((url) => !url.archivedAt)) {
-        // Check if already open and owned by this project
+      for (const record of subtreeSavedUrls(state, projectId).filter((url) => !url.archivedAt)) {
+        // The containing project is the leaf that owns this record.
+        const recordProjectId = ownerProjectId(state, record.id) ?? projectId
+        // Check if already open and owned inside the subtree
         const alreadyOpen = reconciled.tabs.some(
           (tab) =>
-            tab.ownership?.projectId === projectId &&
+            tab.ownership?.projectId === recordProjectId &&
             tab.ownership.savedUrlId === record.id &&
             !tab.ownership.drifted &&
             tab.url === record.url
@@ -707,14 +713,14 @@ export class LiveTabsCoordinator {
           const created = await this.api.create(client.windowId, record.url)
           if (created.id === undefined) continue
 
-          // Establish ownership
+          // Establish ownership against the leaf that owns the record
           if (this.ownership) {
             await this.ownership.update((current) => [
               ...current.filter((entry) => entry.tabId !== created.id),
               {
                 tabId: created.id!,
                 windowId: client.windowId,
-                projectId,
+                projectId: recordProjectId,
                 savedUrlId: record.id,
                 establishedUrl: record.url,
               },
@@ -757,11 +763,12 @@ export class LiveTabsCoordinator {
         throw new Error('That project no longer exists.')
       }
 
-      const activeUrls = project.savedUrls.filter((url) => !url.archivedAt)
+      const activeUrls = subtreeSavedUrls(state, projectId).filter((url) => !url.archivedAt)
       summary.total = activeUrls.length
 
       for (const record of activeUrls) {
         try {
+          const recordProjectId = ownerProjectId(state, record.id) ?? projectId
           // Check if already open and owned
           const rawTabs = await queryOrdinaryTabs(this.api, client.windowId)
           const entries = this.ownership ? await this.ownership.read() : []
@@ -770,7 +777,7 @@ export class LiveTabsCoordinator {
 
           const owned = reconciled.tabs.filter(
             (tab) =>
-              tab.ownership?.projectId === projectId &&
+              tab.ownership?.projectId === recordProjectId &&
               tab.ownership.savedUrlId === record.id &&
               !tab.ownership.drifted &&
               tab.url === record.url
@@ -795,14 +802,14 @@ export class LiveTabsCoordinator {
             throw new Error('Chrome opened the page without returning a tab identity.')
           }
 
-          // Establish ownership
+          // Establish ownership against the leaf that owns the record
           if (this.ownership) {
             await this.ownership.update((current) => [
               ...current.filter((entry) => entry.tabId !== created.id),
               {
                 tabId: created.id!,
                 windowId: client.windowId,
-                projectId,
+                projectId: recordProjectId,
                 savedUrlId: record.id,
                 establishedUrl: record.url,
               },
@@ -844,20 +851,22 @@ export class LiveTabsCoordinator {
         throw new Error('That project no longer exists.')
       }
 
+      // Close all is subtree-scoped.
+      const closeProjectIds = new Set(subtreeIds(state, projectId))
       const reconciled = reconcileOwnership(state, rawTabs, entries)
       const tabs = reconciled.tabs
 
-      // Find tabs owned by this project
+      // Find tabs owned inside the subtree
       const ownedTabs = tabs.filter(
-        (tab) => tab.ownership && tab.ownership.projectId === projectId && !tab.ownership.drifted
+        (tab) => tab.ownership && closeProjectIds.has(tab.ownership.projectId) && !tab.ownership.drifted
       )
 
-      // Find drifted tabs with provenance pointing to this project
+      // Find drifted tabs with provenance pointing inside the subtree
       const driftedTabs = tabs
         .filter((tab) => {
           if (!tab.ownership?.drifted) return false
           const entry = entries.find((e) => e.tabId === tab.tabId)
-          return entry && entry.projectId === projectId
+          return entry && closeProjectIds.has(entry.projectId)
         })
         .map((tab) => {
           const entry = entries.find((e) => e.tabId === tab.tabId)
