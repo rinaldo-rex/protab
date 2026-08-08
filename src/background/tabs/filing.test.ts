@@ -546,4 +546,86 @@ describe('FilingOrchestrator', () => {
       expect(closeTracker.resolveByTabId).toHaveBeenCalledWith(100)
     })
   })
+
+  // Phase 5: Failure hardening — storage and concurrent mutation resilience
+  describe('failure hardening', () => {
+    it('returns failed with guidance when storage quota is exceeded', async () => {
+      vi.mocked(api.get).mockResolvedValue({ id: 100, windowId: 1, url: 'https://example.com/' } as chrome.tabs.Tab)
+      vi.mocked(api.query).mockResolvedValue([{ id: 100, windowId: 1, url: 'https://example.com/', title: 'Example', index: 0 }] as chrome.tabs.Tab[])
+      vi.mocked(durableQueue.execute).mockRejectedValue(new Error('QUOTA_BYTES_PER_ITEM quota exceeded'))
+
+      await orchestrator.prepare(100, 'p1', 1)
+      const result = await orchestrator.executeFiling('op-1', 1)
+
+      expect(result.closeState).toBe('failed')
+      expect(result.error).toContain('Could not save the URL')
+      // Durable record was not created, so ownership and close should not happen
+      expect(ownership.update).not.toHaveBeenCalled()
+      expect(api.remove).not.toHaveBeenCalled()
+    })
+
+    it('preserves persisted record when close fails after successful save', async () => {
+      vi.mocked(api.get).mockResolvedValue({ id: 100, windowId: 1, url: 'https://example.com/' } as chrome.tabs.Tab)
+      vi.mocked(api.query).mockResolvedValue([{ id: 100, windowId: 1, url: 'https://example.com/', title: 'Example', index: 0 }] as chrome.tabs.Tab[])
+      vi.mocked(api.remove).mockRejectedValue(new Error('Tab close prevented by beforeunload'))
+
+      await orchestrator.prepare(100, 'p1', 1)
+      const result = await orchestrator.executeFiling('op-1', 1)
+
+      // Record was persisted successfully
+      expect(result.savedUrlId).toBeTruthy()
+      expect(result.filing).toBe('created')
+      // Close failed but record survives
+      expect(result.closeState).toBe('failed')
+      expect(result.error).toContain('rejected')
+    })
+
+    it('handles tab navigating during filing by skipping close', async () => {
+      let getCallCount = 0
+      vi.mocked(api.get).mockImplementation(async () => {
+        getCallCount++
+        if (getCallCount <= 2) {
+          // First two calls (prepare + execute step 1): original URL
+          return { id: 100, windowId: 1, url: 'https://example.com/' } as chrome.tabs.Tab
+        }
+        // Third call (after persist): URL changed due to navigation
+        return { id: 100, windowId: 1, url: 'https://example.com/new-page' } as chrome.tabs.Tab
+      })
+      vi.mocked(api.query).mockResolvedValue([{ id: 100, windowId: 1, url: 'https://example.com/', title: 'Example', index: 0 }] as chrome.tabs.Tab[])
+
+      await orchestrator.prepare(100, 'p1', 1)
+      const result = await orchestrator.executeFiling('op-1', 1)
+
+      // Record was persisted
+      expect(result.savedUrlId).toBeTruthy()
+      // But close was skipped due to URL change
+      expect(result.closeState).toBe('skipped')
+      expect(result.error).toContain('URL changed')
+      expect(api.remove).not.toHaveBeenCalled()
+    })
+
+    it('handles project deletion between prepare and execute', async () => {
+      vi.mocked(api.get).mockResolvedValue({ id: 100, windowId: 1, url: 'https://example.com/' } as chrome.tabs.Tab)
+      vi.mocked(api.query).mockResolvedValue([{ id: 100, windowId: 1, url: 'https://example.com/', title: 'Example', index: 0 }] as chrome.tabs.Tab[])
+
+      // Prepare succeeds
+      await orchestrator.prepare(100, 'p1', 1)
+
+      // Simulate service worker restart: new orchestrator has no prepared operations
+      const newOrchestrator = new FilingOrchestrator(
+        api,
+        ownership,
+        closeTracker,
+        durableQueue,
+        readState,
+        (event) => events.push(event),
+        () => { inventoryChanges++ },
+        () => `op-${++idCounter}`,
+      )
+
+      // The old prepared operation is gone (service worker restarted)
+      // executeFiling should throw with a clear message
+      await expect(newOrchestrator.executeFiling('op-1', 1)).rejects.toThrow('no longer valid')
+    })
+  })
 })

@@ -25,7 +25,7 @@ The generated Stitch HTML is a reference, not production code. Features shown th
 | [Phase 4A](phase-4a/what.md) | **Ready for testing** | [Implemented](phase-4a/how.md) | Completed Phase 4 |
 | [Phase 4B](phase-4b/what.md) | **Implemented** | [Implemented](phase-4b/how.md) | Completed Phase 4A |
 | [Phase 4D](phase-4d/what.md) | **Implemented** | [Implemented](phase-4d/how.md) | Completed Phase 4B |
-| [Phase 5](phase-5/what.md) | Ready | Write after Phase 4B | Phase 4D |
+| [Phase 5](phase-5/what.md) | **Implemented** | [Implemented](phase-5/how.md) | Phase 4D |
 
 ## Handoff rule
 

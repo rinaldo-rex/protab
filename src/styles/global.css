@@ -379,8 +379,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   30% { background: #fff3e0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .live-group-heading.pulse-once { animation: none; }
-  .live-group-heading.pulse-once { background: #fff3e0; }
+  /* Phase 5: Respect reduced-motion preferences for all animations */
+  .live-group-heading.pulse-once { animation: none; background: #fff3e0; }
+  .project-row.active.selected { animation: none; }
+  .loader { animation: none; border-top-color: var(--outline-variant); }
+  .toast { animation: none; }
+  .quickstart-tooltip,
+  .quickstart-centered-card { animation: none; }
+  .flying-tab { transition: none !important; }
+  .test-toast { animation: none; }
 }
 
 /* Unassigned notice */

@@ -1,3 +1,12 @@
+/**
+ * Protab service worker entry point.
+ *
+ * Recovery safety invariant (Phase 5): The startup path (this file's top-level
+ * execution) must never issue tab close operations. All close operations require
+ * explicit user confirmation through workspace messages handled by the coordinator.
+ * Extension reload, service-worker restart, and workspace reopening are safe.
+ */
+
 import { DomainError } from '../domain/validation'
 import { StorageDataError } from '../storage/schema'
 import { ChromeStorageAdapter, ChromeMigrationStorageAdapter, loadStateWithMetadata } from '../storage/repository'

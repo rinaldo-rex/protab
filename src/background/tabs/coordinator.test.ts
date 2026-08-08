@@ -216,6 +216,100 @@ describe('live tabs coordinator', () => {
     }
   })
 
+  // Phase 5: Recovery safety — startup, reload, restart, and workspace reopening
+  // must never trigger tab closing.
+  it('initialize() restores active state without closing any tabs', async () => {
+    vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn().mockResolvedValue(undefined) } })
+    try {
+      const chrome = api()
+      const state: PersistedState = {
+        schemaVersion: 3,
+        projects: [
+          { id: 'p1', name: 'One', parentId: null, savedUrls: [{ id: 'u1', url: 'https://1.test/', title: 'One', titleSource: 'automatic', tags: [], notes: '', archivedAt: null }], archivedAt: null },
+        ],
+      }
+      const activeProjectStore = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        restoreActiveState: vi.fn().mockResolvedValue(new Map([[1, 'p1']])),
+        getActiveProject: vi.fn().mockResolvedValue('p1'),
+        setActiveProject: vi.fn().mockResolvedValue(undefined),
+        clearActiveProject: vi.fn().mockResolvedValue(undefined),
+      }
+      const coordinator = new LiveTabsCoordinator(
+        chrome,
+        undefined,
+        async () => state,
+        undefined,
+        undefined,
+        undefined,
+        activeProjectStore as never,
+      )
+
+      await coordinator.initialize(state)
+
+      // Active state was restored
+      expect(activeProjectStore.restoreActiveState).toHaveBeenCalled()
+      // No tabs were closed during initialization
+      expect(chrome.remove).not.toHaveBeenCalled()
+      expect(chrome.create).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('connect() refreshes inventory without closing any tabs', async () => {
+    const chrome = api()
+    const coordinator = new LiveTabsCoordinator(chrome)
+    const client = port({ id: 2, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+
+    coordinator.connect(client)
+    await tick()
+
+    // Inventory was sent
+    expect(client.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'LIVE_TAB_INVENTORY' })
+    )
+    // No tabs were closed during connect
+    expect(chrome.remove).not.toHaveBeenCalled()
+    expect(chrome.create).not.toHaveBeenCalled()
+  })
+
+  it('scheduleWindow() refreshes inventory without closing any tabs', async () => {
+    const chrome = api()
+    const coordinator = new LiveTabsCoordinator(chrome)
+    const client = port({ id: 2, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+    coordinator.connect(client)
+    await tick()
+    vi.mocked(chrome.remove).mockClear()
+    vi.mocked(chrome.create).mockClear()
+
+    coordinator.scheduleWindow(1)
+    await tick()
+
+    // No tabs were closed during scheduled refresh
+    expect(chrome.remove).not.toHaveBeenCalled()
+    expect(chrome.create).not.toHaveBeenCalled()
+  })
+
+  it('scheduleAll() refreshes all windows without closing any tabs', async () => {
+    const chrome = api()
+    const coordinator = new LiveTabsCoordinator(chrome)
+    const first = port({ id: 101, windowId: 1, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+    const second = port({ id: 202, windowId: 2, url: chrome.workspaceUrl() } as chrome.tabs.Tab)
+    coordinator.connect(first)
+    coordinator.connect(second)
+    await tick()
+    vi.mocked(chrome.remove).mockClear()
+    vi.mocked(chrome.create).mockClear()
+
+    coordinator.scheduleAll()
+    await tick()
+
+    // No tabs were closed during full refresh
+    expect(chrome.remove).not.toHaveBeenCalled()
+    expect(chrome.create).not.toHaveBeenCalled()
+  })
+
   it('deleting a folder clears ownership for the whole subtree without closing tabs', async () => {
     vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn().mockResolvedValue(undefined) } })
     try {

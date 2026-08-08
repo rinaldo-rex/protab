@@ -64,6 +64,11 @@ function ContextSubmenu({ items, parentRect, onClose }: { items: ContextMenuItem
 export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [openSubmenu, setOpenSubmenu] = useState<{ index: number; rect: DOMRect } | null>(null)
+  const [focusedIndex, setFocusedIndex] = useState<number>(() => {
+    // Focus first non-disabled, non-separator item
+    const first = items.findIndex((item) => !item.separator && !item.disabled)
+    return first >= 0 ? first : 0
+  })
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -75,16 +80,41 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
         onClose()
       }
     }
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+        return
+      }
+      // Arrow key navigation within menu
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const direction = event.key === 'ArrowDown' ? 1 : -1
+        let next = focusedIndex + direction
+        // Wrap around and skip separators/disabled
+        for (let i = 0; i < items.length; i++) {
+          if (next < 0) next = items.length - 1
+          if (next >= items.length) next = 0
+          if (!items[next]?.separator && !items[next]?.disabled) break
+          next += direction
+        }
+        setFocusedIndex(next)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
+    document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
+      document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [onClose, focusedIndex, items])
+
+  // Focus the menu item when focusedIndex changes
+  useEffect(() => {
+    const menuItems = menuRef.current?.querySelectorAll('[role="menuitem"]')
+    if (menuItems && menuItems[focusedIndex]) {
+      (menuItems[focusedIndex] as HTMLElement).focus()
+    }
+  }, [focusedIndex])
 
   // Adjust position to keep menu in viewport
   useEffect(() => {
@@ -119,6 +149,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
               className="context-menu-item has-submenu"
               disabled={item.disabled}
               aria-haspopup="menu"
+              tabIndex={-1}
               onMouseEnter={(e) => {
                 setOpenSubmenu({ index, rect: e.currentTarget.getBoundingClientRect() })
               }}
@@ -137,6 +168,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
               role="menuitem"
               className={`context-menu-item${item.danger ? ' danger-text' : ''}`}
               disabled={item.disabled}
+              tabIndex={-1}
               onClick={() => {
                 item.onClick?.()
                 onClose()

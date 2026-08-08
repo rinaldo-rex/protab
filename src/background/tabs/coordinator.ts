@@ -25,6 +25,16 @@ interface ClientSubscription {
   activeProjectId?: string
 }
 
+/**
+ * Coordinates live tab state across workspace windows.
+ *
+ * Recovery safety invariant (Phase 5): Startup, extension reload, service-worker
+ * restart, and workspace reopening MUST NEVER trigger tab closing. All close
+ * operations require an explicit user-initiated message (CONFIRM_ACTIVATE_PROJECT,
+ * CONFIRM_FILE_LIVE_TAB, CONFIRM_FILE_ALL_UNASSIGNED, CONFIRM_CLOSE_ALL_PROJECT_TABS,
+ * CLOSE_LIVE_TAB). The `initialize()`, `connect()`, `scheduleWindow()`, and
+ * `scheduleAll()` paths only refresh inventory and restore lightweight state.
+ */
 export class LiveTabsCoordinator {
   private readonly clients = new Map<number, ClientSubscription>()
   private readonly refreshQueued = new Set<number>()

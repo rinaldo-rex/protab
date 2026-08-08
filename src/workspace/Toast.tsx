@@ -39,7 +39,8 @@ export function Toast({ message, type, duration, onDismiss }: ToastProps) {
   return (
     <div
       className={`toast toast-${type}`}
-      role="alert"
+      role={type === 'error' ? 'alert' : 'status'}
+      aria-live={type === 'error' ? 'assertive' : 'polite'}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
